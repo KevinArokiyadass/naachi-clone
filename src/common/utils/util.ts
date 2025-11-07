@@ -1,0 +1,94 @@
+import { customAlphabet } from 'nanoid';
+import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
+
+/**
+ * Creates a custom nanoid generator with alphanumeric characters
+ * @returns A function that generates a 10-character unique ID
+ */
+export const generateNanoid = 
+customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',16);
+
+/**
+ * Generates a unique ID using nanoid
+ * @returns A 10-character unique ID
+ */
+export const generateUniqueId = (): string => {
+  return generateNanoid();
+}; 
+
+export const generateOtp = (length = 6): string => {
+  return Math.floor(Math.random() * Math.pow(10, length))
+    .toString()
+    .padStart(length, '0');
+}
+
+
+export const generateSecretHash = (
+  username: string,
+  clientId: string,
+  clientSecret: string,
+):string => {
+  return crypto
+    .createHmac('sha256', clientSecret)
+    .update(username + clientId)
+    .digest('base64');
+}
+
+/**
+ * Generates a secure random password
+ * @param length - Length of the password (default: 12)
+ * @returns A secure random password
+ */
+export const generateRandomPassword = (length: number = 12): string => {
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const numbers = '0123456789';
+  const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+  
+  const allChars = uppercase + lowercase + numbers + symbols;
+  
+  let password = '';
+  
+  // Ensure at least one character from each category
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += symbols[Math.floor(Math.random() * symbols.length)];
+  
+  // Fill the rest with random characters
+  for (let i = 4; i < length; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+  
+  // Shuffle the password to avoid predictable patterns
+  return password.split('').sort(() => Math.random() - 0.5).join('');
+};
+
+/**
+ * Hashes a password using bcrypt
+ * @param password - Plain text password
+ * @param saltRounds - Number of salt rounds (default: 10)
+ * @returns Hashed password
+ */
+export const hashPassword = async (password: string, saltRounds: number = 10): Promise<string> => {
+  return bcrypt.hash(password, saltRounds);
+};
+
+/**
+ * Compares a plain text password with a hashed password
+ * @param password - Plain text password
+ * @param hashedPassword - Hashed password
+ * @returns True if passwords match, false otherwise
+ */
+export const comparePassword = async (password: string, hashedPassword: string): Promise<boolean> => {
+  return bcrypt.compare(password, hashedPassword);
+};
+
+/**
+ * Generates a password reset token
+ * @returns A secure reset token
+ */
+export const generateResetToken = (): string => {
+  return crypto.randomBytes(32).toString('hex');
+};
