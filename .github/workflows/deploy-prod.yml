@@ -3,7 +3,7 @@ name: Deploy to EC2
 on:
   push:
     branches:
-      - main
+      - develop
 
 jobs:
   deploy:
@@ -23,7 +23,7 @@ jobs:
       - name: Add Github Action IP to Security group
         run: |
           aws ec2 authorize-security-group-ingress \
-            --group-id ${{ secrets.AWS_SG_ID_PROD }} \
+            --group-id ${{ secrets.AWS_SG_ID }} \
             --protocol tcp --port 22 \
             --cidr ${{ steps.ip.outputs.ipv4 }}/32
         env:
@@ -39,14 +39,14 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            /home/ubuntu/deploy.sh opal-user-service 
+            /home/ubuntu/deploy.sh naachi-user-service 
 
       # Step 5: Remove GitHub Action IP from Security Group
       - name: Remove Github Action IP from Security group
         if: always()
         run: |
           aws ec2 revoke-security-group-ingress \
-            --group-id ${{ secrets.AWS_SG_ID_PROD }} \
+            --group-id ${{ secrets.AWS_SG_ID }} \
             --protocol tcp --port 22 \
             --cidr ${{ steps.ip.outputs.ipv4 }}/32
         env:
