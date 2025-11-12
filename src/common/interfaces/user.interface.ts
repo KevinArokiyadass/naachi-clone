@@ -59,13 +59,13 @@ export interface IUser {
 /**
  * User Document Interface - extends IUser with MongoDB Document properties and methods
  */
-export interface IUserDocument extends IUser, Document {
+export interface IUserDocument extends IUser {
   // MongoDB Document properties
-  _id: any;
-  id: string;
+  _id?: any;
+  id?: string;
   
   // Password helper methods
-  comparePassword(candidatePassword: string): Promise<boolean>;
+  comparePassword?(candidatePassword: string): Promise<boolean>;
   
   // Mongoose document methods
   save(): Promise<this>;

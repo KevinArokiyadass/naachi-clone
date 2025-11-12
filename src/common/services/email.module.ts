@@ -1,9 +1,9 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { EmailService } from './email.service';
-import { UserModule } from 'src/modules/user/user.module';
+import { UsersModule } from 'src/modules/users/users.module';
 
 @Module({
-  imports: [forwardRef(() => UserModule)],
+  imports: [forwardRef(() => UsersModule)],
   providers: [EmailService],
   exports: [EmailService],
 })

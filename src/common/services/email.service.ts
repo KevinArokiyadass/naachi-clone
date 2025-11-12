@@ -78,10 +78,10 @@ export class EmailService {
     this.logger.log(`OTP sent to ${sanitizedEmail}`);
   }
   async sendWelcomeEmail(email: string, firstName: string, password: string): Promise<void> {
-    const subject = 'Welcome to Opal - Your Account Details';
+    const subject = 'Welcome to Naachi - Your Account Details';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333; text-align: center;">Welcome to Opal</h2>
+        <h2 style="color: #333; text-align: center;">Welcome to Naachi</h2>
         <p>Dear ${firstName},</p>
         <p>Your account has been created successfully. Here are your login credentials:</p>
         <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 20px 0;">
@@ -97,7 +97,7 @@ export class EmailService {
 
   async sendPasswordResetEmail(email: string, firstName: string, resetToken: string): Promise<void> {
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    const subject = 'Password Reset Request - Opal';
+    const subject = 'Password Reset Request - Naachi';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>Password Reset Request</h2>

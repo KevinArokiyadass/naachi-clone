@@ -10,9 +10,7 @@ import { HttpClientModule } from './common/inter-service-communication/http-clie
 import { AppLoggerService } from './common/logger/logger.service';
 import { RequestContextService } from './common/middleware/request.service';
 import { TraceContextMiddleware } from './common/middleware/trace.middleware';
-import { AuthModule } from './modules/auth/auth.module';
-import { NotificationModule } from './modules/notification/notification.module';
-import { UserModule } from './modules/user/user.module';
+import { UsersModule } from './modules/users/users.module';
 import { AwsStoreModule } from './modules/aws-store/aws-store.module';
 
 const ENV = process.env.NODE_ENV;
@@ -23,19 +21,10 @@ const ENV = process.env.NODE_ENV;
       envFilePath: !ENV ? '.env' : `.env.${ENV}`
     }),
     EventEmitterModule.forRoot(),
-    MongooseModule.forRoot(process.env.MONGODB_URL, {
-      minPoolSize: 10,
-      maxPoolSize: 100,
-      ssl: true,
-      tls: true,
-      retryWrites: true,
-      w: 'majority'
-    }),
+    MongooseModule.forRoot(process.env.MONGODB_URL),
     HttpModule,
     HttpClientModule,
-    AuthModule,
-    UserModule,
-    NotificationModule,
+    UsersModule,
     MdmCoreModule.forRoot({
       database: {
         connectionString: process.env.MONGODB_URI

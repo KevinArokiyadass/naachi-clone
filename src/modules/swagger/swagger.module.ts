@@ -1,21 +1,21 @@
 import {
   DocumentBuilder,
-  SwaggerCustomOptions,
-  SwaggerDocumentOptions,
 } from '@nestjs/swagger';
 import { name } from '../../../package.json';
+
 // swagger
 export const swaggerConfig = new DocumentBuilder()
   .setTitle(name)
-  .setDescription(`Naga Base Service APIs documentation`)
+  .setDescription(`Naachi User Service APIs documentation`)
   .setVersion('1.0')
   .addTag(name)
+  .addBearerAuth()
   .build();
 
-export const documentOptions: SwaggerDocumentOptions = {
+export const documentOptions = {
   deepScanRoutes: true,
 };
 
-export const options: SwaggerCustomOptions = {
-  customSiteTitle: 'Application Name API Docs',
+export const options = {
+  customSiteTitle: 'Naachi User Service API Docs',
 };

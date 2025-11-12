@@ -115,7 +115,7 @@ export class CognitoService {
       console.log('<<<<<<< signIn >>>>>>>>> ')
       // Preserve the original error name for proper handling upstream
       err.name = err.name || 'UnknownError';
-      throw err;
+      throw err;4
     }
   }
 
