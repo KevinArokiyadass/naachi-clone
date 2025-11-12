@@ -2,11 +2,11 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AppLoggerService } from './common/logger/logger.service';
-import { SwaggerModule } from '@nestjs/swagger';
 import { ResponseInterceptor } from './common/interceptor/response-transform.interceptor';
 import { documentOptions, options, swaggerConfig } from './modules/swagger/swagger.module';
 import { name } from '../package.json';
 import { ValidationPipe } from '@nestjs/common';
+const SwaggerModule = require('@nestjs/swagger').SwaggerModule;
 import { Whitelists } from './common/constants/service-common.constants';
 
 async function bootstrap() {

@@ -2,12 +2,14 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { IMongoDBServices } from './abstract.repository';
 import { MongoDBServices } from './repository.service';
-import { User, UserSchema } from 'src/modules/user/entity/user.entity';
+import { Users, UsersSchema } from 'src/modules/users/entity/users.entity';
+import { SignupTemp, SignupTempSchema } from 'src/modules/users/entity/signup-temp.entity';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: User.name, schema: UserSchema },
+      { name: Users.name, schema: UsersSchema },
+      { name: SignupTemp.name, schema: SignupTempSchema },
     ]),
   ],
   providers: [

@@ -1,9 +1,11 @@
-
 import { IMongoRepository } from './repository.abstract';
-import { UserDocument } from 'src/modules/user/entity/user.entity';
-import { IUser } from 'src/common/interfaces/user.interface';
-import { User } from 'src/modules/user/entity/user.entity';
+import { UsersDocument } from 'src/modules/users/entity/users.entity';
+import { IUsers } from 'src/common/interfaces/users.interface';
+import { Users } from 'src/modules/users/entity/users.entity';
+import { SignupTempDocument } from 'src/modules/users/entity/signup-temp.entity';
+import { SignupTemp } from 'src/modules/users/entity/signup-temp.entity';
 
 export abstract class IMongoDBServices {
-    abstract user: IMongoRepository<User, IUser, UserDocument>;
+    abstract users: IMongoRepository<Users, IUsers, UsersDocument>;
+    abstract signupTemp: IMongoRepository<SignupTemp, any, SignupTempDocument>;
 }
