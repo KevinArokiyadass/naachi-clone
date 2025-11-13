@@ -18,10 +18,20 @@ async function bootstrap() {
 
   app.enableCors({
     origin(origin, callback) {
-      if (true || Whitelists.includes(origin)) {
-        callback(null, true);
+
+      if (!origin) {
+        return callback(null, true);
       }
+      
+      if (Whitelists.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      callback(new Error('Not allowed by CORS'), false);
     },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
   });
 
   app.useGlobalPipes(
@@ -31,7 +41,7 @@ async function bootstrap() {
     }),
   );
 
-  // Use custom logger globally
+
   const logger = app.get(AppLoggerService);
   app.useLogger(logger);
 
