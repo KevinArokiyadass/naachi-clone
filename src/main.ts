@@ -18,20 +18,18 @@ async function bootstrap() {
 
   app.enableCors({
     origin(origin, callback) {
-      // Allow requests with no origin (like mobile apps, Postman, etc.)
+
       if (!origin) {
         return callback(null, true);
       }
       
-      // Check if origin is in whitelist
       if (Whitelists.includes(origin)) {
         return callback(null, true);
       }
       
-      // Reject origin not in whitelist
       callback(new Error('Not allowed by CORS'), false);
     },
-    credentials: true, // Allow cookies/credentials
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
   });
@@ -43,7 +41,7 @@ async function bootstrap() {
     }),
   );
 
-  // Use custom logger globally
+
   const logger = app.get(AppLoggerService);
   app.useLogger(logger);
 
