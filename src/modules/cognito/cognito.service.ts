@@ -7,6 +7,11 @@ import {
   ResendConfirmationCodeCommand,
   AdminDeleteUserCommand,
   AdminGetUserCommand,
+  ForgotPasswordCommand,
+  ConfirmForgotPasswordCommand,
+  AdminSetUserPasswordCommand,
+  RevokeTokenCommand,
+  GlobalSignOutCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { Injectable, BadRequestException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { generateSecretHash } from 'src/common/utils/util';
@@ -26,17 +31,32 @@ export class CognitoService {
   private clientSecret = process.env.COGNITO_CLIENT_SECRET!;
   private userPoolId = process.env.COGNITO_USER_POOL_ID!;
 
-  async signUpUser(email: string, password: string) {
+  async signUpUser(userName: string, email: string, password: string, firstName?: string, lastName?: string, phoneNumber?: string) {
     try {
-      const secretHash = generateSecretHash(email, this.clientId, this.clientSecret);
+      const secretHash = generateSecretHash(userName, this.clientId, this.clientSecret);
+
+      const userAttributes = [
+        { Name: 'email', Value: email }
+      ];
+
+      // Add required name attributes if provided
+      if (firstName) {
+        userAttributes.push({ Name: 'given_name', Value: firstName });
+      }
+      if (lastName) {
+        userAttributes.push({ Name: 'family_name', Value: lastName });
+      }
+      if (phoneNumber) {
+        userAttributes.push({ Name: 'phone_number', Value: phoneNumber });
+      }
 
       await this.client.send(
         new SignUpCommand({
           ClientId: this.clientId,
-          Username: email,
+          Username: userName,
           Password: password,
           SecretHash: secretHash,
-          UserAttributes: [{ Name: 'email', Value: email }],
+          UserAttributes: userAttributes,
         }),
       );
       return { message: 'Signup successful, check your email for OTP' };
@@ -45,20 +65,20 @@ export class CognitoService {
     }
   }
 
-  async confirmSignUp(email: string, password: string, code: string,) {
+  async confirmSignUp(userName: string, password: string, code: string,) {
     try {
-      const secretHash = generateSecretHash(email, this.clientId, this.clientSecret);
+      const secretHash = generateSecretHash(userName, this.clientId, this.clientSecret);
 
       await this.client.send(
         new ConfirmSignUpCommand({
           ClientId: this.clientId,
-          Username: email,
+          Username: userName,
           ConfirmationCode: code,
           SecretHash: secretHash,
         }),
       );
-    
-      const tokens = await this.signIn(email, password);
+
+      const tokens = await this.signIn(userName, password);
 
       return {
         message: 'Email verified successfully, user logged in',
@@ -91,16 +111,16 @@ export class CognitoService {
     }
   }
 
-  async signIn(email: string, password: string) {
+  async signIn(userName: string, password: string) {
     try {
-      const secretHash = generateSecretHash(email, this.clientId, this.clientSecret);
+      const secretHash = generateSecretHash(userName, this.clientId, this.clientSecret);
 
       const res = await this.client.send(
         new InitiateAuthCommand({
           AuthFlow: AuthFlowType.USER_PASSWORD_AUTH,
           ClientId: this.clientId,
           AuthParameters: {
-            USERNAME: email,
+            USERNAME: userName,
             PASSWORD: password,
             SECRET_HASH: secretHash,
           },
@@ -115,7 +135,7 @@ export class CognitoService {
       console.log('<<<<<<< signIn >>>>>>>>> ')
       // Preserve the original error name for proper handling upstream
       err.name = err.name || 'UnknownError';
-      throw err;4
+      throw err;
     }
   }
 
@@ -200,6 +220,157 @@ export class CognitoService {
       }
       
       throw err;
+    }
+  }
+
+  async forgotPassword(email: string) {
+    try {
+      const secretHash = generateSecretHash(email, this.clientId, this.clientSecret);
+
+      const response = await this.client.send(
+        new ForgotPasswordCommand({
+          ClientId: this.clientId,
+          Username: email,
+          SecretHash: secretHash,
+        }),
+      );
+
+      return {
+        message: 'Password reset code sent successfully',
+        destination: response.CodeDeliveryDetails?.Destination,
+        deliveryMedium: response.CodeDeliveryDetails?.DeliveryMedium,
+      };
+    } catch (err) {
+      console.log('Error in forgotPassword:', err.message);
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async confirmForgotPassword(email: string, confirmationCode: string, newPassword: string) {
+    try {
+      const secretHash = generateSecretHash(email, this.clientId, this.clientSecret);
+
+      await this.client.send(
+        new ConfirmForgotPasswordCommand({
+          ClientId: this.clientId,
+          Username: email,
+          ConfirmationCode: confirmationCode,
+          Password: newPassword,
+          SecretHash: secretHash,
+        }),
+      );
+
+      return {
+        message: 'Password reset successful',
+      };
+    } catch (err) {
+      console.log('Error in confirmForgotPassword:', err.message);
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async verifyConfirmationCode(email: string, confirmationCode: string) {
+    try {
+      const secretHash = generateSecretHash(email, this.clientId, this.clientSecret);
+
+      // We'll use a temporary password to verify the code, then immediately reset it
+      const tempPassword = 'TempPass123!';
+      
+      await this.client.send(
+        new ConfirmForgotPasswordCommand({
+          ClientId: this.clientId,
+          Username: email,
+          ConfirmationCode: confirmationCode,
+          Password: tempPassword,
+          SecretHash: secretHash,
+        }),
+      );
+
+      return {
+        message: 'Confirmation code verified successfully',
+        verified: true,
+      };
+    } catch (err) {
+      console.log('Error in verifyConfirmationCode:', err.message);
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async updatePasswordAfterVerification(email: string, newPassword: string) {
+    try {
+      // Since the confirmation code was already verified, we can directly update the password
+      // We'll use the admin set user password command
+      await this.client.send(
+        new AdminSetUserPasswordCommand({
+          UserPoolId: this.userPoolId,
+          Username: email,
+          Password: newPassword,
+          Permanent: true,
+        }),
+      );
+
+      return {
+        message: 'Password updated successfully',
+      };
+    } catch (err) {
+      console.log('Error in updatePasswordAfterVerification:', err.message);
+      throw new BadRequestException(err.message);
+    }
+  }
+  
+  async logout(options: { accessToken?: string; refreshToken?: string }) {
+    const { accessToken, refreshToken } = options || {};
+    try {
+      // Prefer revoking the specific refresh token if provided
+      if (refreshToken) {
+        try {
+          await this.client.send(
+            new RevokeTokenCommand({
+              ClientId: this.clientId,
+              ClientSecret: this.clientSecret,
+              Token: refreshToken,
+            }),
+          );
+        } catch (rtErr) {
+          // If refresh token is invalid/expired/already revoked, treat as non-fatal
+          const msg = rtErr?.message || '';
+          const name = rtErr?.name || '';
+          const nonFatal =
+            name === 'InvalidParameterException' ||
+            name === 'InvalidRequestException' ||
+            name === 'NotAuthorizedException' ||
+            msg.includes('invalid') ||
+            msg.includes('expired') ||
+            msg.includes('revoked');
+          if (!nonFatal) throw rtErr;
+        }
+      }
+
+      // Additionally, if access token is provided, perform a global sign-out
+      if (accessToken) {
+        try {
+          await this.client.send(
+            new GlobalSignOutCommand({
+              AccessToken: accessToken,
+            }),
+          );
+        } catch (atErr) {
+          // If access token is invalid/revoked/expired, treat as non-fatal
+          const msg = atErr?.message || '';
+          const name = atErr?.name || '';
+          const nonFatal =
+            name === 'NotAuthorizedException' ||
+            msg.includes('Access Token has been revoked') ||
+            msg.includes('Invalid Access Token') ||
+            msg.includes('expired');
+          if (!nonFatal) throw atErr;
+        }
+      }
+
+      return { message: 'Logout successful' };
+    } catch (err) {
+      console.log('Error in logout:', err.message);
+      throw new BadRequestException(err.message);
     }
   }
 }
