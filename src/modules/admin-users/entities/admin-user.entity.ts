@@ -25,16 +25,10 @@ export class AdminUser extends Document {
   phoneNumber: string;
 
   @Prop({ type: String })
+  password: string;
+  
+  @Prop({ type: String })
   role: string;
-
-  @Prop({ type: Array<Object> })
-  abilities: {
-    attributeName: string;
-    attributeAccess: string[];
-  }[];
-
-  @Prop()
-  refreshToken: string;
 
   @Prop({ type: Boolean })
   isDeleted: Boolean

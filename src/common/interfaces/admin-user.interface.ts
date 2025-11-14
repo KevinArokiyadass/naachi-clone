@@ -6,9 +6,4 @@ export interface IAdminUser {
     password: string;
     phoneNumber: string;
     role?: string;
-    abilities: {
-        attributeName: string;
-        attributeAccess: string[];
-    }[];   // List of pages or actions the admin can access
-    refreshToken?: string;
 }

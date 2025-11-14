@@ -68,22 +68,4 @@ export class CreateAdminWithPasswordDto {
   @IsOptional()
   role?: AdminRoles;
 
-  @ApiProperty({
-    description: 'Admin abilities and permissions',
-    required: false,
-    type: 'array',
-    items: {
-      type: 'object',
-      properties: {
-        attributeName: { type: 'string' },
-        attributeAccess: { type: 'array', items: { type: 'string' } }
-      }
-    }
-  })
-  @IsOptional()
-  @IsArray()
-  abilities?: {
-    attributeName: string;
-    attributeAccess: string[];
-  }[];
 }

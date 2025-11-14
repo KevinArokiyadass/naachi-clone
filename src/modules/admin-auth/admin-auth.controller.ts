@@ -31,11 +31,6 @@ export class AdminAuthController {
 
       // Authenticate with Cognito
       const tokens = await this.cognito.signIn(loginDto.userName, loginDto.password);
-      
-      // Update refresh token in database
-      if (tokens.refreshToken) {
-        await this.adminUsers.updateRefreshToken(admin.adminId, tokens.refreshToken);
-      }
 
       return { 
         message: 'Login successful', 
@@ -45,7 +40,6 @@ export class AdminAuthController {
           lastName: admin.lastName,
           email: admin.email,
           role: admin.role,
-          abilities: admin.abilities
         }, 
         tokens: {
           accessToken: tokens.accessToken,
@@ -88,36 +82,6 @@ export class AdminAuthController {
     }
   }
 
-  @Post('confirm-signup')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Confirm admin signup with verification code' })
-  @ApiResponse({ status: 200, description: 'Signup confirmed successfully' })
-  async confirmSignUp(@Body() confirmDto: ConfirmSignUpDto) {
-    try {
-      const result = await this.cognito.confirmSignUp(confirmDto.userName, confirmDto.password, confirmDto.code);
-      
-      // After successful confirmation, update admin status if needed
-      const admin = await this.adminUsers.getOneAdminUser({ userName: confirmDto.userName });
-      if (admin) {
-        // Admin is now confirmed and can login
-        return {
-          message: 'Admin signup confirmed successfully',
-          adminUser: {
-            adminId: admin.adminId,
-            firstName: admin.firstName,
-            lastName: admin.lastName,
-            email: admin.email,
-            role: admin.role
-          },
-          tokens: result.tokens
-        };
-      }
-      
-      return result;
-    } catch (error) {
-      throw new BadRequestException(`Confirmation failed: ${error.message}`);
-    }
-  }
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
@@ -145,7 +109,9 @@ export class AdminAuthController {
   async confirmForgotPassword(@Body() body: { email: string; code: string; newPassword: string }) {
     try {
       const result = await this.cognito.confirmForgotPassword(body.email, body.code, body.newPassword);
-      return result;
+      // Persist the new password in our DB as requested
+      await this.adminUsers.setPasswordByEmail(body.email, body.newPassword);
+      return { message: 'Password reset successful', cognito: result };
     } catch (error) {
       throw new BadRequestException(`Password reset failed: ${error.message}`);
     }

@@ -12,6 +12,9 @@ import {
   AdminSetUserPasswordCommand,
   RevokeTokenCommand,
   GlobalSignOutCommand,
+  AdminCreateUserCommand,
+  DeliveryMediumType,
+  MessageActionType,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { Injectable, BadRequestException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { generateSecretHash } from 'src/common/utils/util';
@@ -31,12 +34,11 @@ export class CognitoService {
   private clientSecret = process.env.COGNITO_CLIENT_SECRET!;
   private userPoolId = process.env.COGNITO_USER_POOL_ID!;
 
-  async signUpUser(userName: string, email: string, password: string, firstName?: string, lastName?: string, phoneNumber?: string) {
+  async createAdminUser(userName: string, email: string, password: string, firstName?: string, lastName?: string, phoneNumber?: string) {
     try {
-      const secretHash = generateSecretHash(userName, this.clientId, this.clientSecret);
-
       const userAttributes = [
-        { Name: 'email', Value: email }
+        { Name: 'email', Value: email },
+        { Name: 'email_verified', Value: 'true' }
       ];
 
       // Add required name attributes if provided
@@ -48,42 +50,31 @@ export class CognitoService {
       }
       if (phoneNumber) {
         userAttributes.push({ Name: 'phone_number', Value: phoneNumber });
+        userAttributes.push({ Name: 'phone_number_verified', Value: 'true' });
       }
 
       await this.client.send(
-        new SignUpCommand({
-          ClientId: this.clientId,
+        new AdminCreateUserCommand({
+          UserPoolId: this.userPoolId,
+          Username: userName,
+          UserAttributes: userAttributes,
+          TemporaryPassword: password,
+          MessageAction: MessageActionType.SUPPRESS, // Don't send welcome email
+          ForceAliasCreation: false,
+        }),
+      );
+
+      // Set permanent password immediately
+      await this.client.send(
+        new AdminSetUserPasswordCommand({
+          UserPoolId: this.userPoolId,
           Username: userName,
           Password: password,
-          SecretHash: secretHash,
-          UserAttributes: userAttributes,
-        }),
-      );
-      return { message: 'Signup successful, check your email for OTP' };
-    } catch (err) {
-      throw new BadRequestException(err.message);
-    }
-  }
-
-  async confirmSignUp(userName: string, password: string, code: string,) {
-    try {
-      const secretHash = generateSecretHash(userName, this.clientId, this.clientSecret);
-
-      await this.client.send(
-        new ConfirmSignUpCommand({
-          ClientId: this.clientId,
-          Username: userName,
-          ConfirmationCode: code,
-          SecretHash: secretHash,
+          Permanent: true,
         }),
       );
 
-      const tokens = await this.signIn(userName, password);
-
-      return {
-        message: 'Email verified successfully, user logged in',
-        tokens, // accessToken, refreshToken, idToken
-      };
+      return { message: 'Admin user created successfully and ready to login' };
     } catch (err) {
       throw new BadRequestException(err.message);
     }

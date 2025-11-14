@@ -1,26 +1,24 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { IMongoDBServices } from '../../common/repository/mongodb-repository/abstract.repository';
-import { AdminUserDto } from './dto/create-admin-user.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
-import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
-import { IAdminUser } from 'src/common/interfaces/admin-user.interface';
+import { UpdatePasswordDto } from './dto/update-password.dto';
+import { AdminRoles } from '../../common/enums/user.enum';
+import { IAdminUser } from '../../common/interfaces/admin-user.interface';
+import { IPaginatedResult } from '../../common/interfaces/paginated-result.interface';
 import { PaginationService } from '../../common/shared/pagination/pagination.service';
 import { HttpClientService } from '../../common/inter-service-communication/http-client.service';
-import { AttributeAccess, AttributeNames, AdminRoles } from '../../common/enums/user.enum';
-import { UpdatePasswordDto } from './dto/update-password.dto';
-import { FilterQuery } from 'mongoose';
 import { CognitoService } from '../cognito/cognito.service';
+import { FilterQuery } from 'mongoose';
 
 @Injectable()
 export class AdminUserService {
   constructor(
     private dbServices: IMongoDBServices,
     private readonly paginationService: PaginationService,
-    private readonly httpClientService: HttpClientService,
     private readonly cognitoService: CognitoService,
   ) { }
 
-  async createAdminUser(createAdminDto: AdminUserDto) {
+  async createAdminUser(createAdminDto: any) {
     const existingAdmin = await this.dbServices.adminUser.findOne({ email: createAdminDto.email });
     if (existingAdmin) {
       throw new BadRequestException('Admin with this email already exists');
@@ -31,18 +29,12 @@ export class AdminUserService {
       createAdminDto.role = AdminRoles.ADMIN;
     }
 
-    // Set default abilities based on role
-    if (!createAdminDto.abilities) {
-      createAdminDto.abilities = this.getDefaultAbilitiesForRole(createAdminDto.role);
-    }
-
     // Create the admin in our DB (without password)
-    const created = await this.dbServices.adminUser.create({
+    const adminUser = await this.dbServices.adminUser.create({
       ...createAdminDto,
-      abilities: createAdminDto.abilities,
     });
 
-    return created;
+    return adminUser;
   }
 
   async createAdminUserWithPassword(createAdminDto: any) {
@@ -56,21 +48,16 @@ export class AdminUserService {
       createAdminDto.role = AdminRoles.ADMIN;
     }
 
-    // Set default abilities based on role
-    if (!createAdminDto.abilities) {
-      createAdminDto.abilities = this.getDefaultAbilitiesForRole(createAdminDto.role);
-    }
 
-    // First, create the admin in our DB (without password)
     const { password, ...adminDataWithoutPassword } = createAdminDto;
     const created = await this.dbServices.adminUser.create({
       ...adminDataWithoutPassword,
-      abilities: createAdminDto.abilities,
+      password: password,
     });
 
     // Then, provision the user in Cognito
     try {
-      await this.cognitoService.signUpUser(
+      await this.cognitoService.createAdminUser(
         createAdminDto.userName, 
         createAdminDto.email, 
         password,
@@ -80,8 +67,8 @@ export class AdminUserService {
       );
       return {
         adminUser: created,
-        message: 'Admin user created successfully. Verification email sent to the admin.',
-        requiresVerification: true
+        message: 'Admin user created successfully and ready to login.',
+        requiresVerification: false
       };
     } catch (cognitoError) {
       // Rollback DB creation to keep systems consistent
@@ -90,28 +77,6 @@ export class AdminUserService {
       } catch (_) { /* swallow rollback errors but surface original */ }
       throw new BadRequestException(`Failed to create admin user in Cognito: ${cognitoError.message}`);
     }
-  }
-
-  private getDefaultAbilitiesForRole(role: AdminRoles) {
-    const abilities = [];
-    
-    if (role === AdminRoles.SUPER_ADMIN) {
-      for (const attributeName of Object.values(AttributeNames)) {
-        abilities.push({
-          attributeName,
-          attributeAccess: [AttributeAccess.ALL],
-        });
-      }
-    } else if (role === AdminRoles.ADMIN) {
-      for (const attributeName of Object.values(AttributeNames)) {
-        abilities.push({
-          attributeName,
-          attributeAccess: [AttributeAccess.READ, AttributeAccess.WRITE],
-        });
-      }
-    }
-    
-    return abilities;
   }
 
   async findAllAdminUsers(
@@ -143,24 +108,6 @@ export class AdminUserService {
       const adminUser = await this.dbServices.adminUser.findOne({ adminId });
       if (!adminUser) {
         throw new NotFoundException(`AdminUser with adminId ${adminId} not found`);
-      }
-      if (updateAdminUserDto.role == AdminRoles.SUPER_ADMIN) {
-        updateAdminUserDto.abilities = [];
-        for (const attributeName of Object.values(AttributeNames)) {
-          updateAdminUserDto.abilities.push({
-            attributeName: attributeName as string,
-            attributeAccess: [AttributeAccess.ALL],
-          });
-        }
-      }
-      else if (updateAdminUserDto.role == AdminRoles.ADMIN) {
-        updateAdminUserDto.abilities = [];
-        for (const attributeName of Object.values(AttributeNames)) {
-          updateAdminUserDto.abilities.push({
-            attributeName: attributeName as string,
-            attributeAccess: [AttributeAccess.READ, AttributeAccess.WRITE],
-          });
-        }
       }
       
       return await this.dbServices.adminUser.findOneAndUpdate(
@@ -210,6 +157,18 @@ export class AdminUserService {
     filter: FilterQuery<IAdminUser>
   ) {
     return await this.dbServices.adminUser.findOne(filter);
+  }
+
+  async setPasswordByEmail(email: string, newPassword: string) {
+    const admin = await this.dbServices.adminUser.findOne({ email });
+    if (!admin) {
+      throw new NotFoundException('Admin user not found');
+    }
+    return await this.dbServices.adminUser.findOneAndUpdate(
+      { email },
+      { password: newPassword },
+      { new: true }
+    );
   }
 
   async updateRefreshToken(adminId: string, refreshToken: string) {
