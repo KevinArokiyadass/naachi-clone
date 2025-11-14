@@ -12,6 +12,8 @@ import { RequestContextService } from './common/middleware/request.service';
 import { TraceContextMiddleware } from './common/middleware/trace.middleware';
 import { UsersModule } from './modules/users/users.module';
 import { AwsStoreModule } from './modules/aws-store/aws-store.module';
+import { AdminUserModule } from './modules/admin-users/admin-user.module';
+import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
 
 const ENV = process.env.NODE_ENV;
 
@@ -25,6 +27,8 @@ const ENV = process.env.NODE_ENV;
     HttpModule,
     HttpClientModule,
     UsersModule,
+    AdminUserModule,
+    AdminAuthModule,
     MdmCoreModule.forRoot({
       database: {
         connectionString: process.env.MONGODB_URI
