@@ -1,7 +1,8 @@
 export enum AdminRoles {
   SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
-  MODERATOR = 'MODERATOR'
+  INSTITUTIONADMIN="INSTITUTION_ADMIN",
+  DEPARTMENTADMIN="DEPARTMENT_ADMIN",
 }
 
 export enum AttributeNames {
