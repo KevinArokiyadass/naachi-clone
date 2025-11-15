@@ -3,7 +3,6 @@ import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AdminUserService } from './admin-user.service';
 import { CreateAdminWithPasswordDto } from './dto/create-admin-with-password.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
-import { Request } from 'express';
 import { FetchDto } from 'src/common/shared/pagination/dto/fetch.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 
@@ -19,6 +18,7 @@ export class AdminUserController {
   async createAdminUser(@Body() createAdminDto: CreateAdminWithPasswordDto) {
     return await this.adminUserService.createAdminUserWithPassword(createAdminDto);
   }
+
 
   @Get()
   getAllAdminUsers(

@@ -11,6 +11,7 @@ import { CommonAuthService } from 'src/common/services/auth.service';
 export class UsersService {
     private readonly OTP_EXPIRY_MINUTES = 5;
     private readonly TEMP_DATA_EXPIRY_MINUTES = 30;
+    private readonly DEFAULT_PHONE_OTP = '64321';
 
     constructor(
         private readonly dbService: IMongoDBServices,
@@ -21,6 +22,11 @@ export class UsersService {
     
     private generateOtp(): string {
         return Math.floor(1000 + Math.random() * 90000).toString();
+    }
+
+    // Use a fixed OTP for phone number verification as requested
+    private generatePhoneOtp(): string {
+        return this.DEFAULT_PHONE_OTP;
     }
 
     async verifyPhone(phoneNumber: string): Promise<{
@@ -36,7 +42,7 @@ export class UsersService {
             throw new BadRequestException('Phone number already registered');
         }
 
-        const otp = this.generateOtp();
+        const otp = this.generatePhoneOtp();
         const otpExpiry = new Date(Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000);
         const dataExpiry = new Date(Date.now() + this.TEMP_DATA_EXPIRY_MINUTES * 60 * 1000);
         
