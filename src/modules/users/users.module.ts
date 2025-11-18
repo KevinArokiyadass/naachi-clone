@@ -4,6 +4,8 @@ import { UsersController } from './users.controller';
 import { DBServicesModule } from 'src/common/repository/repository-services.module';
 import { EmailModule } from 'src/common/services/email.module';
 import { CommonAuthModule } from 'src/common/services/common-auth.module';
+import { UsersPhoneAuthService } from './phone-auth.service';
+import { UsersPhoneAuthController } from './users.controller';
 
 @Module({
     imports: [
@@ -12,13 +14,16 @@ import { CommonAuthModule } from 'src/common/services/common-auth.module';
         CommonAuthModule,
     ],
     controllers: [
-        UsersController
+        UsersController,
+        UsersPhoneAuthController
     ],
     providers: [
-        UsersService
+        UsersService,
+        UsersPhoneAuthService
     ],
     exports: [
-        UsersService
+        UsersService,
+        UsersPhoneAuthService
     ]
 })
 export class UsersModule { }

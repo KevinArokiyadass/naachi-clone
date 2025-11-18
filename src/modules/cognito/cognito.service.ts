@@ -18,7 +18,7 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider';
 import { Injectable, BadRequestException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { generateSecretHash } from 'src/common/utils/util';
-import { IUser } from 'src/common/interfaces/user.interface';
+
 
 @Injectable()
 export class CognitoService {

@@ -10,6 +10,6 @@ import { CommonAuthService } from './auth.service';
     }),
   ],
   providers: [CommonAuthService],
-  exports: [CommonAuthService],
+  exports: [CommonAuthService, JwtModule],
 })
 export class CommonAuthModule {}

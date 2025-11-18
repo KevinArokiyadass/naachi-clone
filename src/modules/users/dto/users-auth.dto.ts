@@ -3,8 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 // ==================== SIGNUP FLOW ====================
 
-/**
- * Signup DTO - User registration with OTP verification
+
  */
 export class UsersSignupDto {
   @ApiProperty({
@@ -14,34 +13,6 @@ export class UsersSignupDto {
   @IsNotEmpty({ message: 'Phone number is required' })
   @IsString()
   phoneNumber: string;
-
-  @ApiProperty({
-    description: 'Email address (required)',
-    example: 'user@example.com',
-  })
-  @IsNotEmpty({ message: 'Email is required' })
-  @IsEmail({}, { message: 'Invalid email format' })
-  email: string;
-
-  @ApiProperty({
-    description: 'Username (1-30 characters, letters, numbers, dots, underscores)',
-    example: 'john_doe',
-  })
-  @IsNotEmpty({ message: 'Username is required' })
-  @IsString()
-  @Matches(/^(?!.*\.\.)(?!\.)(?!.*\.$)[A-Za-z0-9._]{1,30}$/, {
-    message: 'Username must be 1-30 characters long, contain only letters, numbers, dots, and underscores. Cannot start or end with a dot, and cannot have consecutive dots.'
-  })
-  userName: string;
-
-  @ApiProperty({
-    description: 'Full name (optional)',
-    example: 'John Doe',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  Name?: string;
 }
 
 /**
@@ -65,13 +36,12 @@ export class UsersVerifySignupDto {
   otp: string;
 
   @ApiProperty({
-    description: 'FCM token (optional)',
-    example: 'fcmToken',
-    required: false,
+    description: 'Cognito session returned from OTP initiation',
+    example: 'AQoDYXdzEJr...'
   })
-  @IsOptional()
+  @IsNotEmpty({ message: 'Session is required' })
   @IsString()
-  fcmToken?: string;
+  session: string;
 }
 
 // ==================== LOGIN FLOW ====================
@@ -108,12 +78,58 @@ export class UsersVerifyLoginDto {
   otp: string;
 
   @ApiProperty({
-    description: 'FCM token (optional)',
-    example: 'fcmToken',
-    required: false,
+    description: 'Cognito session returned from OTP initiation',
+    example: 'AQoDYXdzEJr...'
   })
-  @IsOptional()
+  @IsNotEmpty({ message: 'Session is required' })
   @IsString()
-  fcmToken?: string;
+  session: string;
 }
 
+export class UsersRefreshTokenDto {
+  @ApiProperty({
+    description: 'Cognito refresh token',
+    example: 'eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIn0...'
+  })
+  @IsNotEmpty({ message: 'Refresh token is required' })
+  @IsString()
+  refreshToken: string;
+}
+
+export class UsersLogoutDto {
+  @ApiProperty({
+    description: 'Current Cognito access token',
+    example: 'eyJraWQiOiJLT0pqd3Z...'
+  })
+  @IsNotEmpty({ message: 'Access token is required' })
+  @IsString()
+  accessToken: string;
+
+  @ApiProperty({
+    description: 'Refresh token to revoke',
+    example: 'eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIn0...'
+  })
+  @IsNotEmpty({ message: 'Refresh token is required' })
+  @IsString()
+  refreshToken: string;
+}
+
+export class UsersGenerateJwtDto {
+  @ApiProperty({
+    description: 'User ID to generate JWT for',
+    example: 'USR_abc123'
+  })
+  @IsNotEmpty({ message: 'User ID is required' })
+  @IsString()
+  userId: string;
+}
+
+export class UsersCheckAvailableUserNameDto {
+  @ApiProperty({
+    description: 'Username to check availability',
+    example: 'john_doe',
+  })
+  @IsNotEmpty({ message: 'Username is required' })
+  @IsString()
+  userName: string;
+}
