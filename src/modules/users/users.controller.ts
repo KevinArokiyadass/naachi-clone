@@ -1,55 +1,83 @@
 import { Body, Controller, Post, Get, Param } from '@nestjs/common';
-import { UsersService } from './users.service';
 import {
-  VerifyPhoneDto,
-  ConfirmPhoneDto,
-  SetUsernameDto,
-  VerifyEmailDto,
   ConfirmEmailDto,
-  CompleteSignupDto
-} from './dto/multistep-signup.dto';
+  SetUsernameDto,
+  UsersCheckAvailableUserNameDto,
+  UsersGenerateJwtDto,
+  UsersLoginDto,
+  UsersLogoutDto,
+  UsersRefreshTokenDto,
+  UsersSignupDto,
+  UsersVerifyLoginDto,
+  UsersVerifySignupDto,
+  VerifyEmailDto
+} from './dto/users-auth.dto';
+import { UsersAuthService } from './users.service';
 
 
-@Controller('users-auth')
+@Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersAuthService) {}
 
-  @Post('verify-phone')
-  async verifyPhone(@Body() dto: VerifyPhoneDto) {
-    return await this.usersService.verifyPhone(dto.phoneNumber);
+  @Post('signup')
+  async signup(@Body() dto: UsersSignupDto) {
+    return this.usersService.signup(dto);
   }
 
-  @Post('confirm-phone')
-  async confirmPhone(@Body() dto: ConfirmPhoneDto) {
-    return await this.usersService.confirmPhone(dto.phoneNumber, dto.otp);
+  @Post('signup/verify')
+  async verifySignup(@Body() dto: UsersVerifySignupDto) { 
+    return this.usersService.verifySignupOtp(dto);
+  }
+
+  @Post('signup/resend-otp')
+  async resendSignupOtp(@Body() dto: UsersLoginDto) {
+    return this.usersService.resendSignupOtp(dto.phoneNumber);
+  }
+
+  @Post('check-available-username')
+  async checkAvailableUserName(@Body() dto: UsersCheckAvailableUserNameDto) {
+    return this.usersService.checkAvailableUserName(dto.userName);
   }
 
   @Post('set-username')
   async setUsername(@Body() dto: SetUsernameDto) {
-    return await this.usersService.setUsername(dto.phoneNumber, dto.userName);
+    return this.usersService.setUsername(dto);
   }
 
   @Post('verify-email')
   async verifyEmail(@Body() dto: VerifyEmailDto) {
-    return await this.usersService.verifyEmail(dto.phoneNumber, dto.email);
+    return this.usersService.verifyEmail(dto);
   }
 
   @Post('confirm-email')
-  async confirmEmail(@Body() dto: ConfirmEmailDto) {
-    return await this.usersService.confirmEmail(dto.email, dto.otp);
+  async confirmEmail(@Body() dto: ConfirmEmailDto) {  
+    return this.usersService.confirmEmail(dto);
   }
 
-  @Post('complete-signup')
-  async completeSignup(@Body() dto: CompleteSignupDto) {
-    return await this.usersService.completeSignup(
-      dto.phoneNumber,
-      dto.Name
-    );
+  @Post('login')
+  async requestLogin(@Body() dto: UsersLoginDto) {  
+    return this.usersService.requestLoginOtp(dto);
   }
 
-  @Get('signup-status/:phoneNumber')
-  async getSignupStatus(@Param('phoneNumber') phoneNumber: string) {
-    return await this.usersService.getSignupStatus(phoneNumber);
-  };
+  @Post('login/verify')
+  async verifyLogin(@Body() dto: UsersVerifyLoginDto) { 
+    return this.usersService.verifyLoginOtp(dto);
+  }
 
+  @Post('refresh-token')
+  async refreshToken(@Body() dto: UsersRefreshTokenDto) {
+    return this.usersService.refreshToken(dto.refreshToken);
+  }
+
+  @Post('logout')
+  async logout(@Body() dto: UsersLogoutDto) {
+    return this.usersService.logout(dto.accessToken, dto.refreshToken);
+  }
+
+  @Post('generate-jwt')
+  async generateJwt(@Body() dto: UsersGenerateJwtDto) {
+    return this.usersService.generateAppJwt(dto.userId);
+  }
 }
+
+

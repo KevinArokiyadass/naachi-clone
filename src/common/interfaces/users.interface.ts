@@ -1,9 +1,9 @@
 export interface IUsers {
     userId: string;
     phoneNumber: string;
-    email: string;
+    email?: string;
     password?: string;
-    userName: string;
+    userName?: string;
     Name?: string;
     isActive: boolean;
     isVerified: boolean;
@@ -11,6 +11,15 @@ export interface IUsers {
     otp?: string;
     otpExpiry?: Date;
     lastLoginAt?: Date;
+    status: string;
+    phoneVerified: boolean;
+    phoneOtp?: string;
+    phoneOtpExpiry?: Date;
+    userNameSet: boolean;
+    emailVerified: boolean;
+    emailOtp?: string;
+    emailOtpExpiry?: Date;
+    expiresAt?: Date;
     createdAt?: Date;
     updatedAt?: Date;
 }

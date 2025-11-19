@@ -1,338 +1,561 @@
-import { Injectable, BadRequestException, UnauthorizedException, NotFoundException, InternalServerErrorException } from '@nestjs/common';
-import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
-import { SignupTemp, SignupTempDocument } from './entity/signup-temp.entity';
-import { UsersDocument } from './entity/users.entity';
-import { EmailService } from 'src/common/services/email.service';
-import { CommonAuthService } from 'src/common/services/auth.service';
-
-
-
-@Injectable()
-export class UsersService {
-    private readonly OTP_EXPIRY_MINUTES = 5;
-    private readonly TEMP_DATA_EXPIRY_MINUTES = 30;
-    private readonly DEFAULT_PHONE_OTP = '64321';
-
+import {
+    BadRequestException,
+    Injectable,
+    NotFoundException,
+    UnauthorizedException,
+  } from '@nestjs/common';
+  import {
+    AdminUpdateUserAttributesCommand,
+    AuthFlowType,
+    CognitoIdentityProviderClient,
+    GetUserAttributeVerificationCodeCommand,
+    GlobalSignOutCommand,
+    InitiateAuthCommand,
+    RespondToAuthChallengeCommand,
+    ResendConfirmationCodeCommand,
+    RevokeTokenCommand,
+    SignUpCommand,
+    SignUpCommandInput,
+    VerifyUserAttributeCommand,
+  } from '@aws-sdk/client-cognito-identity-provider';
+  import { JwtService } from '@nestjs/jwt';
+  import { nanoid } from 'nanoid';
+  
+  import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
+  import { IUsers } from 'src/common/interfaces/users.interface';
+  import { generateRandomPassword } from 'src/common/utils/util';
+  import {
+    ConfirmEmailDto,
+    SetUsernameDto,
+    UsersLoginDto,
+    UsersSignupDto,
+    UsersVerifyLoginDto,
+    UsersVerifySignupDto,
+    VerifyEmailDto,
+  } from './dto/users-auth.dto';
+  
+  @Injectable()
+  export class UsersAuthService {
+    private cognitoClient: CognitoIdentityProviderClient;
+    private readonly clientId = process.env.COGNITO_CUSTOMER_APP_CLIENT_ID;
+    private readonly userPoolId = process.env.COGNITO_CUSTOMER_USER_POOL_ID;
+  
     constructor(
-        private readonly dbService: IMongoDBServices,
-        private readonly emailService: EmailService,
-        private readonly commonAuthService: CommonAuthService
-    ) {}
-
-    
-    private generateOtp(): string {
-        return Math.floor(1000 + Math.random() * 90000).toString();
+      private readonly dbService: IMongoDBServices,
+      private readonly jwtService: JwtService,
+    ) {
+      if (!this.clientId) {
+        throw new Error('COGNITO_CUSTOMER_APP_CLIENT_ID is not configured');
+      }
+      if (!this.userPoolId) {
+        throw new Error('COGNITO_CUSTOMER_USER_POOL_ID is not configured');
+      }
+      this.cognitoClient = new CognitoIdentityProviderClient({
+        region: process.env.AWS_REGION,
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        },
+      });
     }
-
-    // Use a fixed OTP for phone number verification as requested
-    private generatePhoneOtp(): string {
-        return this.DEFAULT_PHONE_OTP;
+  
+    async signup(dto: UsersSignupDto) {
+      await this.ensurePhoneAvailable(dto.phoneNumber);
+  
+      const userPayload: IUsers = {
+        userId: nanoid(),
+        phoneNumber: dto.phoneNumber,
+        isActive: false,
+        isVerified: false,
+        isDeleted: false,
+        status: 'pending',
+        phoneVerified: false,
+        userNameSet: false,
+        emailVerified: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+  
+      await this.signUpUserInCognito(dto.phoneNumber, userPayload.userId);
+  
+      const otpResponse = await this.generateOtp(dto.phoneNumber);
+  
+      await this.dbService.users.create(userPayload);
+  
+      return {
+        message: 'OTP sent to phone number',
+        challengeName: otpResponse.ChallengeName,
+        session: otpResponse.Session,
+        userId: userPayload.userId,
+      };
     }
-
-    async verifyPhone(phoneNumber: string): Promise<{
-        message: string;
-        expiresAt: Date;
-    }> {
-        const existingUser = await this.dbService.users.findOne({
-            phoneNumber,
-            isDeleted: false
-        }) as UsersDocument | null;
-
-        if (existingUser) {
-            throw new BadRequestException('Phone number already registered');
-        }
-
-        const otp = this.generatePhoneOtp();
-        const otpExpiry = new Date(Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000);
-        const dataExpiry = new Date(Date.now() + this.TEMP_DATA_EXPIRY_MINUTES * 60 * 1000);
-        
-        await this.dbService.signupTemp.findOneAndUpdate(
-            { phoneNumber },
-            {
-                phoneNumber,
-                phoneOtp: otp,
-                phoneOtpExpiry: otpExpiry,
-                phoneVerified: false,
-                userNameSet: false,
-                emailVerified: false,
-                completed: false,
-                expiresAt: dataExpiry
-            },
-            { upsert: true, new: true }
+  
+    async verifySignupOtp(dto: UsersVerifySignupDto) {
+      const user = await this.getUserOrThrow(dto.phoneNumber);
+  
+      const response = await this.respondToOtpChallenge(
+        dto.phoneNumber,
+        dto.otp,
+        dto.session,
+      );
+  
+      const tokens = this.extractAuthResult(response);
+  
+      const updatedUser = await this.dbService.users.findOneAndUpdate(
+        { phoneNumber: dto.phoneNumber, isDeleted: false },
+        {
+          phoneVerified: true,
+          isActive: true,
+          lastLoginAt: new Date(),
+          updatedAt: new Date(),
+        },
+        { new: true },
+      );
+  
+      return {
+        message: 'Phone number verified successfully',
+        tokens,
+        user: updatedUser ?? user,
+      };
+    }
+  
+    async requestLoginOtp(dto: UsersLoginDto) {
+      const user = await this.getUserOrThrow(dto.phoneNumber);
+  
+      if (user.status !== 'completed') {
+        throw new BadRequestException(
+          'Complete email verification before logging in.',
         );
-
-        console.log(`Phone OTP for ${phoneNumber}: ${otp}`);
-
-        return {
-            message: 'OTP sent to your phone number',
-            expiresAt: otpExpiry
-        };
+      }
+  
+      const otpResponse = await this.generateOtp(dto.phoneNumber);
+  
+      return {
+        message: 'OTP sent to phone number',
+        challengeName: otpResponse.ChallengeName,
+        session: otpResponse.Session,
+      };
     }
-
-    async confirmPhone(phoneNumber: string, otp: string): Promise<{
-        message: string;
-    }> {
-        const tempData = await this.getTempSignupData(phoneNumber);
-
-        if (tempData.phoneVerified) {
-            return {
-                message: 'Phone already verified'
-            };
-        }
-
-        if (!tempData.phoneOtp || !tempData.phoneOtpExpiry) {
-            throw new BadRequestException('No OTP found. Please request a new OTP.');
-        }
-
-        if (tempData.phoneOtpExpiry < new Date()) {
-            throw new UnauthorizedException('OTP expired. Please request a new OTP.');
-        }
-
-        if (tempData.phoneOtp !== otp) {
-            throw new UnauthorizedException('Invalid OTP');
-        }
-
-        await this.dbService.signupTemp.findOneAndUpdate(
-            { phoneNumber },
-            {
-                phoneVerified: true,
-                phoneOtp: null,
-                phoneOtpExpiry: null
-            }
+  
+    async verifyLoginOtp(dto: UsersVerifyLoginDto) {
+      const user = await this.getUserOrThrow(dto.phoneNumber);
+  
+      if (user.status !== 'completed') {
+        throw new BadRequestException(
+          'Complete email verification before logging in.',
         );
-
-        return {
-            message: 'Phone verified successfully'
-        };
+      }
+  
+      const response = await this.respondToOtpChallenge(
+        dto.phoneNumber,
+        dto.otp,
+        dto.session,
+      );
+  
+      const tokens = this.extractAuthResult(response);
+  
+      const updatedUser = await this.dbService.users.findOneAndUpdate(
+        { phoneNumber: dto.phoneNumber, isDeleted: false },
+        {
+          lastLoginAt: new Date(),
+          updatedAt: new Date(),
+        },
+        { new: true },
+      );
+  
+      return {
+        message: 'Login successful',
+        tokens,
+        user: updatedUser ?? user,
+      };
     }
-
-    async setUsername(phoneNumber: string, userName: string): Promise<{
-        message: string;
-    }> {
-        const tempData = await this.getTempSignupData(phoneNumber);
-
-        if (!tempData.phoneVerified) {
-            throw new BadRequestException('Phone number must be verified first');
+  
+    async checkAvailableUserName(userName: string) {
+      const user = await this.dbService.users.findOne({
+        userName,
+        isDeleted: false
+      });
+      if (user) {
+        throw new BadRequestException('Username already taken');
+      }
+      return {
+        message: 'Username available'
+      };
+    }
+  
+    async setUsername(dto: SetUsernameDto) {
+      const user = await this.dbService.users.findOne({
+        userId: dto.userId,
+        isDeleted: false
+      });
+  
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+  
+      if (!user.phoneVerified) {
+        throw new BadRequestException('Phone number must be verified first');
+      }
+  
+      if (user.status !== 'pending') {
+        throw new BadRequestException('User signup is already completed');
+      }
+  
+      // Check if username is already taken by another user
+      const existingUser = await this.dbService.users.findOne({
+        userName: dto.userName,
+        isDeleted: false
+      });
+  
+      if (existingUser && existingUser.userId !== dto.userId) {
+        throw new BadRequestException('Username already taken');
+      }
+  
+      // Update MongoDB
+      await this.dbService.users.findOneAndUpdate(
+        { userId: dto.userId, status: 'pending' },
+        {
+          userName: dto.userName,
+          userNameSet: true,
+          updatedAt: new Date()
         }
-
-        const existingUser = await this.dbService.users.findOne({
-            userName,
-            isDeleted: false
-        }) as UsersDocument | null;
-
-        if (existingUser) {
-            throw new BadRequestException('Username already taken');
+      );
+  
+      return {
+        message: 'Username set successfully'
+      };
+    }
+  
+    async verifyEmail(dto: VerifyEmailDto) {
+      const user = await this.dbService.users.findOne({
+        userId: dto.userId,
+        isDeleted: false
+      });
+  
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+  
+      if (!user.phoneVerified) {
+        throw new BadRequestException('Phone number must be verified first');
+      }
+  
+      if (!user.userNameSet || !user.userName) {
+        throw new BadRequestException('Username must be set first');
+      }
+  
+      if (user.status !== 'pending') {
+        throw new BadRequestException('User signup is already completed');
+      }
+  
+      // Check if email is already registered by another user
+      const existingUser = await this.dbService.users.findOne({
+        email: dto.email,
+        isDeleted: false,
+        status: 'completed'
+      });
+  
+      if (existingUser && existingUser.userId !== dto.userId) {
+        throw new BadRequestException('Email already registered');
+      }
+  
+      // Update email in MongoDB
+      await this.dbService.users.findOneAndUpdate(
+        { userId: dto.userId, status: 'pending' },
+        {
+          email: dto.email,
+          emailVerified: false,
+          updatedAt: new Date()
         }
-
-        // Update temp data with username
-        await this.dbService.signupTemp.findOneAndUpdate(
-            { phoneNumber },
-            {
-                userName,
-                userNameSet: true
-            }
+      );
+  
+      // Update email attribute in Cognito (Admin operation)
+      try {
+        await this.cognitoClient.send(
+          new AdminUpdateUserAttributesCommand({
+            UserPoolId: this.userPoolId,
+            Username: user.phoneNumber, // Cognito Username is phoneNumber
+            UserAttributes: [
+              { Name: 'email', Value: dto.email },
+              { Name: 'email_verified', Value: 'false' }
+            ]
+          })
         );
-
-        return {
-            message: 'Username set successfully'
-        };
-    }
-
-    async verifyEmail(phoneNumber: string, email: string): Promise<{
-        message: string;
-        expiresAt: Date;
-    }> {
-        const tempData = await this.getTempSignupData(phoneNumber);
-
-        if (!tempData.phoneVerified) {
-            throw new BadRequestException('Phone number must be verified first');
-        }
-
-        if (!tempData.userNameSet || !tempData.userName) {
-            throw new BadRequestException('Username must be set first');
-        }
-
-        // Check if email already registered
-        const existingUser = await this.dbService.users.findOne({
-            email,
-            isDeleted: false
-        }) as UsersDocument | null;
-
-        if (existingUser) {
-            throw new BadRequestException('Email already registered');
-        }
-
-        // Generate and send OTP
-        const otp = this.generateOtp();
-        const otpExpiry = new Date(Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000);
-
-        // Update temp data with email and OTP
-        await this.dbService.signupTemp.findOneAndUpdate(
-            { phoneNumber },
-            {
-                email,
-                emailOtp: otp,
-                emailOtpExpiry: otpExpiry,
-                emailVerified: false
-            }
+      } catch (error) {
+        console.error('Failed to update email in Cognito:', error);
+        throw new BadRequestException('Failed to update email. Please try again.');
+      }
+  
+      // Request verification code from Cognito (User operation - requires accessToken)
+      try {
+        await this.cognitoClient.send(
+          new GetUserAttributeVerificationCodeCommand({
+            AccessToken: dto.accessToken,
+            AttributeName: 'email'
+          })
         );
-
-        // Send OTP to email
-        try {
-            await this.emailService.sendOtp(email, otp);
-            console.log(`Email OTP sent to: ${email}`);
-        } catch (error) {
-            console.error(`Failed to send email OTP: ${error.message}`);
-        }
-
-        return {
-            message: 'OTP sent to your email',
-            expiresAt: otpExpiry
-        };
+        // Cognito automatically sends verification code to email
+      } catch (error) {
+        console.error('Failed to request email verification code:', error);
+        throw new BadRequestException('Failed to send verification code. Please try again.');
+      }
+  
+      return {
+        message: 'Verification code sent to your email'
+      };
     }
-
-    async confirmEmail(email: string, otp: string): Promise<{
-        message: string;
-    }> {
-        // Find temp data by email
-        const tempData = await this.dbService.signupTemp.findOne({ email }) as SignupTempDocument | null;
-        
-        if (!tempData) {
-            throw new NotFoundException('Email verification session not found');
-        }
-
-        // Validate: Previous steps must be completed
-        if (!tempData.phoneVerified) {
-            throw new BadRequestException('Phone number must be verified first');
-        }
-
-        if (!tempData.userNameSet) {
-            throw new BadRequestException('Username must be set first');
-        }
-
-        // Check if already verified
-        if (tempData.emailVerified) {
-            return {
-                message: 'Email already verified'
-            };
-        }
-
-        // Verify OTP
-        if (!tempData.emailOtp || !tempData.emailOtpExpiry) {
-            throw new BadRequestException('No OTP found. Please request a new OTP.');
-        }
-
-        if (tempData.emailOtpExpiry < new Date()) {
-            throw new UnauthorizedException('OTP expired. Please request a new OTP.');
-        }
-
-        if (tempData.emailOtp !== otp) {
-            throw new UnauthorizedException('Invalid OTP');
-        }
-
-        // Mark email as verified
-        await this.dbService.signupTemp.findOneAndUpdate(
-            { phoneNumber: tempData.phoneNumber },
-            {
-                emailVerified: true,
-                emailOtp: null,
-                emailOtpExpiry: null
-            }
+  
+    async confirmEmail(dto: ConfirmEmailDto) {
+      const user = await this.dbService.users.findOne({
+        userId: dto.userId,
+        isDeleted: false
+      });
+  
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+  
+      if (!user.phoneVerified) {
+        throw new BadRequestException('Phone number must be verified first');
+      }
+  
+      if (!user.userNameSet) {
+        throw new BadRequestException('Username must be set first');
+      }
+  
+      if (user.email !== dto.email) {
+        throw new BadRequestException('Email does not match the one provided during verification');
+      }
+  
+      if (user.status !== 'pending') {
+        throw new BadRequestException('User signup is already completed');
+      }
+  
+      try {
+        await this.cognitoClient.send(
+          new VerifyUserAttributeCommand({
+            AccessToken: dto.accessToken,
+            AttributeName: 'email',
+            Code: dto.confirmationCode
+          })
         );
-
-        return {
-            message: 'Email verified successfully'
-        };
+      } catch (error) {
+        console.error('Failed to verify email code:', error);
+        if (error.name === 'CodeMismatchException') {
+          throw new UnauthorizedException('Invalid verification code');
+        }
+        if (error.name === 'ExpiredCodeException') {
+          throw new UnauthorizedException('Verification code has expired. Please request a new one.');
+        }
+        throw new BadRequestException('Failed to verify email. Please try again.');
+      }
+  
+      // Update MongoDB: mark email as verified and status as completed 
+      await this.dbService.users.findOneAndUpdate(
+        { userId: dto.userId, status: 'pending' },
+        {
+          emailVerified: true,
+          status: 'completed',
+          isActive: true,
+          isVerified: true,
+          updatedAt: new Date()
+        }
+      );
+  
+      return {
+        message: 'Email verified successfully. Signup completed!'
+      };
     }
-
-    async completeSignup(phoneNumber: string, Name?: string): Promise<{
-        user: UsersDocument;
-        accessToken: string;
-        message: string;
-    }> {
-        const tempData = await this.getTempSignupData(phoneNumber);
-
-
-        if (!tempData.phoneVerified) {
-            throw new BadRequestException('Phone number must be verified');
+  
+  
+    async resendSignupOtp(phoneNumber: string) {
+      await this.getUserOrThrow(phoneNumber);
+  
+      const command = new ResendConfirmationCodeCommand({
+        ClientId: this.clientId,
+        Username: phoneNumber,
+      });
+  
+      await this.cognitoClient.send(command);
+  
+      return { message: 'OTP resent successfully' };
+    }
+  
+    async refreshToken(refreshToken: string) {
+      try {
+        const command = new InitiateAuthCommand({
+          AuthFlow: AuthFlowType.REFRESH_TOKEN_AUTH,
+          ClientId: this.clientId,
+          AuthParameters: {
+            REFRESH_TOKEN: refreshToken,
+          },
+        });
+  
+        const response = await this.cognitoClient.send(command);
+  
+        if (!response.AuthenticationResult) {
+          throw new UnauthorizedException('Failed to refresh token');
         }
-
-        if (!tempData.userNameSet || !tempData.userName) {
-            throw new BadRequestException('Username must be set');
-        }
-
-        if (!tempData.emailVerified || !tempData.email) {
-            throw new BadRequestException('Email must be verified');
-        }
-
-        if (tempData.completed) {
-            throw new BadRequestException('Signup already completed');
-        }
-
-        // Create user
-        const newUser = await this.dbService.users.create({
-            phoneNumber: tempData.phoneNumber,
-            email: tempData.email,
-            userName: tempData.userName,
-            Name: Name || tempData.Name,
-            isActive: true,
-            isVerified: true,
-            isDeleted: false,
-            lastLoginAt: new Date()
-        }) as UsersDocument;
-
-        
-        await this.dbService.signupTemp.findOneAndUpdate(
-            { phoneNumber },
-            {
-                completed: true,
-                completedAt: new Date()
-            }
+  
+        return {
+          accessToken: response.AuthenticationResult.AccessToken,
+          idToken: response.AuthenticationResult.IdToken,
+        };
+      } catch (error) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+    }
+  
+    async logout(accessToken: string, refreshToken: string) {
+      try {
+        await this.cognitoClient.send(
+          new RevokeTokenCommand({
+            ClientId: this.clientId,
+            Token: refreshToken,
+          }),
         );
-
-        const accessToken = this.commonAuthService.generateUsersToken(newUser);
-        
-        return {
-            user: newUser,
-            accessToken,
-            message: 'Signup completed successfully!'
-        };
-    }
-
-    private async getTempSignupData(phoneNumber: string): Promise<SignupTempDocument> {
-        const tempData = await this.dbService.signupTemp.findOne({
-            phoneNumber,
-            completed: false
-        }) as SignupTempDocument | null;
-
-        if (!tempData) {
-            throw new NotFoundException('Signup session not found or expired');
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          throw error;
         }
-
-        if (tempData.expiresAt < new Date()) {
-            throw new UnauthorizedException('Signup session expired. Please start again.');
-        }
-
-        return tempData;
+      }
+  
+      try {
+        await this.cognitoClient.send(
+          new GlobalSignOutCommand({
+            AccessToken: accessToken,
+          }),
+        );
+      } catch {
+      }
+  
+      return { message: 'Signed out successfully' };
     }
-
-    async getSignupStatus(phoneNumber: string): Promise<{
-        phoneNumber: string;
-        phoneVerified: boolean;
-        userNameSet: boolean;
-        emailVerified: boolean;
-        completed: boolean;
-        expiresAt: Date;
-    }> {
-        const signUpdata = await this.getTempSignupData(phoneNumber);
-        
-        return {
-            phoneNumber: signUpdata.phoneNumber,
-            phoneVerified: signUpdata.phoneVerified,
-            userNameSet: signUpdata.userNameSet,
-            emailVerified: signUpdata.emailVerified,
-            completed: signUpdata.completed,
-            expiresAt: signUpdata.expiresAt
-        };
+  
+    async generateAppJwt(userId: string) {
+      const user = await this.dbService.users.findOne({
+        userId,
+        isDeleted: false,
+      });
+  
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+  
+      const payload: Record<string, any> = {
+        userId: user.userId,
+        phoneNumber: user.phoneNumber,
+        iat: Math.floor(Date.now() / 1000),
+      };
+  
+      if (user.email) {
+        payload.email = user.email;
+      }
+  
+      if (user.userName) {
+        payload.userName = user.userName;
+      }
+  
+      const token = await this.jwtService.signAsync(payload);
+  
+      return {
+        accessToken: token,
+        tokenType: 'Bearer',
+        expiresIn: '365d',
+        user,
+      };
     }
-}
+  
+    private async signUpUserInCognito(phoneNumber: string, userId: string) {
+      const params: SignUpCommandInput = {
+        Username: phoneNumber,
+        UserAttributes: [
+          { Name: 'phone_number', Value: phoneNumber },
+          { Name: 'custom:userId', Value: userId },
+        ],
+        Password: generateRandomPassword(),
+        ClientId: this.clientId,
+      };
+  
+      const command = new SignUpCommand(params);
+      await this.cognitoClient.send(command);
+    }
+  
+    private async generateOtp(phoneNumber: string) {
+      const command = new InitiateAuthCommand({
+        AuthFlow: AuthFlowType.CUSTOM_AUTH,
+        AuthParameters: {
+          USERNAME: phoneNumber,
+        },
+        ClientId: this.clientId,
+      });
+  
+      return this.cognitoClient.send(command);
+    }
+  
+    private async respondToOtpChallenge(
+      phoneNumber: string,
+      otp: string,
+      session?: string,
+    ) {
+      const command = new RespondToAuthChallengeCommand({
+        ChallengeName: 'CUSTOM_CHALLENGE',
+        ClientId: this.clientId,
+        ChallengeResponses: {
+          USERNAME: phoneNumber,
+          ANSWER: otp,
+        },
+        Session: session,
+      });
+  
+      return this.cognitoClient.send(command);
+    }
+  
+    private extractAuthResult(response: any) {
+      if (
+        response.ChallengeName === 'CUSTOM_CHALLENGE' &&
+        response.Session
+      ) {
+        throw new BadRequestException({
+          message: 'Invalid OTP. Please try again with the same OTP code.',
+          errorCode: 'INVALID_OTP_RETRY_SAME_CODE',
+          session: response.Session,
+          challengeName: response.ChallengeName,
+          retryAllowed: true,
+          persistentOTP: true,
+        });
+      }
+  
+      if (!response.AuthenticationResult) {
+        throw new BadRequestException('Unexpected authentication response');
+      }
+  
+      return response.AuthenticationResult;
+    }
+  
+    private async ensurePhoneAvailable(phoneNumber: string) {
+      const existing = await this.dbService.users.findOne({
+        phoneNumber,
+        isDeleted: false,
+      });
+  
+      if (existing) {
+        throw new BadRequestException('Phone number already registered');
+      }
+    }
+  
+    private async getUserOrThrow(phoneNumber: string) {
+      const user = await this.dbService.users.findOne({
+        phoneNumber,
+        isDeleted: false,
+      });
+  
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+  
+      return user;
+    }
+  }
+  
+  

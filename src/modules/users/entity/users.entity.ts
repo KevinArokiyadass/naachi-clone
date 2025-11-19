@@ -12,20 +12,21 @@ export class Users extends Document {
     @Prop({ type: String, required: true, trim: true })
     phoneNumber: string;
 
-    @Prop({ type: String, required: true, trim: true, unique: true })
-    email: string;
+    @Prop({ type: String, required: false, trim: true, sparse: true })
+    email?: string;
 
     @Prop({ type: String, required: false })
     password?: string;
 
     @Prop({ 
         type: String, 
-        required: true, 
+        required: false, 
         trim: true,
         unique: true,
+        sparse: true,
         match: /^(?!.*\.\.)(?!\.)(?!.*\.$)[A-Za-z0-9._]{1,30}$/
     })
-    userName: string;
+    userName?: string;
 
     @Prop({ type: String, trim: true })
     Name?: string;
@@ -47,6 +48,40 @@ export class Users extends Document {
 
     @Prop({ type: Date })
     lastLoginAt?: Date;
+
+    @Prop({ 
+        type: String, 
+        enum: ['pending', 'completed'], 
+        default: 'pending' 
+    })
+    status: string;
+
+    @Prop({ type: Boolean, default: false })
+    phoneVerified: boolean;
+
+    @Prop({ type: String })
+    phoneOtp?: string;
+
+    @Prop({ type: Date })
+    phoneOtpExpiry?: Date;
+
+    @Prop({ type: Boolean, default: false })
+    userNameSet: boolean;
+
+    @Prop({ type: Boolean, default: false })
+    emailVerified: boolean;
+
+    @Prop({ type: String })
+    emailOtp?: string;
+
+    @Prop({ type: Date })
+    emailOtpExpiry?: Date;
+
+    @Prop({ type: Date })
+    expiresAt?: Date;
 }
 
 export const UsersSchema = SchemaFactory.createForClass(Users);
+
+// Auto-delete expired incomplete signup documents
+UsersSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
