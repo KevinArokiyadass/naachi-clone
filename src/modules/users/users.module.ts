@@ -3,6 +3,7 @@ import { DBServicesModule } from 'src/common/repository/repository-services.modu
 import { CommonAuthModule } from 'src/common/services/common-auth.module';
 import { UsersAuthService } from './users.service';
 import { UsersController } from './users.controller';
+import { PaginationService } from 'src/common/shared/pagination/pagination.service';
 
 @Module({
     imports: [
@@ -13,7 +14,8 @@ import { UsersController } from './users.controller';
         UsersController
     ],
     providers: [
-        UsersAuthService
+        UsersAuthService,
+        PaginationService
     ],
     exports: [
         UsersAuthService
