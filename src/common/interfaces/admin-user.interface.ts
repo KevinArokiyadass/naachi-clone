@@ -5,5 +5,8 @@ export interface IAdminUser {
     email: string;
     password: string;
     phoneNumber: string;
+    userName?: string;
     role?: string;
+    status?: 'active' | 'inactive';
+    isDeleted?: boolean;
 }
