@@ -1,4 +1,5 @@
-import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { FetchDto } from 'src/common/shared/pagination/dto/fetch.dto';
 
 export class UsersSignupDto {
   @IsNotEmpty({ message: 'Phone number is required' })
@@ -108,4 +109,18 @@ export class ConfirmEmailDto {
   @IsNotEmpty({ message: 'Access token is required' })
   @IsString()
   accessToken: string;
+}
+
+export class GetUsersQueryDto extends FetchDto {
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  userName?: string;
+
+  @IsOptional()
+  @IsString()
+  userId?: string;
 }

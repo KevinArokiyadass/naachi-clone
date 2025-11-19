@@ -1,6 +1,7 @@
-import { Body, Controller, Post, Get, Param } from '@nestjs/common';
+import { Body, Controller, Post, Get, Param, Query } from '@nestjs/common';
 import {
   ConfirmEmailDto,
+  GetUsersQueryDto,
   SetUsernameDto,
   UsersCheckAvailableUserNameDto,
   UsersGenerateJwtDto,
@@ -77,6 +78,27 @@ export class UsersController {
   @Post('generate-jwt')
   async generateJwt(@Body() dto: UsersGenerateJwtDto) {
     return this.usersService.generateAppJwt(dto.userId);
+  }
+
+  @Get()
+  getAllUsers(@Query() query: GetUsersQueryDto) {
+    const { skip, limit, nonPaginated, phoneNumber, userName, userId } = query;
+
+    const filter: Record<string, any> = {};
+
+    if (phoneNumber) {
+      filter.phoneNumber = { $regex: phoneNumber, $options: 'i' };
+    }
+
+    if (userName) {
+      filter.userName = { $regex: userName, $options: 'i' };
+    }
+
+    if (userId) {
+      filter.userId = { $regex: userId, $options: 'i' };
+    }
+
+    return this.usersService.findAllUsers(skip, limit, filter, nonPaginated);
   }
 }
 

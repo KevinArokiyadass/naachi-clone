@@ -20,10 +20,11 @@ import {
   } from '@aws-sdk/client-cognito-identity-provider';
   import { JwtService } from '@nestjs/jwt';
   import { nanoid } from 'nanoid';
-  
-  import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
-  import { IUsers } from 'src/common/interfaces/users.interface';
-  import { generateRandomPassword } from 'src/common/utils/util';
+import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
+import { IUsers } from 'src/common/interfaces/users.interface';
+import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
+import { generateRandomPassword } from 'src/common/utils/util';
+import { PaginationService } from 'src/common/shared/pagination/pagination.service';
   import {
     ConfirmEmailDto,
     SetUsernameDto,
@@ -40,10 +41,11 @@ import {
     private readonly clientId = process.env.COGNITO_CUSTOMER_APP_CLIENT_ID;
     private readonly userPoolId = process.env.COGNITO_CUSTOMER_USER_POOL_ID;
   
-    constructor(
-      private readonly dbService: IMongoDBServices,
-      private readonly jwtService: JwtService,
-    ) {
+  constructor(
+    private readonly dbService: IMongoDBServices,
+    private readonly jwtService: JwtService,
+    private readonly paginationService: PaginationService,
+  ) {
       if (!this.clientId) {
         throw new Error('COGNITO_CUSTOMER_APP_CLIENT_ID is not configured');
       }
@@ -555,6 +557,17 @@ import {
       }
   
       return user;
+    }
+
+    async findAllUsers(
+      skip: number = 0,
+      limit: number = 10,
+      filter: Record<string, any> = {},
+      nonPaginated: boolean
+    ): Promise<IPaginatedResult<IUsers[]>> {
+      filter.isDeleted = { $in: [null, false] };
+      const users = await this.paginationService.findAndPaginate(this.dbService.users, { skip, limit, filter, nonPaginated });
+      return users;
     }
   }
   
