@@ -203,8 +203,8 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         throw new BadRequestException('User signup is already completed');
       }
   
-      // Check if username is already taken by another user
-      const existingUser = await this.dbService.users.findOne({
+  
+        const existingUser = await this.dbService.users.findOne({
         userName: dto.userName,
         isDeleted: false
       });
@@ -213,7 +213,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         throw new BadRequestException('Username already taken');
       }
   
-      // Update MongoDB
+
       await this.dbService.users.findOneAndUpdate(
         { userId: dto.userId, status: 'pending' },
         {
@@ -250,7 +250,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         throw new BadRequestException('User signup is already completed');
       }
   
-      // Check if email is already registered by another user
+    
       const existingUser = await this.dbService.users.findOne({
         email: dto.email,
         isDeleted: false,
@@ -261,7 +261,6 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         throw new BadRequestException('Email already registered');
       }
   
-      // Update email in MongoDB
       await this.dbService.users.findOneAndUpdate(
         { userId: dto.userId, status: 'pending' },
         {
@@ -271,12 +270,12 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         }
       );
   
-      // Update email attribute in Cognito (Admin operation)
+
       try {
         await this.cognitoClient.send(
           new AdminUpdateUserAttributesCommand({
             UserPoolId: this.userPoolId,
-            Username: user.phoneNumber, // Cognito Username is phoneNumber
+            Username: user.phoneNumber,
             UserAttributes: [
               { Name: 'email', Value: dto.email },
               { Name: 'email_verified', Value: 'false' }
@@ -288,7 +287,6 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         throw new BadRequestException('Failed to update email. Please try again.');
       }
   
-      // Request verification code from Cognito (User operation - requires accessToken)
       try {
         await this.cognitoClient.send(
           new GetUserAttributeVerificationCodeCommand({
@@ -296,7 +294,6 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
             AttributeName: 'email'
           })
         );
-        // Cognito automatically sends verification code to email
       } catch (error) {
         console.error('Failed to request email verification code:', error);
         throw new BadRequestException('Failed to send verification code. Please try again.');
@@ -352,7 +349,6 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         throw new BadRequestException('Failed to verify email. Please try again.');
       }
   
-      // Update MongoDB: mark email as verified and status as completed 
       await this.dbService.users.findOneAndUpdate(
         { userId: dto.userId, status: 'pending' },
         {

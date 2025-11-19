@@ -31,7 +31,10 @@ export class AdminUser extends Document {
   role: string;
 
   @Prop({ type: Boolean })
-  isDeleted: Boolean
+  isDeleted: boolean;
+
+  @Prop({ type: String, enum: ['active', 'inactive'], default: 'active' })
+  status: string;
 }
 
 export const AdminUserSchema = SchemaFactory.createForClass(AdminUser);

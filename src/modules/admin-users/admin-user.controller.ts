@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query,Req, HttpStatus, HttpCode, BadRequestException, Patch, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AdminUserService } from './admin-user.service';
 import { CreateAdminWithPasswordDto } from './dto/create-admin-with-password.dto';
@@ -59,6 +59,17 @@ export class AdminUserController {
       }
       throw new BadRequestException('Unable to update the password');
     }
+  }
+
+  @Patch(':adminId/status')
+  async updateStatus(
+    @Param('adminId') adminId: string,
+    @Body('status') status: 'active' | 'inactive',
+  ) {
+    if (!['active', 'inactive'].includes(status)) {
+      throw new BadRequestException('Status must be either active or inactive');
+    }
+    return this.adminUserService.updateStatus(adminId, status);
   }
 
   @Delete(':adminId')
