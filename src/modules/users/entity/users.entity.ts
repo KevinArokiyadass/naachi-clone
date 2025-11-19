@@ -12,7 +12,7 @@ export class Users extends Document {
     @Prop({ type: String, required: true, trim: true })
     phoneNumber: string;
 
-    @Prop({ type: String, required: false, trim: true, unique: true, sparse: true })
+    @Prop({ type: String, required: false, trim: true, sparse: true })
     email?: string;
 
     @Prop({ type: String, required: false })
