@@ -32,6 +32,7 @@ export class AdminUserService {
     // Create the admin in our DB (without password)
     const adminUser = await this.dbServices.adminUser.create({
       ...createAdminDto,
+      status: createAdminDto.status ?? 'active',
     });
 
     return adminUser;
@@ -43,7 +44,6 @@ export class AdminUserService {
       throw new BadRequestException('Admin with this email already exists');
     }
 
-    // Set default role if not provided
     if (!createAdminDto.role) {
       createAdminDto.role = AdminRoles.ADMIN;
     }
@@ -53,9 +53,10 @@ export class AdminUserService {
     const created = await this.dbServices.adminUser.create({
       ...adminDataWithoutPassword,
       password: password,
+      status: createAdminDto.status ?? 'active',
     });
 
-    // Then, provision the user in Cognito
+
     try {
       await this.cognitoService.createAdminUser(
         createAdminDto.userName, 
@@ -71,10 +72,9 @@ export class AdminUserService {
         requiresVerification: false
       };
     } catch (cognitoError) {
-      // Rollback DB creation to keep systems consistent
       try {
         await this.dbServices.adminUser.findOneAndDelete({ adminId: created.adminId });
-      } catch (_) { /* swallow rollback errors but surface original */ }
+      } catch (_) { }
       throw new BadRequestException(`Failed to create admin user in Cognito: ${cognitoError.message}`);
     }
   }
@@ -151,6 +151,19 @@ export class AdminUserService {
       throw new NotFoundException('Admin user not found');
     }
     return await this.dbServices.adminUser.findOneAndUpdate({ adminId }, { isDeleted: true }, { new: true });
+  }
+
+  async updateStatus(adminId: string, status: 'active' | 'inactive') {
+    const adminUser = await this.dbServices.adminUser.findOne({ adminId });
+    if (!adminUser) {
+      throw new NotFoundException('Admin user not found');
+    }
+
+    return await this.dbServices.adminUser.findOneAndUpdate(
+      { adminId },
+      { status },
+      { new: true }
+    );
   }
 
   async getOneAdminUser(
