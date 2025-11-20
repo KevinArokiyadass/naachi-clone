@@ -23,16 +23,19 @@ export class AdminAuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(@Body() loginDto: AdminLoginDto) {
     try {
-      // First verify admin exists in our database
-      const admin = await this.adminUsers.getOneAdminUser({ userName: loginDto.userName });
+      const admin = await this.adminUsers.getOneAdminUser({ email: loginDto.userName });
       if (!admin) {
         throw new UnauthorizedException('Admin not found');
       }
 
-      // Authenticate with Cognito
-      const tokens = await this.cognito.signIn(loginDto.userName, loginDto.password);
+      if (admin.status === 'inactive') {
+        throw new UnauthorizedException('Admin account is inactive');
+      }
 
-      return { 
+      const cognitoUsername = admin.userName || admin.email;
+      const tokens = await this.cognito.signIn(cognitoUsername, loginDto.password);
+
+      return {  
         message: 'Login successful', 
         adminUser: {
           adminId: admin.adminId,
