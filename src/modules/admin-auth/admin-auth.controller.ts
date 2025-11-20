@@ -112,7 +112,7 @@ export class AdminAuthController {
   async confirmForgotPassword(@Body() body: { email: string; code: string; newPassword: string }) {
     try {
       const result = await this.cognito.confirmForgotPassword(body.email, body.code, body.newPassword);
-      // Persist the new password in our DB as requested
+  
       await this.adminUsers.setPasswordByEmail(body.email, body.newPassword);
       return { message: 'Password reset successful', cognito: result };
     } catch (error) {

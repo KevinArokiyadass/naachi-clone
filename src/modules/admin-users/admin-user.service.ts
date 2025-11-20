@@ -130,14 +130,12 @@ export class AdminUserService {
       throw new NotFoundException('Admin user not found');
     }
 
-    // Since we're using Cognito for password management, delegate to Cognito service
+
     try {
       if (forgotPassword) {
-        // Initiate forgot password flow
         await this.cognitoService.forgotPassword(adminUser.email);
         return { message: 'Password reset code sent to email' };
       } else {
-        // For regular password updates, use Cognito's change password flow
         throw new BadRequestException('Password updates should be handled through Cognito directly');
       }
     } catch (error) {

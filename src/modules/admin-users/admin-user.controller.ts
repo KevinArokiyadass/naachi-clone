@@ -3,8 +3,8 @@ import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AdminUserService } from './admin-user.service';
 import { CreateAdminWithPasswordDto } from './dto/create-admin-with-password.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
-import { FetchDto } from 'src/common/shared/pagination/dto/fetch.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
+import { FetchAdminUsersDto } from './dto/fetch-admin-users.dto';
 
 
 @Controller('admin-user')
@@ -22,11 +22,17 @@ export class AdminUserController {
 
   @Get()
   getAllAdminUsers(
-    @Query() fetchDto: FetchDto
+    @Query() fetchDto: FetchAdminUsersDto
   ) {
-    const { skip, limit, nonPaginated } = fetchDto;
-    const filter = {};
-    return this.adminUserService.findAllAdminUsers(skip, limit, filter,nonPaginated);
+    const { skip, limit, nonPaginated, role, status } = fetchDto;
+    const filter: Record<string, any> = {};
+    if (role) {
+      filter.role = role;
+    }
+    if (status) {
+      filter.status = status;
+    }
+    return this.adminUserService.findAllAdminUsers(skip, limit, filter, nonPaginated);
   }
 
   @Get(':adminId')
