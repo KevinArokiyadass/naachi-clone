@@ -218,6 +218,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         { userId: dto.userId, status: 'pending' },
         {
           userName: dto.userName,
+          Name: dto.name,
           userNameSet: true,
           updatedAt: new Date()
         }

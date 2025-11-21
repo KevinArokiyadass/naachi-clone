@@ -77,6 +77,10 @@ export class SetUsernameDto {
   @IsNotEmpty({ message: 'Username is required' })
   @IsString()
   userName: string;
+
+  @IsNotEmpty({ message: 'Name is required' })
+  @IsString()
+  name: string;
 }
 
 export class VerifyEmailDto {
