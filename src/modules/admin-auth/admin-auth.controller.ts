@@ -63,8 +63,14 @@ export class AdminAuthController {
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
   @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
   async refresh(@Body() refreshDto: RefreshTokenDto) {
-    // TODO: Implement Cognito refresh token flow
-    throw new BadRequestException('Refresh token flow not yet implemented');
+    const tokens = await this.authService.refreshAccessToken(
+      refreshDto.userName,
+      refreshDto.refresh_token,
+    );
+    return {
+      message: 'Token refreshed successfully',
+      tokens,
+    };
   }
 
   @Post('logout')

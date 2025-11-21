@@ -32,13 +32,17 @@ export class AdminAuthService {
 
     async generateTokens(user: IAdminUser) {
         const adminUser = await this.adminUsersService.getAdminUserById(user.adminId);
-        // Tokens are managed by Cognito after login/refresh; this method now only returns profile
+        
         return { adminUser };
     }
 
-    async refreshAccessToken(_refreshToken: string) {
-        // Optional: Implement Cognito refresh if needed in future using InitiateAuth with REFRESH_TOKEN_AUTH
-        throw new BadRequestException('Use Cognito directly for token refresh');
+    async refreshAccessToken(userName: string, refreshToken: string) {
+        try {
+            const tokens = await this.cognito.refreshToken(userName, refreshToken);
+            return tokens;
+        } catch (error) {
+            throw new UnauthorizedException('Invalid refresh token');
+        }
     }
 
     async logout(_accessToken: string) {
