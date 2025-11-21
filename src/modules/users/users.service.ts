@@ -34,6 +34,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
     UsersVerifySignupDto,
     VerifyEmailDto,
   } from './dto/users-auth.dto';
+import { interServiceRequestHelper } from 'src/common/inter-service-communication/axios-wrapper';
   
   @Injectable()
   export class UsersAuthService {
@@ -238,7 +239,36 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         message: 'Username set successfully'
       };
     }
-  
+
+    async validateInstitute(email: string) {
+      const emailDomain = this.extractEmailDomain(email);
+      const queryDomain = this.normalizeDomain(emailDomain);
+
+      const interserviceResponse = await interServiceRequestHelper({
+        service: 'NAACHI_PARTNER_SERVICE',
+        requestPath: 'record/institutions',
+        method: 'get',
+        query: {
+          domain: queryDomain,
+        },
+      });
+
+      const institutions = this.extractInstitutions(interserviceResponse);
+      const matched = institutions.find((inst) => {
+        const institutionDomain = this.normalizeDomain(inst?.institutionDomain);
+        return institutionDomain === queryDomain;
+      });
+
+      if (!matched) {
+        throw new BadRequestException({
+          message: `Email domain "${emailDomain}" is not a registered domain.`,
+          errorCode: 'INVALID_EMAIL_DOMAIN',
+        });
+      }
+
+      return matched;
+    }
+   
     async verifyEmail(dto: VerifyEmailDto) {
       const user = await this.dbService.users.findOne({
         userId: dto.userId,
@@ -271,6 +301,8 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
       if (existingUser && existingUser.userId !== dto.userId) {
         throw new BadRequestException('Email already registered');
       }
+
+      await this.validateInstitute(dto.email);
   
       await this.dbService.users.findOneAndUpdate(
         { userId: dto.userId, status: 'pending' },
@@ -552,6 +584,50 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
       }
 
       throw new BadRequestException('Invalid OTP. Please double-check the code and try again.');
+    }
+
+    private normalizeDomain(domain?: string): string {
+      if (!domain) {
+        return '';
+      }
+      return domain.trim().toLowerCase().replace(/^@/, '');
+    }
+
+    private extractEmailDomain(email: string): string {
+      if (!email) {
+        throw new BadRequestException('Email is required');
+      }
+
+      const atIndex = email.lastIndexOf('@');
+      if (atIndex === -1 || atIndex === email.length - 1) {
+        throw new BadRequestException('Invalid email format');
+      }
+
+      return email.substring(atIndex).toLowerCase();
+    }
+
+    private extractInstitutions(response: any): any[] {
+      if (!response) {
+        return [];
+      }
+
+      if (Array.isArray(response)) {
+        return response;
+      }
+
+      if (Array.isArray(response.items)) {
+        return response.items;
+      }
+
+      if (Array.isArray(response.data)) {
+        return response.data;
+      }
+
+      if (Array.isArray(response.institutions)) {
+        return response.institutions;
+      }
+
+      return [];
     }
 
     private async ensurePhoneAvailable(phoneNumber: string) {
