@@ -130,6 +130,36 @@ export class CognitoService {
     }
   }
 
+  async refreshToken(userName: string, refreshToken: string) {
+    try {
+      const secretHash = generateSecretHash(userName, this.clientId, this.clientSecret);
+      const response = await this.client.send(
+        new InitiateAuthCommand({
+          AuthFlow: AuthFlowType.REFRESH_TOKEN_AUTH,
+          ClientId: this.clientId,
+          AuthParameters: {
+            REFRESH_TOKEN: refreshToken,
+            SECRET_HASH: secretHash,
+            USERNAME: userName,
+          },
+        }),
+      );
+
+      if (!response.AuthenticationResult) {
+        throw new UnauthorizedException('Failed to refresh token');
+      }
+
+      return {
+        accessToken: response.AuthenticationResult.AccessToken,
+        idToken: response.AuthenticationResult.IdToken,
+        refreshToken: response.AuthenticationResult.RefreshToken,
+      };
+    } catch (error) {
+      error.name = error.name || 'UnknownError';
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
   async updateUserPassword(email: string, newPassword: string) {
     try {
       // First, check if user exists in Cognito using admin operations

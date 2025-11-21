@@ -86,6 +86,8 @@ export class UsersController {
 
     const filter: Record<string, any> = {};
 
+    filter.status = 'completed';
+
     if (phoneNumber) {
       filter.phoneNumber = { $regex: phoneNumber, $options: 'i' };
     }
