@@ -95,11 +95,16 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
     async verifySignupOtp(dto: UsersVerifySignupDto) {
       const user = await this.getUserOrThrow(dto.phoneNumber);
   
-      const response = await this.respondToOtpChallenge(
-        dto.phoneNumber,
-        dto.otp,
-        dto.session,
-      );
+      let response;
+      try {
+        response = await this.respondToOtpChallenge(
+          dto.phoneNumber,
+          dto.otp,
+          dto.session,
+        );
+      } catch (error) {
+        this.handleOtpChallengeError(error);
+      }
   
       const tokens = this.extractAuthResult(response);
   
@@ -148,11 +153,16 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         );
       }
   
-      const response = await this.respondToOtpChallenge(
-        dto.phoneNumber,
-        dto.otp,
-        dto.session,
-      );
+      let response;
+      try {
+        response = await this.respondToOtpChallenge(
+          dto.phoneNumber,
+          dto.otp,
+          dto.session,
+        );
+      } catch (error) {
+        this.handleOtpChallengeError(error);
+      }
   
       const tokens = this.extractAuthResult(response);
   
@@ -218,6 +228,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         { userId: dto.userId, status: 'pending' },
         {
           userName: dto.userName,
+          Name: dto.name,
           userNameSet: true,
           updatedAt: new Date()
         }
@@ -515,7 +526,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         response.Session
       ) {
         throw new BadRequestException({
-          message: 'Invalid OTP. Please try again with the same OTP code.',
+          message: 'Invalid OTP. Please double-check the code and try again.',
           errorCode: 'INVALID_OTP_RETRY_SAME_CODE',
           session: response.Session,
           challengeName: response.ChallengeName,
@@ -531,6 +542,18 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
       return response.AuthenticationResult;
     }
   
+    private handleOtpChallengeError(error: any) {
+      const name = error?.name;
+      if (name === 'NotAuthorizedException' || name === 'CodeMismatchException') {
+        throw new BadRequestException({
+          message: 'Invalid OTP. Please double-check the code and try again.',
+          errorCode: 'INVALID_OTP_CODE',
+        });
+      }
+
+      throw new BadRequestException('Invalid OTP. Please double-check the code and try again.');
+    }
+
     private async ensurePhoneAvailable(phoneNumber: string) {
       const existing = await this.dbService.users.findOne({
         phoneNumber,
