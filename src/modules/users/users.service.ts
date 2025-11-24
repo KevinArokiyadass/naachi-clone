@@ -34,7 +34,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
     UsersVerifySignupDto,
     VerifyEmailDto,
   } from './dto/users-auth.dto';
-import { interServiceRequestHelper } from 'src/common/inter-service-communication/axios-wrapper';
+import { RecordService } from '@noukha-technologies/mdm-core';
   
   @Injectable()
   export class UsersAuthService {
@@ -46,6 +46,7 @@ import { interServiceRequestHelper } from 'src/common/inter-service-communicatio
     private readonly dbService: IMongoDBServices,
     private readonly jwtService: JwtService,
     private readonly paginationService: PaginationService,
+    private readonly recordService: RecordService,
   ) {
       if (!this.clientId) {
         throw new Error('COGNITO_CUSTOMER_APP_CLIENT_ID is not configured');
@@ -229,7 +230,7 @@ import { interServiceRequestHelper } from 'src/common/inter-service-communicatio
         { userId: dto.userId, status: 'pending' },
         {
           userName: dto.userName,
-          Name: dto.name,
+          name: dto.name,
           userNameSet: true,
           updatedAt: new Date()
         }
@@ -241,32 +242,51 @@ import { interServiceRequestHelper } from 'src/common/inter-service-communicatio
     }
 
     async validateInstitute(email: string) {
-      const emailDomain = this.extractEmailDomain(email);
-      const queryDomain = this.normalizeDomain(emailDomain);
-
-      const interserviceResponse = await interServiceRequestHelper({
-        service: 'NAACHI_PARTNER_SERVICE',
-        requestPath: 'record/institutions',
-        method: 'get',
-        query: {
-          domain: queryDomain,
-        },
-      });
-
-      const institutions = this.extractInstitutions(interserviceResponse);
-      const matched = institutions.find((inst) => {
-        const institutionDomain = this.normalizeDomain(inst?.institutionDomain);
-        return institutionDomain === queryDomain;
-      });
-
-      if (!matched) {
-        throw new BadRequestException({
-          message: `Email domain "${emailDomain}" is not a registered domain.`,
-          errorCode: 'INVALID_EMAIL_DOMAIN',
-        });
+      const atIndex = email?.lastIndexOf('@') ?? -1;
+      if (atIndex === -1 || atIndex === email.length - 1) {
+        throw new BadRequestException('Invalid email format');
       }
 
-      return matched;
+      const domain = email.substring(atIndex + 1).trim().toLowerCase();
+
+      try {
+        const response = await this.recordService.findAll('institutions', {
+          nonPaginated: true,
+        });
+
+        const institutions = Array.isArray(response?.items)
+          ? response.items
+          : [];
+
+        const matched = institutions.some((inst) => {
+          const institutionDomain = (
+            inst?.institutionDomain ??
+            inst?.data?.institutionDomain ??
+            ''
+          )
+            .toString()
+            .trim()
+            .replace(/^@/, '')
+            .toLowerCase();
+          return institutionDomain === domain;
+        });
+
+        if (!matched) {
+          throw new BadRequestException({
+            message: `Email domain "${domain}" is not a registered domain.`,
+            errorCode: 'INVALID_EMAIL_DOMAIN',
+          });
+        }
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+
+        throw new BadRequestException({
+          message: 'Failed to validate email domain. Please try again.',
+          errorCode: 'DOMAIN_VALIDATION_ERROR',
+        });
+      }
     }
    
     async verifyEmail(dto: VerifyEmailDto) {
@@ -584,50 +604,6 @@ import { interServiceRequestHelper } from 'src/common/inter-service-communicatio
       }
 
       throw new BadRequestException('Invalid OTP. Please double-check the code and try again.');
-    }
-
-    private normalizeDomain(domain?: string): string {
-      if (!domain) {
-        return '';
-      }
-      return domain.trim().toLowerCase().replace(/^@/, '');
-    }
-
-    private extractEmailDomain(email: string): string {
-      if (!email) {
-        throw new BadRequestException('Email is required');
-      }
-
-      const atIndex = email.lastIndexOf('@');
-      if (atIndex === -1 || atIndex === email.length - 1) {
-        throw new BadRequestException('Invalid email format');
-      }
-
-      return email.substring(atIndex).toLowerCase();
-    }
-
-    private extractInstitutions(response: any): any[] {
-      if (!response) {
-        return [];
-      }
-
-      if (Array.isArray(response)) {
-        return response;
-      }
-
-      if (Array.isArray(response.items)) {
-        return response.items;
-      }
-
-      if (Array.isArray(response.data)) {
-        return response.data;
-      }
-
-      if (Array.isArray(response.institutions)) {
-        return response.institutions;
-      }
-
-      return [];
     }
 
     private async ensurePhoneAvailable(phoneNumber: string) {
