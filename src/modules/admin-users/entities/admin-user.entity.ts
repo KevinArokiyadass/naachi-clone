@@ -1,12 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { nanoid } from 'nanoid';
+import { generateUniqueId } from 'src/common/utils/util';
 
 export type AdminUserDocument = AdminUser & Document;
 
 @Schema({ timestamps: true })
 export class AdminUser extends Document {
-  @Prop({ required: true, unique: true, default: () => nanoid() })
+  @Prop({ required: true, unique: true, default: () => generateUniqueId() })
   adminId: string;
 
   @Prop({ required: true })

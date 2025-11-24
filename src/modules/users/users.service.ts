@@ -19,11 +19,10 @@ import {
     VerifyUserAttributeCommand,
   } from '@aws-sdk/client-cognito-identity-provider';
   import { JwtService } from '@nestjs/jwt';
-  import { nanoid } from 'nanoid';
 import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
 import { IUsers } from 'src/common/interfaces/users.interface';
 import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
-import { generateRandomPassword } from 'src/common/utils/util';
+import { generateRandomPassword, generateUniqueId } from 'src/common/utils/util';
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
   import {
     ConfirmEmailDto,
@@ -67,7 +66,7 @@ import { RecordService } from '@noukha-technologies/mdm-core';
       await this.ensurePhoneAvailable(dto.phoneNumber);
   
       const userPayload: IUsers = {
-        userId: nanoid(),
+        userId: generateUniqueId(),
         phoneNumber: dto.phoneNumber,
         isActive: false,
         isVerified: false,
@@ -247,31 +246,21 @@ import { RecordService } from '@noukha-technologies/mdm-core';
         throw new BadRequestException('Invalid email format');
       }
 
-      const domain = email.substring(atIndex + 1).trim().toLowerCase();
+      const domain = email.substring(atIndex + 1).trim().replace(/^@/, '').toLowerCase();
 
       try {
         const response = await this.recordService.findAll('institutions', {
+          filters: {
+            $or: [
+              { institutionDomain: domain }
+            ],
+          },
           nonPaginated: true,
         });
 
-        const institutions = Array.isArray(response?.items)
-          ? response.items
-          : [];
+        const hasMatch = Array.isArray(response?.items) && response.items.length > 0;
 
-        const matched = institutions.some((inst) => {
-          const institutionDomain = (
-            inst?.institutionDomain ??
-            inst?.data?.institutionDomain ??
-            ''
-          )
-            .toString()
-            .trim()
-            .replace(/^@/, '')
-            .toLowerCase();
-          return institutionDomain === domain;
-        });
-
-        if (!matched) {
+        if (!hasMatch) {
           throw new BadRequestException({
             message: `Email domain "${domain}" is not a registered domain.`,
             errorCode: 'INVALID_EMAIL_DOMAIN',
