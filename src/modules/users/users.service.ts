@@ -19,11 +19,10 @@ import {
     VerifyUserAttributeCommand,
   } from '@aws-sdk/client-cognito-identity-provider';
   import { JwtService } from '@nestjs/jwt';
-  import { nanoid } from 'nanoid';
 import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
 import { IUsers } from 'src/common/interfaces/users.interface';
 import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
-import { generateRandomPassword } from 'src/common/utils/util';
+import { generateRandomPassword, generateUniqueId } from 'src/common/utils/util';
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
   import {
     ConfirmEmailDto,
@@ -34,6 +33,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
     UsersVerifySignupDto,
     VerifyEmailDto,
   } from './dto/users-auth.dto';
+import { RecordService } from '@noukha-technologies/mdm-core';
   
   @Injectable()
   export class UsersAuthService {
@@ -45,6 +45,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
     private readonly dbService: IMongoDBServices,
     private readonly jwtService: JwtService,
     private readonly paginationService: PaginationService,
+    private readonly recordService: RecordService,
   ) {
       if (!this.clientId) {
         throw new Error('COGNITO_CUSTOMER_APP_CLIENT_ID is not configured');
@@ -65,7 +66,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
       await this.ensurePhoneAvailable(dto.phoneNumber);
   
       const userPayload: IUsers = {
-        userId: nanoid(),
+        userId: generateUniqueId(),
         phoneNumber: dto.phoneNumber,
         isActive: false,
         isVerified: false,
@@ -228,7 +229,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         { userId: dto.userId, status: 'pending' },
         {
           userName: dto.userName,
-          Name: dto.name,
+          name: dto.name,
           userNameSet: true,
           updatedAt: new Date()
         }
@@ -238,7 +239,45 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
         message: 'Username set successfully'
       };
     }
-  
+
+    async validateInstitute(email: string) {
+      const atIndex = email?.lastIndexOf('@') ?? -1;
+      if (atIndex === -1 || atIndex === email.length - 1) {
+        throw new BadRequestException('Invalid email format');
+      }
+
+      const domain = email.substring(atIndex + 1).trim().replace(/^@/, '').toLowerCase();
+
+      try {
+        const response = await this.recordService.findAll('institutions', {
+          filters: {
+            $or: [
+              { institutionDomain: domain }
+            ],
+          },
+          nonPaginated: true,
+        });
+
+        const hasMatch = Array.isArray(response?.items) && response.items.length > 0;
+
+        if (!hasMatch) {
+          throw new BadRequestException({
+            message: `Email domain "${domain}" is not a registered domain.`,
+            errorCode: 'INVALID_EMAIL_DOMAIN',
+          });
+        }
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+
+        throw new BadRequestException({
+          message: 'Failed to validate email domain. Please try again.',
+          errorCode: 'DOMAIN_VALIDATION_ERROR',
+        });
+      }
+    }
+   
     async verifyEmail(dto: VerifyEmailDto) {
       const user = await this.dbService.users.findOne({
         userId: dto.userId,
@@ -271,6 +310,8 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
       if (existingUser && existingUser.userId !== dto.userId) {
         throw new BadRequestException('Email already registered');
       }
+
+      await this.validateInstitute(dto.email);
   
       await this.dbService.users.findOneAndUpdate(
         { userId: dto.userId, status: 'pending' },
