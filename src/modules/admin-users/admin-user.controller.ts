@@ -9,7 +9,7 @@ import { FetchAdminUsersDto } from './dto/fetch-admin-users.dto';
 
 @Controller('admin-user')
 export class AdminUserController {
-  constructor(private readonly adminUserService: AdminUserService) {}
+  constructor(private readonly adminUserService: AdminUserService) { }
 
   @Post('create')
   @HttpCode(HttpStatus.CREATED)
@@ -24,7 +24,7 @@ export class AdminUserController {
   getAllAdminUsers(
     @Query() fetchDto: FetchAdminUsersDto
   ) {
-    const { skip, limit, nonPaginated, role, status } = fetchDto;
+    const { skip, limit, nonPaginated, role, status, institutionId } = fetchDto;
     const filter: Record<string, any> = {};
     if (role) {
       filter.role = role;
@@ -32,6 +32,11 @@ export class AdminUserController {
     if (status) {
       filter.status = status;
     }
+    if (institutionId) 
+      {
+        filter['metaTags.institutionsId'] = institutionId;
+       } 
+
     return this.adminUserService.findAllAdminUsers(skip, limit, filter, nonPaginated);
   }
 

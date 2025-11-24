@@ -59,8 +59,8 @@ export class AdminUserService {
 
     try {
       await this.cognitoService.createAdminUser(
-        createAdminDto.userName, 
-        createAdminDto.email, 
+        createAdminDto.userName,
+        createAdminDto.email,
         password,
         createAdminDto.firstName,
         createAdminDto.lastName,
@@ -103,13 +103,24 @@ export class AdminUserService {
     return adminUser;
   }
 
+  async getAdminByInstitutionId(institutionId: string): Promise<IAdminUser[]> {
+    const query = { 
+      "metaTags.institutionId": institutionId
+    };
+    const usersByInstitution = await this.dbServices.adminUser.find(query);
+    if (!usersByInstitution) {
+      throw new NotFoundException('Admin user not found');
+    }
+    return usersByInstitution;
+  }
+
   async update(adminId: string, updateAdminUserDto: UpdateAdminUserDto) {
     try {
       const adminUser = await this.dbServices.adminUser.findOne({ adminId });
       if (!adminUser) {
         throw new NotFoundException(`AdminUser with adminId ${adminId} not found`);
       }
-      
+
       return await this.dbServices.adminUser.findOneAndUpdate(
         { adminId },
         updateAdminUserDto,

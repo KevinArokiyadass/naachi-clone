@@ -4,6 +4,11 @@ import { nanoid } from 'nanoid';
 
 export type AdminUserDocument = AdminUser & Document;
 
+export interface IMetaTag {
+  institutionId: string;
+  departmentsId: string[];
+}
+
 @Schema({ timestamps: true })
 export class AdminUser extends Document {
   @Prop({ required: true, unique: true, default: () => nanoid() })
@@ -21,12 +26,12 @@ export class AdminUser extends Document {
   @Prop({ unique: true, sparse: true })
   userName: string;
 
-  @Prop({  })
+  @Prop({})
   phoneNumber: string;
 
   @Prop({ type: String })
   password: string;
-  
+
   @Prop({ type: String })
   role: string;
 
@@ -35,6 +40,13 @@ export class AdminUser extends Document {
 
   @Prop({ type: String, enum: ['active', 'inactive'], default: 'active' })
   status: string;
+
+  @Prop({
+    type: [Object],
+    default: [],
+    required: false
+  })
+  metaTags?: IMetaTag[];
 }
 
 export const AdminUserSchema = SchemaFactory.createForClass(AdminUser);

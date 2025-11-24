@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEmail, IsArray, IsEnum, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEmail, IsArray, IsEnum, MinLength, MaxLength, IsObject } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { AdminRoles } from 'src/common/enums/user.enum';
 
@@ -68,4 +68,8 @@ export class CreateAdminWithPasswordDto {
   @IsOptional()
   role?: AdminRoles;
 
+  @IsOptional()
+  @IsArray()
+  @IsObject({ each: true })
+  metaTags?: Record<string, object>[];
 }
