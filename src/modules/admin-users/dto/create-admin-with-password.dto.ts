@@ -1,9 +1,6 @@
 import { IsString, IsNotEmpty, IsOptional, IsEmail, IsArray, IsEnum, MinLength, MaxLength, ValidateIf, ArrayMinSize, ValidateNested, IsDefined } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { ApiProperty } from '@nestjs/swagger';
-import { AdminRoles } from 'src/common/enums/user.enum';
-import { IMetaTag } from '../entities/admin-user.entity';
-import { MetaTagDto } from './create-admin-user.dto';
+import { AdminRoles, IMetaTag } from 'src/common/enums/user.enum';
  
 const normalizeUserName = (value: unknown): string | undefined => {
   if (typeof value !== 'string') {
@@ -19,37 +16,27 @@ const normalizeUserName = (value: unknown): string | undefined => {
   return atIndex === -1 ? trimmed : trimmed.slice(0, atIndex);
 };
 
+export class MetaTagDto implements IMetaTag {
+  @IsString()
+  @IsNotEmpty({ message: 'Institution ID is required' })
+  institutionsId: string;
+ 
+  @IsArray({ message: 'Departments ID must be an array' })
+  @ArrayMinSize(1, { message: 'At least one department ID is required' })
+  @IsString({ each: true, message: 'Each department ID must be a string' })
+  @IsNotEmpty({ message: 'Departments ID is required' })
+  departmentsId: string[];
+}
+
 export class CreateAdminWithPasswordDto {
-  @ApiProperty({
-    description: 'Admin first name',
-    example: 'John'
-  })
   @IsString()
-  @IsNotEmpty({ message: 'First name is required' })
-  firstName: string;
+  @IsNotEmpty({ message: 'Name is required' })
+  name: string;
  
-  @ApiProperty({
-    description: 'Admin last name',
-    example: 'Doe'
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'Last name is required' })
-  lastName: string;
- 
-  @ApiProperty({
-    description: 'Admin email address',
-    example: 'admin@company.com'
-  })
   @IsEmail({}, { message: 'Please provide a valid email address' })
   @IsNotEmpty({ message: 'Email is required' })
   email: string;
- 
-  @ApiProperty({
-    description: 'Unique username for admin',
-    example: 'admin_user',
-    minLength: 3,
-    maxLength: 20
-  })
+
   @Transform(({ value }) => normalizeUserName(value))
   @IsString()
   @IsNotEmpty({ message: 'Username is required' })
@@ -57,47 +44,21 @@ export class CreateAdminWithPasswordDto {
   @MaxLength(20, { message: 'Username must be at most 20 characters long' })
   userName: string;
  
-  @ApiProperty({
-    description: 'Temporary password for admin (will be used for Cognito signup)',
-    example: 'TempPass123!',
-    minLength: 8
-  })
   @IsString()
   @IsNotEmpty({ message: 'Password is required' })
   @MinLength(8, { message: 'Password must be at least 8 characters long' })
   password: string;
  
-  @ApiProperty({
-    description: 'Admin phone number',
-    example: '+1234567890',
-    required: false
-  })
+
   @IsString()
   @IsOptional()
   phoneNumber?: string;
  
-  @ApiProperty({
-    description: 'Admin role',
-    enum: AdminRoles,
-    example: AdminRoles.SUPER_ADMIN,
-    required: true
-  })
   @IsEnum(AdminRoles, { message: 'Invalid admin role' })
   @IsNotEmpty({ message: 'Role is required' })
   role: AdminRoles;
  
-  @ApiProperty({
-    description: 'Meta tags containing institution and department IDs (required for INSTITUTION_ADMIN role)',
-    type: 'array',
-    items: {
-      type: 'object',
-      properties: {
-        institutionId: { type: 'string' },
-        departmentsId: { type: 'array', items: { type: 'string' } }
-      }
-    },
-    required: false
-  })
+
   @ValidateIf((o) => o.role === AdminRoles.INSTITUTIONADMIN)
   @IsDefined({ message: 'MetaTags are required for INSTITUTION_ADMIN role' })
   @IsNotEmpty({ message: 'MetaTags are required for INSTITUTION_ADMIN role' })
@@ -106,6 +67,17 @@ export class CreateAdminWithPasswordDto {
   @ValidateNested({ each: true })
   @Type(() => MetaTagDto)
   metaTags?: IMetaTag[];
+
+
+  @IsOptional()
+  @IsEnum(['active', 'inactive'], { message: 'Status must be either active or inactive' })
+  status?: string = 'active';
+
+  @IsArray({ message: 'Permission groups ID must be an array' })
+  @ArrayMinSize(1, { message: 'At least one permission group ID is required' })
+  @IsString({ each: true, message: 'Each permission group ID must be a string' })
+  @IsNotEmpty({ message: 'Permission groups ID is required' })
+  permissionGroupsId: string[];
  
 }
  

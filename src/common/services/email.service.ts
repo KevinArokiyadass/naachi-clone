@@ -77,12 +77,12 @@ export class EmailService {
     await this.sendEmail({ to: sanitizedEmail, subject, html });
     this.logger.log(`OTP sent to ${sanitizedEmail}`);
   }
-  async sendWelcomeEmail(email: string, firstName: string, password: string): Promise<void> {
+  async sendWelcomeEmail(email: string, name: string, password: string): Promise<void> {
     const subject = 'Welcome to Naachi - Your Account Details';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #333; text-align: center;">Welcome to Naachi</h2>
-        <p>Dear ${firstName},</p>
+        <p>Dear ${name},</p>
         <p>Your account has been created successfully. Here are your login credentials:</p>
         <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 20px 0;">
           <p><strong>Email:</strong> ${email}</p>
@@ -95,13 +95,13 @@ export class EmailService {
     await this.sendEmail({ to: email, subject, html });
   }
 
-  async sendPasswordResetEmail(email: string, firstName: string, resetToken: string): Promise<void> {
+  async sendPasswordResetEmail(email: string, name: string, resetToken: string): Promise<void> {
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
     const subject = 'Password Reset Request - Naachi';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>Password Reset Request</h2>
-        <p>Dear ${firstName},</p>
+        <p>Dear ${name},</p>
         <p>We received a request to reset your password. Click the link below to reset:</p>
         <div style="text-align: center; margin: 30px 0;">
           <a href="${resetUrl}" style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px;">

@@ -1,7 +1,6 @@
 export interface IAdminUser {
     adminId: string;
-    firstName: string;
-    lastName: string;
+    name: string;
     email: string;
     password: string;
     phoneNumber: string;
@@ -9,4 +8,5 @@ export interface IAdminUser {
     role?: string;
     status?: 'active' | 'inactive';
     isDeleted?: boolean;
+    permissionGroupsId: string[];
 }
