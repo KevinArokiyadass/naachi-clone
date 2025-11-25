@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString, ValidateIf} from 'class-validator';
 import { FetchDto } from 'src/common/shared/pagination/dto/fetch.dto';
 import { AdminRoles } from 'src/common/enums/user.enum';
 
@@ -11,8 +11,13 @@ export class FetchAdminUsersDto extends FetchDto {
   @IsEnum(['active', 'inactive'], { message: 'Status must be active or inactive' })
   status?: 'active' | 'inactive';
 
+  @ValidateIf((o) => o.role === AdminRoles.INSTITUTIONADMIN)
   @IsOptional()
   @IsString()
   institutionId?: string;
+
+  @IsOptional()
+  @IsString()
+  departmentsId?: string;
 }
 

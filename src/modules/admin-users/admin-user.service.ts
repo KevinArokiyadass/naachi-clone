@@ -103,16 +103,6 @@ export class AdminUserService {
     return adminUser;
   }
 
-  async getAdminByInstitutionId(institutionId: string): Promise<IAdminUser[]> {
-    const query = { 
-      "metaTags.institutionId": institutionId
-    };
-    const usersByInstitution = await this.dbServices.adminUser.find(query);
-    if (!usersByInstitution) {
-      throw new NotFoundException('Admin user not found');
-    }
-    return usersByInstitution;
-  }
 
   async update(adminId: string, updateAdminUserDto: UpdateAdminUserDto) {
     try {

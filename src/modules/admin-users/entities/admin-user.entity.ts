@@ -5,8 +5,8 @@ import { nanoid } from 'nanoid';
 export type AdminUserDocument = AdminUser & Document;
 
 export interface IMetaTag {
-  institutionId: string;
-  departmentsId: string[];
+  institutionsId: string;
+  departmentId: string[];
 }
 
 @Schema({ timestamps: true })
@@ -42,9 +42,12 @@ export class AdminUser extends Document {
   status: string;
 
   @Prop({
-    type: [Object],
+    type: [({
+      institutionId: { type: String, required: true },
+      departmentsId: { type: [String], default: [] }
+    })],
     default: [],
-    required: false
+    required: true
   })
   metaTags?: IMetaTag[];
 }

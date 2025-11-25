@@ -5,6 +5,8 @@ import { CreateAdminWithPasswordDto } from './dto/create-admin-with-password.dto
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { FetchAdminUsersDto } from './dto/fetch-admin-users.dto';
+import { AdminRoles } from 'src/common/enums/user.enum';
+
 
 
 @Controller('admin-user')
@@ -20,12 +22,17 @@ export class AdminUserController {
   }
 
 
+
   @Get()
   getAllAdminUsers(
     @Query() fetchDto: FetchAdminUsersDto
   ) {
-    const { skip, limit, nonPaginated, role, status, institutionId } = fetchDto;
+    const { skip, limit, nonPaginated, role, status, institutionId, departmentsId } = fetchDto;
     const filter: Record<string, any> = {};
+    if (role === AdminRoles.INSTITUTIONADMIN && !institutionId) {
+      throw new BadRequestException('institutionId is required for institutional admins');
+     }
+
     if (role) {
       filter.role = role;
     }
@@ -34,8 +41,12 @@ export class AdminUserController {
     }
     if (institutionId) 
       {
-        filter['metaTags.institutionsId'] = institutionId;
+        filter['metaTags.institutionId'] = institutionId;
        } 
+    if (departmentsId)
+      {
+        filter['metaTags.departmentId'] = departmentsId;
+      }
 
     return this.adminUserService.findAllAdminUsers(skip, limit, filter, nonPaginated);
   }
