@@ -39,8 +39,7 @@ export class AdminAuthController {
         message: 'Login successful', 
         adminUser: {
           adminId: admin.adminId,
-          firstName: admin.firstName,
-          lastName: admin.lastName,
+          name: admin.name,
           email: admin.email,
           role: admin.role,
         }, 

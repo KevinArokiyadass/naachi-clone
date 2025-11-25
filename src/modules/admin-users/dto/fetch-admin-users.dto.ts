@@ -14,7 +14,7 @@ export class FetchAdminUsersDto extends FetchDto {
   @ValidateIf((o) => o.role === AdminRoles.INSTITUTIONADMIN)
   @IsOptional()
   @IsString()
-  institutionId?: string;
+  institutionsId?: string;
 
   @IsOptional()
   @IsString()

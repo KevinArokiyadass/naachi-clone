@@ -1,29 +1,9 @@
 export enum AdminRoles {
   SUPER_ADMIN = 'SUPER_ADMIN',
-  ADMIN = 'ADMIN',
-  INSTITUTIONADMIN="INSTITUTION_ADMIN",
-  DEPARTMENTADMIN="DEPARTMENT_ADMIN",
+  INSTITUTIONADMIN="INSTITUTION_ADMIN"
 }
 
-export enum AttributeNames {
-  USERS = 'USERS',
-  ADMIN_USERS = 'ADMIN_USERS',
-  ANALYTICS = 'ANALYTICS',
-  SETTINGS = 'SETTINGS',
-  REPORTS = 'REPORTS',
-  PERMISSIONS = 'PERMISSIONS'
-}
-
-export enum AttributeAccess {
-  READ = 'READ',
-  WRITE = 'WRITE',
-  DELETE = 'DELETE',
-  ALL = 'ALL'
-}
-
-export enum UserStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-  PENDING = 'PENDING',
-  SUSPENDED = 'SUSPENDED'
+export interface IMetaTag {
+  institutionsId: string;
+  departmentsId: string[];
 }
