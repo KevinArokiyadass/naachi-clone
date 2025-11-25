@@ -92,3 +92,8 @@ export const comparePassword = async (password: string, hashedPassword: string):
 export const generateResetToken = (): string => {
   return crypto.randomBytes(32).toString('hex');
 };
+
+export function normalizeUserName(value: string): string {
+  if (!value) return value;
+  return value.trim().toLowerCase();
+}
