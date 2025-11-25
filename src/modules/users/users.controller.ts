@@ -14,6 +14,7 @@ import {
   VerifyEmailDto
 } from './dto/users-auth.dto';
 import { UsersAuthService } from './users.service';
+import {RecordService} from "@noukha-technologies/mdm-core"
 
 
 @Controller('users')

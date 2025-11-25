@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import { generateUniqueId } from 'src/common/utils/util';
  
+
 export type AdminUserDocument = AdminUser & Document;
  
 export interface IMetaTag {

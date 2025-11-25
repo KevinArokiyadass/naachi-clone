@@ -29,7 +29,7 @@ export class Users extends Document {
     userName?: string;
 
     @Prop({ type: String, trim: true })
-    Name?: string;
+    name?: string;
 
     @Prop({ type: Boolean, default: false })
     isActive: boolean;

@@ -6,6 +6,26 @@ import { normalizeUserName } from 'src/common/utils/util';
 import { IMetaTag } from '../entities/admin-user.entity';
 import { MetaTagDto } from './create-admin-user.dto';
  
+import { IsString, IsNotEmpty, IsOptional, IsEmail, IsArray, IsEnum, MinLength, MaxLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
+import { AdminRoles } from 'src/common/enums/user.enum';
+
+
+const normalizeUserName = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    return value as string | undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  const atIndex = trimmed.indexOf('@');
+  return atIndex === -1 ? trimmed : trimmed.slice(0, atIndex);
+};
+
 export class CreateAdminWithPasswordDto {
   @ApiProperty({
     description: 'Admin first name',
