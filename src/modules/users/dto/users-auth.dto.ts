@@ -128,3 +128,17 @@ export class GetUsersQueryDto extends FetchDto {
   @IsString()
   userId?: string;
 }
+
+export class GetPermissionsQueryDto extends FetchDto {
+  @IsNotEmpty({ message: 'Institution ID is required' })
+  @IsString()
+  institutionsId: string;
+
+  @IsOptional()
+  @IsString()
+  sort?: string;
+
+  @IsOptional()
+  @IsString()
+  order?: 'asc' | 'desc';
+}
