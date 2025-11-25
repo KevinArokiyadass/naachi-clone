@@ -1,6 +1,22 @@
 import { IsString, IsNotEmpty, IsOptional, IsEmail, IsArray, IsEnum, MinLength, MaxLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { AdminRoles } from 'src/common/enums/user.enum';
+
+
+const normalizeUserName = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    return value as string | undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  const atIndex = trimmed.indexOf('@');
+  return atIndex === -1 ? trimmed : trimmed.slice(0, atIndex);
+};
 
 export class CreateAdminWithPasswordDto {
   @ApiProperty({
@@ -33,6 +49,7 @@ export class CreateAdminWithPasswordDto {
     minLength: 3,
     maxLength: 20
   })
+  @Transform(({ value }) => normalizeUserName(value))
   @IsString()
   @IsNotEmpty({ message: 'Username is required' })
   @MinLength(3, { message: 'Username must be at least 3 characters long' })
