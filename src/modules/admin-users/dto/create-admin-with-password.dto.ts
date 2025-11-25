@@ -2,16 +2,9 @@ import { IsString, IsNotEmpty, IsOptional, IsEmail, IsArray, IsEnum, MinLength, 
 import { Transform, Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { AdminRoles } from 'src/common/enums/user.enum';
-import { normalizeUserName } from 'src/common/utils/util';
 import { IMetaTag } from '../entities/admin-user.entity';
 import { MetaTagDto } from './create-admin-user.dto';
  
-import { IsString, IsNotEmpty, IsOptional, IsEmail, IsArray, IsEnum, MinLength, MaxLength } from 'class-validator';
-import { Transform } from 'class-transformer';
-import { ApiProperty } from '@nestjs/swagger';
-import { AdminRoles } from 'src/common/enums/user.enum';
-
-
 const normalizeUserName = (value: unknown): string | undefined => {
   if (typeof value !== 'string') {
     return value as string | undefined;
