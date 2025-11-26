@@ -651,6 +651,36 @@ import { RecordService } from '@noukha-technologies/mdm-core';
       return user;
     }
 
+
+    async getUsersByPhoneNumbers(
+      phoneNumbers: string[],
+    ): Promise<{ phoneNumber: string; name?: string; userName?: string }[]> {
+      if (!phoneNumbers || phoneNumbers.length === 0) {
+        return [];
+      }
+
+      const users = await this.dbService.users.find(
+        {
+          phoneNumber: { $in: phoneNumbers },
+          isDeleted: false,
+        },
+        {
+          phoneNumber: 1,
+          name: 1,
+          userName: 1,
+          _id: 0,
+        },
+      );
+
+      return users.map((u: any) => ({
+        phoneNumber: u.phoneNumber,
+        name: u.name,
+        userName: u.userName,
+      }));
+    }
+
+    
+
     async findAllUsers(
       skip: number = 0,
       limit: number = 10,
