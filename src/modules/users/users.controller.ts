@@ -1,6 +1,7 @@
 import { Body, Controller, Post, Get, Param, Query } from '@nestjs/common';
 import {
   ConfirmEmailDto,
+  GetPermissionsQueryDto,
   GetUsersQueryDto,
   SetUsernameDto,
   UsersCheckAvailableUserNameDto,
@@ -102,6 +103,31 @@ export class UsersController {
     }
 
     return this.usersService.findAllUsers(skip, limit, filter, nonPaginated);
+  }
+
+  @Get('permissions')
+  getPermissions(@Query() query: GetPermissionsQueryDto) {
+    const {
+      institutionsId,
+      skip = 0,
+      limit = 10,
+      search = '',
+      sort = 'name',
+      order = 'asc',
+      nonPaginated = false,
+    } = query;
+
+    const page = Math.floor(skip / limit) + 1;
+
+    return this.usersService.getPermissions(
+      institutionsId,
+      page,
+      limit,
+      search,
+      sort,
+      order as 'asc' | 'desc',
+      nonPaginated
+    );
   }
 }
 

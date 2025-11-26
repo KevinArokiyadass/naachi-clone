@@ -34,6 +34,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
     VerifyEmailDto,
   } from './dto/users-auth.dto';
 import { RecordService } from '@noukha-technologies/mdm-core';
+
   
   @Injectable()
   export class UsersAuthService {
@@ -64,7 +65,7 @@ import { RecordService } from '@noukha-technologies/mdm-core';
   
     async signup(dto: UsersSignupDto) {
       await this.ensurePhoneAvailable(dto.phoneNumber);
-  
+
       const userPayload: IUsers = {
         userId: generateUniqueId(),
         phoneNumber: dto.phoneNumber,
@@ -78,13 +79,17 @@ import { RecordService } from '@noukha-technologies/mdm-core';
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-  
-      await this.signUpUserInCognito(dto.phoneNumber, userPayload.userId);
-  
+
+      try {
+        await this.signUpUserInCognito(dto.phoneNumber, userPayload.userId);
+      } catch (error) {
+        this.handleCognitoSignupError(error);
+      }
+
       const otpResponse = await this.generateOtp(dto.phoneNumber);
-  
+
       await this.dbService.users.create(userPayload);
-  
+
       return {
         message: 'OTP sent to phone number',
         challengeName: otpResponse.ChallengeName,
@@ -595,6 +600,33 @@ import { RecordService } from '@noukha-technologies/mdm-core';
       throw new BadRequestException('Invalid OTP. Please double-check the code and try again.');
     }
 
+    private handleCognitoSignupError(error: any) {
+      const name = error?.name;
+      const message = error?.message || '';
+
+      if (name === 'InvalidParameterException') {
+        if (message.includes('phone number') || message.includes('phone_number')) {
+          throw new BadRequestException({
+            message: 'Invalid phone number format. Please provide a valid phone number.',
+            errorCode: 'INVALID_PHONE_FORMAT',
+          });
+        }
+        throw new BadRequestException({
+          message: message || 'Invalid parameters provided.',
+          errorCode: 'INVALID_PARAMETERS',
+        });
+      }
+
+      if (name === 'UsernameExistsException') {
+        throw new BadRequestException({
+          message: 'Phone number already registered.',
+          errorCode: 'PHONE_ALREADY_EXISTS',
+        });
+      }
+
+      throw error;
+    }
+
     private async ensurePhoneAvailable(phoneNumber: string) {
       const existing = await this.dbService.users.findOne({
         phoneNumber,
@@ -628,6 +660,46 @@ import { RecordService } from '@noukha-technologies/mdm-core';
       filter.isDeleted = { $in: [null, false] };
       const users = await this.paginationService.findAndPaginate(this.dbService.users, { skip, limit, filter, nonPaginated });
       return users;
+    }
+
+    async getPermissions(
+      institutionsId: string,
+      page: number = 1,
+      limit: number = 10,
+      search: string = '',
+      sort: string = 'name',
+      order: 'asc' | 'desc' = 'asc',
+      nonPaginated: boolean = false
+    ) {
+      try {
+        const filters: Record<string, any> = {
+          institutionsId: institutionsId,
+        };
+
+        const response = await this.recordService.findAll('permissions', {
+          filters,
+          page: nonPaginated ? 1 : page,
+          limit: nonPaginated ? 1000 : limit,
+          search: search || '',
+          sort: sort || 'name',
+          order: order || 'asc',
+          nonPaginated: nonPaginated,
+        });
+
+        return {
+          totalItems: response?.totalItems || response?.items?.length || 0,
+          totalPages: response?.totalPages || 1,
+          skip: nonPaginated ? 0 : (page - 1) * limit,
+          limit: nonPaginated ? response?.items?.length || 0 : limit,
+          items: response?.items || [],
+        };
+      } catch (error) {
+        throw new BadRequestException({
+          message: 'Failed to fetch permissions',
+          errorCode: 'PERMISSIONS_FETCH_ERROR',
+          details: error.message,
+        });
+      }
     }
   }
   
