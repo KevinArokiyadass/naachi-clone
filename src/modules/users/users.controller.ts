@@ -111,22 +111,30 @@ export class UsersController {
       institutionsId,
       skip = 0,
       limit = 10,
-      search = '',
-      sort = 'name',
-      order = 'asc',
+      filter = '{}',
+      sort = 'createdAt',
+      order = 'desc',
       nonPaginated = false,
     } = query;
 
-    const page = Math.floor(skip / limit) + 1;
+    let parsedFilter: Record<string, any>;
+    try {
+      parsedFilter = JSON.parse(filter);
+    } catch {
+      parsedFilter = {};
+    }
+    parsedFilter.institutionsId = institutionsId;
+
+    const sortObj: Record<string, any> = {
+      [sort]: order === 'asc' ? 1 : -1,
+    };
 
     return this.usersService.getPermissions(
-      institutionsId,
-      page,
+      skip,
       limit,
-      search,
-      sort,
-      order as 'asc' | 'desc',
-      nonPaginated
+      parsedFilter,
+      nonPaginated,
+      sortObj,
     );
   }
 }

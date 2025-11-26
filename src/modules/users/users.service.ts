@@ -663,34 +663,35 @@ import { RecordService } from '@noukha-technologies/mdm-core';
     }
 
     async getPermissions(
-      institutionsId: string,
-      page: number = 1,
+      skip: number = 0,
       limit: number = 10,
-      search: string = '',
-      sort: string = 'name',
-      order: 'asc' | 'desc' = 'asc',
-      nonPaginated: boolean = false
+      filter: Record<string, any> = {},
+      nonPaginated: boolean,
+      sort: Record<string, any> = { createdAt: -1 },
     ) {
       try {
-        const filters: Record<string, any> = {
-          institutionsId: institutionsId,
-        };
+        const page =
+          nonPaginated || !limit ? 1 : Math.floor(skip / limit) + 1;
+
+        const sortField = Object.keys(sort || {})[0] || 'createdAt';
+        const sortDir = sort?.[sortField];
+        const order = sortDir === -1 ? 'desc' : 'asc';
 
         const response = await this.recordService.findAll('permissions', {
-          filters,
+          filters: filter,
           page: nonPaginated ? 1 : page,
           limit: nonPaginated ? 1000 : limit,
-          search: search || '',
-          sort: sort || 'name',
-          order: order || 'asc',
-          nonPaginated: nonPaginated,
+          search: '',
+          sort: sortField,
+          order,
+          nonPaginated,
         });
 
         return {
-          totalItems: response?.totalItems || response?.items?.length || 0,
+          totalItems: response?.totalItems ?? response?.items?.length ?? 0,
           totalPages: response?.totalPages || 1,
-          skip: nonPaginated ? 0 : (page - 1) * limit,
-          limit: nonPaginated ? response?.items?.length || 0 : limit,
+          skip,
+          limit: nonPaginated ? response?.items?.length ?? 0 : limit,
           items: response?.items || [],
         };
       } catch (error) {
