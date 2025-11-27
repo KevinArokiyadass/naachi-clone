@@ -1,5 +1,6 @@
-import { Controller, Post, Body, UnauthorizedException, Headers, BadRequestException, HttpCode, HttpStatus } from "@nestjs/common";
+import { Controller, Post, Body, UnauthorizedException, Headers, BadRequestException, HttpCode, HttpStatus, Req } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Request } from 'express';
 import { AdminAuthService } from "./admin-auth.service";
 import { AdminUserService } from "../admin-users/admin-user.service";
 import { CognitoService } from "../cognito/cognito.service";
@@ -21,8 +22,15 @@ export class AdminAuthController {
   @ApiOperation({ summary: 'Admin login with email and password' })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() loginDto: AdminLoginDto) {
+  async login(@Body() loginDto: AdminLoginDto, @Req() req: Request) {
     try {
+      // Get institutionId from request (set by ClientIdMiddleware)
+      const institutionId = req['institutionsId'];
+      
+      if (!institutionId) {
+        throw new UnauthorizedException('Institution ID is required. Please provide Origin header.');
+      }
+
       const admin = await this.adminUsers.getOneAdminUser({ email: loginDto.userName });
       if (!admin) {
         throw new UnauthorizedException('Admin not found');
@@ -47,7 +55,8 @@ export class AdminAuthController {
           accessToken: tokens.accessToken,
           idToken: tokens.idToken,
           refreshToken: tokens.refreshToken
-        }
+        },
+        institutionId: institutionId
       };
     } catch (error) {
       if (error.name === 'NotAuthorizedException' || error.name === 'UserNotConfirmedException') {
