@@ -692,5 +692,5 @@ import { RecordService } from '@noukha-technologies/mdm-core';
       return users;
     }
   }
-  
+
   
