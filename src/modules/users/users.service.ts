@@ -34,6 +34,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
     VerifyEmailDto,
   } from './dto/users-auth.dto';
 import { RecordService } from '@noukha-technologies/mdm-core';
+
   
   @Injectable()
   export class UsersAuthService {
@@ -64,7 +65,7 @@ import { RecordService } from '@noukha-technologies/mdm-core';
   
     async signup(dto: UsersSignupDto) {
       await this.ensurePhoneAvailable(dto.phoneNumber);
-  
+
       const userPayload: IUsers = {
         userId: generateUniqueId(),
         phoneNumber: dto.phoneNumber,
@@ -78,13 +79,17 @@ import { RecordService } from '@noukha-technologies/mdm-core';
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-  
-      await this.signUpUserInCognito(dto.phoneNumber, userPayload.userId);
-  
+
+      try {
+        await this.signUpUserInCognito(dto.phoneNumber, userPayload.userId);
+      } catch (error) {
+        this.handleCognitoSignupError(error);
+      }
+
       const otpResponse = await this.generateOtp(dto.phoneNumber);
-  
+
       await this.dbService.users.create(userPayload);
-  
+
       return {
         message: 'OTP sent to phone number',
         challengeName: otpResponse.ChallengeName,
@@ -595,6 +600,33 @@ import { RecordService } from '@noukha-technologies/mdm-core';
       throw new BadRequestException('Invalid OTP. Please double-check the code and try again.');
     }
 
+    private handleCognitoSignupError(error: any) {
+      const name = error?.name;
+      const message = error?.message || '';
+
+      if (name === 'InvalidParameterException') {
+        if (message.includes('phone number') || message.includes('phone_number')) {
+          throw new BadRequestException({
+            message: 'Invalid phone number format. Please provide a valid phone number.',
+            errorCode: 'INVALID_PHONE_FORMAT',
+          });
+        }
+        throw new BadRequestException({
+          message: message || 'Invalid parameters provided.',
+          errorCode: 'INVALID_PARAMETERS',
+        });
+      }
+
+      if (name === 'UsernameExistsException') {
+        throw new BadRequestException({
+          message: 'Phone number already registered.',
+          errorCode: 'PHONE_ALREADY_EXISTS',
+        });
+      }
+
+      throw error;
+    }
+
     private async ensurePhoneAvailable(phoneNumber: string) {
       const existing = await this.dbService.users.findOne({
         phoneNumber,
@@ -619,6 +651,36 @@ import { RecordService } from '@noukha-technologies/mdm-core';
       return user;
     }
 
+
+    async getUsersByPhoneNumbers(
+      phoneNumbers: string[],
+    ): Promise<{ phoneNumber: string; name?: string; userName?: string }[]> {
+      if (!phoneNumbers || phoneNumbers.length === 0) {
+        return [];
+      }
+
+      const users = await this.dbService.users.find(
+        {
+          phoneNumber: { $in: phoneNumbers },
+          isDeleted: false,
+        },
+        {
+          phoneNumber: 1,
+          name: 1,
+          userName: 1,
+          _id: 0,
+        },
+      );
+
+      return users.map((u: any) => ({
+        phoneNumber: u.phoneNumber,
+        name: u.name,
+        userName: u.userName,
+      }));
+    }
+
+    
+
     async findAllUsers(
       skip: number = 0,
       limit: number = 10,
@@ -629,7 +691,6 @@ import { RecordService } from '@noukha-technologies/mdm-core';
       const users = await this.paginationService.findAndPaginate(this.dbService.users, { skip, limit, filter, nonPaginated });
       return users;
     }
-
   }
   
   

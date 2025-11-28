@@ -2,11 +2,9 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { IMongoDBServices } from '../../common/repository/mongodb-repository/abstract.repository';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
-import { AdminRoles } from '../../common/enums/user.enum';
 import { IAdminUser } from '../../common/interfaces/admin-user.interface';
 import { IPaginatedResult } from '../../common/interfaces/paginated-result.interface';
 import { PaginationService } from '../../common/shared/pagination/pagination.service';
-import { HttpClientService } from '../../common/inter-service-communication/http-client.service';
 import { CognitoService } from '../cognito/cognito.service';
 import { FilterQuery } from 'mongoose';
 
@@ -24,30 +22,9 @@ export class AdminUserService {
       throw new BadRequestException('Admin with this email already exists');
     }
 
-    // Set default role if not provided
     if (!createAdminDto.role) {
-      createAdminDto.role = AdminRoles.ADMIN;
+      throw new BadRequestException("Role is required");
     }
-
-    // Create the admin in our DB (without password)
-    const adminUser = await this.dbServices.adminUser.create({
-      ...createAdminDto,
-      status: createAdminDto.status ?? 'active',
-    });
-
-    return adminUser;
-  }
-
-  async createAdminUserWithPassword(createAdminDto: any) {
-    const existingAdmin = await this.dbServices.adminUser.findOne({ email: createAdminDto.email });
-    if (existingAdmin) {
-      throw new BadRequestException('Admin with this email already exists');
-    }
-
-    if (!createAdminDto.role) {
-      createAdminDto.role = AdminRoles.ADMIN;
-    }
-
 
     const { password, ...adminDataWithoutPassword } = createAdminDto;
     const created = await this.dbServices.adminUser.create({
@@ -62,8 +39,7 @@ export class AdminUserService {
         createAdminDto.userName,
         createAdminDto.email,
         password,
-        createAdminDto.firstName,
-        createAdminDto.lastName,
+        createAdminDto.name,
         createAdminDto.phoneNumber
       );
       return {

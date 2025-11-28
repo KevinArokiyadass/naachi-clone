@@ -1,6 +1,8 @@
 import { Body, Controller, Post, Get, Param, Query } from '@nestjs/common';
 import {
   ConfirmEmailDto,
+  GetUsersByPhoneDto,
+  GetPermissionsQueryDto,
   GetUsersQueryDto,
   SetUsernameDto,
   UsersCheckAvailableUserNameDto,
@@ -102,6 +104,46 @@ export class UsersController {
     }
 
     return this.usersService.findAllUsers(skip, limit, filter, nonPaginated);
+  }
+
+
+  @Post('Users-by-phone')
+  getUsersByPhone(@Body() dto: GetUsersByPhoneDto) {
+    return this.usersService.getUsersByPhoneNumbers(dto.phoneNumbers);
+  }
+
+
+  @Get('permissions')
+  getPermissions(@Query() query: GetPermissionsQueryDto) {
+    const {
+      institutionsId,
+      skip = 0,
+      limit = 10,
+      filter = '{}',
+      sort = 'createdAt',
+      order = 'desc',
+      nonPaginated = false,
+    } = query;
+
+    let parsedFilter: Record<string, any>;
+    try {
+      parsedFilter = JSON.parse(filter);
+    } catch {
+      parsedFilter = {};
+    }
+    parsedFilter.institutionsId = institutionsId;
+
+    const sortObj: Record<string, any> = {
+      [sort]: order === 'asc' ? 1 : -1,
+    };
+
+    return this.usersService.getPermissions(
+      skip,
+      limit,
+      parsedFilter,
+      nonPaginated,
+      sortObj,
+    );
   }
 }
 

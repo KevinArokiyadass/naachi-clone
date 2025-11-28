@@ -6,6 +6,9 @@ import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { FetchAdminUsersDto } from './dto/fetch-admin-users.dto';
 import { AdminRoles } from 'src/common/enums/user.enum';
+import { ClientIdMiddleware } from 'src/common/middleware/clientId.middlewere';
+import { LoggerMiddleware } from 'src/common/middleware/logger.middlewere';
+import { MiddlewareConsumer } from '@nestjs/common';
 
 
 
@@ -18,19 +21,18 @@ export class AdminUserController {
   @ApiOperation({ summary: 'Create complete admin user with authentication' })
   @ApiResponse({ status: 201, description: 'Admin user created and verification email sent' })
   async createAdminUser(@Body() createAdminDto: CreateAdminWithPasswordDto) {
-    return await this.adminUserService.createAdminUserWithPassword(createAdminDto);
+    return await this.adminUserService.createAdminUser(createAdminDto);
   }
 
-
-
+  
   @Get()
   getAllAdminUsers(
     @Query() fetchDto: FetchAdminUsersDto
   ) {
-    const { skip, limit, nonPaginated, role, status, institutionId, departmentsId } = fetchDto;
+    const { skip, limit, nonPaginated, role, status, institutionsId, departmentsId } = fetchDto;
     const filter: Record<string, any> = {};
-    if (role === AdminRoles.INSTITUTIONADMIN && !institutionId) {
-      throw new BadRequestException('institutionId is required for institutional admins');
+    if (role === AdminRoles.INSTITUTIONADMIN && !institutionsId) {
+      throw new BadRequestException('institutionsId is required for institutional admins');
      }
 
     if (role) {
@@ -39,13 +41,13 @@ export class AdminUserController {
     if (status) {
       filter.status = status;
     }
-    if (institutionId) 
+    if (institutionsId) 
       {
-        filter['metaTags.institutionId'] = institutionId;
+        filter['metaTags.institutionsId'] = institutionsId;
        } 
     if (departmentsId)
       {
-        filter['metaTags.departmentId'] = departmentsId;
+        filter['metaTags.departmentsId'] = departmentsId;
       }
 
     return this.adminUserService.findAllAdminUsers(skip, limit, filter, nonPaginated);
@@ -65,8 +67,6 @@ export class AdminUserController {
   }
 
   @Patch(':adminId/password')
-  @ApiOperation({ summary: 'Update admin password (delegates to Cognito)' })
-  @ApiResponse({ status: 200, description: 'Password update initiated' })
   async updatePassword(
     @Param('adminId') adminId: string,
     @Body() updatePasswordDto: UpdatePasswordDto,

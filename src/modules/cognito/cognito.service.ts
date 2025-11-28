@@ -34,19 +34,15 @@ export class CognitoService {
   private clientSecret = process.env.COGNITO_CLIENT_SECRET!;
   private userPoolId = process.env.COGNITO_USER_POOL_ID!;
 
-  async createAdminUser(userName: string, email: string, password: string, firstName?: string, lastName?: string, phoneNumber?: string) {
+  async createAdminUser(userName: string, email: string, password: string, name?: string, phoneNumber?: string) {
     try {
       const userAttributes = [
         { Name: 'email', Value: email },
         { Name: 'email_verified', Value: 'true' }
       ];
 
-      // Add required name attributes if provided
-      if (firstName) {
-        userAttributes.push({ Name: 'given_name', Value: firstName });
-      }
-      if (lastName) {
-        userAttributes.push({ Name: 'family_name', Value: lastName });
+      if (name) {
+        userAttributes.push({ Name: 'name', Value: name });
       }
       if (phoneNumber) {
         userAttributes.push({ Name: 'phone_number', Value: phoneNumber });

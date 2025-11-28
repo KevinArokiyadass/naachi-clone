@@ -1,11 +1,13 @@
-import { Controller, Post, Body, UnauthorizedException, Headers, BadRequestException, HttpCode, HttpStatus } from "@nestjs/common";
+import { Controller, Post, Body, UnauthorizedException, Headers, BadRequestException, HttpCode, HttpStatus, Req } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Request } from 'express';
 import { AdminAuthService } from "./admin-auth.service";
 import { AdminUserService } from "../admin-users/admin-user.service";
 import { CognitoService } from "../cognito/cognito.service";
 import { AdminLoginDto } from "./dto/admin-login.dto";
 import { ConfirmSignUpDto } from "./dto/confirm-signup.dto";
 import { RefreshTokenDto } from "./dto/refresh-token.dto";
+import { AdminRoles } from "../../common/enums/user.enum";
 
 @ApiTags('Admin Authentication')
 @Controller('admin-auth')
@@ -21,8 +23,15 @@ export class AdminAuthController {
   @ApiOperation({ summary: 'Admin login with email and password' })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() loginDto: AdminLoginDto) {
+  async login(@Body() loginDto: AdminLoginDto, @Req() req: Request) {
     try {
+      const institutionsId = req['institutionsId'];
+      const isSuperAdminRequest = req['isSuperAdminRequest'];
+      
+      if (!isSuperAdminRequest && !institutionsId) {
+        throw new UnauthorizedException('Institution ID is required. Please provide Origin header.');
+      }
+
       const admin = await this.adminUsers.getOneAdminUser({ email: loginDto.userName });
       if (!admin) {
         throw new UnauthorizedException('Admin not found');
@@ -32,6 +41,13 @@ export class AdminAuthController {
         throw new UnauthorizedException('Admin account is inactive');
       }
 
+      if (isSuperAdminRequest) {
+        const normalizedRole = String(admin.role).trim().toUpperCase();
+        if (normalizedRole !== AdminRoles.SUPER_ADMIN) {
+          throw new UnauthorizedException('Only SUPER_ADMIN can use this authentication method');
+        }
+      }
+
       const cognitoUsername = admin.userName || admin.email;
       const tokens = await this.cognito.signIn(cognitoUsername, loginDto.password);
 
@@ -39,8 +55,7 @@ export class AdminAuthController {
         message: 'Login successful', 
         adminUser: {
           adminId: admin.adminId,
-          firstName: admin.firstName,
-          lastName: admin.lastName,
+          name: admin.name,
           email: admin.email,
           role: admin.role,
         }, 
@@ -48,7 +63,8 @@ export class AdminAuthController {
           accessToken: tokens.accessToken,
           idToken: tokens.idToken,
           refreshToken: tokens.refreshToken
-        }
+        },
+        ...(institutionsId && { institutionsId })
       };
     } catch (error) {
       if (error.name === 'NotAuthorizedException' || error.name === 'UserNotConfirmedException') {

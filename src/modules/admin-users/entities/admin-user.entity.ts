@@ -1,14 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import { generateUniqueId } from 'src/common/utils/util';
+import { IMetaTag } from 'src/common/enums/user.enum';
  
 
 export type AdminUserDocument = AdminUser & Document;
- 
-export interface IMetaTag {
-  institutionId: string;
-  departmentsId: string[];
-}
  
 @Schema({ timestamps: true })
 export class AdminUser extends Document {
@@ -16,10 +12,7 @@ export class AdminUser extends Document {
   adminId: string;
  
   @Prop({ required: true })
-  firstName: string;
- 
-  @Prop({ required: true })
-  lastName: string;
+  name: string;
  
   @Prop({ required: true, unique: true })
   email: string;
@@ -41,10 +34,13 @@ export class AdminUser extends Document {
  
   @Prop({ type: String, enum: ['active', 'inactive'], default: 'active' })
   status: string;
+
+  @Prop({ type: [String], required: true })
+  permissionGroupsId: string[];
  
   @Prop({
     type: [{
-      institutionId: { type: String },
+      institutionsId: { type: String },
       departmentsId: { type: [String], default: [] }
     }],
     default: null,
