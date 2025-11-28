@@ -7,6 +7,7 @@ import { CognitoService } from "../cognito/cognito.service";
 import { AdminLoginDto } from "./dto/admin-login.dto";
 import { ConfirmSignUpDto } from "./dto/confirm-signup.dto";
 import { RefreshTokenDto } from "./dto/refresh-token.dto";
+import { AdminRoles } from "../../common/enums/user.enum";
 
 @ApiTags('Admin Authentication')
 @Controller('admin-auth')
@@ -24,10 +25,10 @@ export class AdminAuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(@Body() loginDto: AdminLoginDto, @Req() req: Request) {
     try {
-      // Get institutionId from request (set by ClientIdMiddleware)
-      const institutionId = req['institutionsId'];
+      const institutionsId = req['institutionsId'];
+      const isSuperAdminRequest = req['isSuperAdminRequest'];
       
-      if (!institutionId) {
+      if (!isSuperAdminRequest && !institutionsId) {
         throw new UnauthorizedException('Institution ID is required. Please provide Origin header.');
       }
 
@@ -38,6 +39,13 @@ export class AdminAuthController {
 
       if (admin.status === 'inactive') {
         throw new UnauthorizedException('Admin account is inactive');
+      }
+
+      if (isSuperAdminRequest) {
+        const normalizedRole = String(admin.role).trim().toUpperCase();
+        if (normalizedRole !== AdminRoles.SUPER_ADMIN) {
+          throw new UnauthorizedException('Only SUPER_ADMIN can use this authentication method');
+        }
       }
 
       const cognitoUsername = admin.userName || admin.email;
@@ -56,7 +64,7 @@ export class AdminAuthController {
           idToken: tokens.idToken,
           refreshToken: tokens.refreshToken
         },
-        institutionId: institutionId
+        ...(institutionsId && { institutionsId })
       };
     } catch (error) {
       if (error.name === 'NotAuthorizedException' || error.name === 'UserNotConfirmedException') {

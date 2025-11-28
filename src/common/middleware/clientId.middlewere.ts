@@ -2,6 +2,7 @@ import { Injectable, NestMiddleware, ForbiddenException } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { HttpClientService } from '../inter-service-communication/http-client.service';
 import { RecordService } from '@noukha-technologies/mdm-core';
+import { HTTP_HEADERS } from '../constants/http-headers.constants';
 
 @Injectable()
 export class ClientIdMiddleware implements NestMiddleware {
@@ -12,10 +13,11 @@ export class ClientIdMiddleware implements NestMiddleware {
 
   async use(req: Request, res: Response, next: NextFunction) {
     const origin = req.headers.origin;
-    const USER_CURRENT_VIEW = req.headers['stripe-signature'];
     
-    // Bypass middleware for Stripe webhooks
-    if (USER_CURRENT_VIEW) {
+    const userCurrentViewHeader = req.headers[HTTP_HEADERS.USER_CURRENT_VIEW];
+    
+    if (userCurrentViewHeader && String(userCurrentViewHeader).toLowerCase() === 'naachi-cron') {
+      req['isSuperAdminRequest'] = true;
       return next();
     }
   
@@ -24,18 +26,18 @@ export class ClientIdMiddleware implements NestMiddleware {
     }
   
     try {
-      // Normalize origin URL: remove protocol and trailing slashes
+
       const normalizedOrigin = origin
-        .replace(/^https?:\/\//, '') // Remove http:// or https://
-        .replace(/\/$/, '') // Remove trailing slash
+        .replace(/^https?:\/\//, '') 
+        .replace(/\/$/, '') 
         .toLowerCase();
   
       if (!normalizedOrigin) {
         throw new ForbiddenException('Invalid origin format');
       }
   
-      // Fetch institution by domain
-      const institutionResult = await this.recordService.findAll('institutions', {
+
+      const institutionsResult = await this.recordService.findAll('institutions', {
         filters: {
           $or: [
             { institutionDomain: normalizedOrigin }
@@ -44,22 +46,21 @@ export class ClientIdMiddleware implements NestMiddleware {
         nonPaginated: true
       });
   
-      // Extract institution from result (recordService.findAll returns { items: [...] })
-      const institutions = institutionResult?.items || [];
+
+      const institutions = institutionsResult?.items || [];
       
       if (!institutions || institutions.length === 0) {
         throw new ForbiddenException(`Unable to find institution for domain: ${normalizedOrigin}`);
       }
   
       const institution = institutions[0];
-      const institutionId = institution?.institutionsId || institution?._id;
+      const institutionsId = institution?.institutionsId;
   
-      if (!institutionId) {
+      if (!institutionsId) {
         throw new ForbiddenException(`Institution found but missing institutionsId for domain: ${normalizedOrigin}`);
       }
   
-      // Set institutionsId in request for consistency
-      req['institutionsId'] = institutionId;
+      req['institutionsId'] = institutionsId ;
   
       next();
     } catch (error) {
