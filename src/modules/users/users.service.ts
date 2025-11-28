@@ -629,6 +629,7 @@ import { RecordService } from '@noukha-technologies/mdm-core';
       const users = await this.paginationService.findAndPaginate(this.dbService.users, { skip, limit, filter, nonPaginated });
       return users;
     }
+
   }
   
   
