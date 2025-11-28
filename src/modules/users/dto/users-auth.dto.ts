@@ -142,3 +142,9 @@ export class GetPermissionsQueryDto extends FetchDto {
   @IsString()
   order?: 'asc' | 'desc';
 }
+
+export class GetUsersByPhoneDto {
+  @IsNotEmpty({ message: 'Phone numbers are required' })
+  @IsString({ each: true })
+  phoneNumbers: string[];
+}

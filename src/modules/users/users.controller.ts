@@ -1,6 +1,7 @@
 import { Body, Controller, Post, Get, Param, Query } from '@nestjs/common';
 import {
   ConfirmEmailDto,
+  GetUsersByPhoneDto,
   GetPermissionsQueryDto,
   GetUsersQueryDto,
   SetUsernameDto,
@@ -104,6 +105,13 @@ export class UsersController {
 
     return this.usersService.findAllUsers(skip, limit, filter, nonPaginated);
   }
+
+
+  @Post('Users-by-phone')
+  getUsersByPhone(@Body() dto: GetUsersByPhoneDto) {
+    return this.usersService.getUsersByPhoneNumbers(dto.phoneNumbers);
+  }
+
 
   @Get('permissions')
   getPermissions(@Query() query: GetPermissionsQueryDto) {
