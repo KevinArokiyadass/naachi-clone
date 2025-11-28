@@ -6,6 +6,9 @@ import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { FetchAdminUsersDto } from './dto/fetch-admin-users.dto';
 import { AdminRoles } from 'src/common/enums/user.enum';
+import { ClientIdMiddleware } from 'src/common/middleware/clientId.middlewere';
+import { LoggerMiddleware } from 'src/common/middleware/logger.middlewere';
+import { MiddlewareConsumer } from '@nestjs/common';
 
 
 
