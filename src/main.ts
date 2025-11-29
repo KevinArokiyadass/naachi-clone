@@ -7,8 +7,6 @@ import { documentOptions, options, swaggerConfig } from './modules/swagger/swagg
 import { name } from '../package.json';
 import { ValidationPipe } from '@nestjs/common';
 const SwaggerModule = require('@nestjs/swagger').SwaggerModule;
-import { Whitelists } from './common/constants/service-common.constants';
-
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
@@ -17,22 +15,10 @@ async function bootstrap() {
   app.setGlobalPrefix(`api/${name}`);
 
   app.enableCors({
-    origin(origin, callback) {
-  
-      if (!origin) {
-        return callback(null, true);
-      }
-      
-
-      if (Whitelists.includes(origin)) {
-        return callback(null, true);
-      }
-      
-      return callback(null, true);
-    },
+    origin: true, // Allow all origins
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'user-current-view'],
   });
 
   app.useGlobalPipes(
