@@ -21,7 +21,6 @@ export class ClientIdMiddleware implements NestMiddleware {
         req['isSuperAdminRequest'] = true;
         return next();
       }
-
       const institutionsResult = await this.recordService.findAll('institutions', {
         filters: {},
         nonPaginated: true

@@ -38,11 +38,12 @@ export class CreateAdminWithPasswordDto {
   email: string;
 
   @Transform(({ value }) => normalizeUserName(value))
-  @IsString()
-  @IsNotEmpty({ message: 'Username is required' })
+  @IsOptional()
+  @ValidateIf((o) => o.userName !== undefined && o.userName !== null && o.userName !== '')
+  @IsString({ message: 'userName must be a string' })
   @MinLength(3, { message: 'Username must be at least 3 characters long' })
   @MaxLength(20, { message: 'Username must be at most 20 characters long' })
-  userName: string;
+  userName?: string;
  
   @IsString()
   @IsNotEmpty({ message: 'Password is required' })
