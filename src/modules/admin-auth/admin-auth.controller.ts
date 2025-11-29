@@ -41,10 +41,36 @@ export class AdminAuthController {
         throw new UnauthorizedException('Admin account is inactive');
       }
 
+      const normalizedRole = String(admin.role).trim().toUpperCase();
+
       if (isSuperAdminRequest) {
-        const normalizedRole = String(admin.role).trim().toUpperCase();
+        // SUPER_ADMIN must login from super admin origin
         if (normalizedRole !== AdminRoles.SUPER_ADMIN) {
           throw new UnauthorizedException('Only SUPER_ADMIN can use this authentication method');
+        }
+      } else if (normalizedRole === AdminRoles.INSTITUTIONADMIN) {
+        // INSTITUTION_ADMIN must login from their assigned institution's domain
+        if (!institutionsId) {
+          throw new UnauthorizedException('Institution ID is required for INSTITUTION_ADMIN. Please provide Origin header.');
+        }
+
+        // Verify that the institutionsId from origin matches user's assigned institutions
+        // metaTags is an array: [{ institutionsId: string, departmentsId: string[], _id?: ObjectId }]
+        // Handle cases where metaTags might be null, undefined, or empty array
+        if (!admin.metaTags || !Array.isArray(admin.metaTags) || admin.metaTags.length === 0) {
+          throw new UnauthorizedException(
+            'Access denied. No institutions assigned to this admin user.',
+          );
+        }
+
+        const hasMatchingInstitution = admin.metaTags.some(
+          (tag: any) => tag && tag.institutionsId && String(tag.institutionsId).trim() === String(institutionsId).trim(),
+        );
+
+        if (!hasMatchingInstitution) {
+          throw new UnauthorizedException(
+            `Access denied. Institution ID "${institutionsId}" does not match your assigned institutions.`,
+          );
         }
       }
 
