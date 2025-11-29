@@ -26,9 +26,13 @@ export class AdminUserService {
       throw new BadRequestException("Role is required");
     }
 
+    // Generate userName from email if not provided
+    const userName = createAdminDto.userName || createAdminDto.email.split('@')[0];
+
     const { password, ...adminDataWithoutPassword } = createAdminDto;
     const created = await this.dbServices.adminUser.create({
       ...adminDataWithoutPassword,
+      userName: userName, // Ensure userName is set in the database
       password: password,
       status: createAdminDto.status ?? 'active',
     });
@@ -36,7 +40,7 @@ export class AdminUserService {
 
     try {
       await this.cognitoService.createAdminUser(
-        createAdminDto.userName,
+        userName,
         createAdminDto.email,
         password,
         createAdminDto.name,

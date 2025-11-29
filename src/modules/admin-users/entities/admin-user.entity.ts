@@ -17,7 +17,7 @@ export class AdminUser extends Document {
   @Prop({ required: true, unique: true })
   email: string;
  
-  @Prop({ unique: true, sparse: true })
+  @Prop({ unique: true, sparse: true, required:false })
   userName: string;
  
   @Prop({  })
