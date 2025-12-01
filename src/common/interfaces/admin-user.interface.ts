@@ -1,3 +1,5 @@
+import { IMetaTag } from '../enums/user.enum';
+
 export interface IAdminUser {
     adminId: string;
     name: string;
@@ -9,4 +11,5 @@ export interface IAdminUser {
     status?: 'active' | 'inactive';
     isDeleted?: boolean;
     permissionGroupsId: string[];
+    metaTags?: IMetaTag[];
 }

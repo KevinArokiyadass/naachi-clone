@@ -132,6 +132,7 @@ export class AdminUserService {
     return await this.dbServices.adminUser.findOneAndUpdate({ adminId }, { isDeleted: true }, { new: true });
   }
 
+
   async updateStatus(adminId: string, status: 'active' | 'inactive') {
     const adminUser = await this.dbServices.adminUser.findOne({ adminId });
     if (!adminUser) {

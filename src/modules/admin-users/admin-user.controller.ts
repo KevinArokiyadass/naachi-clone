@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AdminUserService } from './admin-user.service';
 import { CreateAdminWithPasswordDto } from './dto/create-admin-with-password.dto';
@@ -9,14 +9,20 @@ import { AdminRoles } from 'src/common/enums/user.enum';
 import { ClientIdMiddleware } from 'src/common/middleware/clientId.middlewere';
 import { LoggerMiddleware } from 'src/common/middleware/logger.middlewere';
 import { MiddlewareConsumer } from '@nestjs/common';
+import { CognitoAuthGuard } from 'src/common/middleware/cognito.authgaurd';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
 
 
 
 @Controller('admin-user')
+@UseGuards(CognitoAuthGuard)
 export class AdminUserController {
   constructor(private readonly adminUserService: AdminUserService) { }
 
   @Post('create')
+  @UseGuards(RolesGuard)
+  @Roles(AdminRoles.SUPER_ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create complete admin user with authentication' })
   @ApiResponse({ status: 201, description: 'Admin user created and verification email sent' })
@@ -59,6 +65,8 @@ export class AdminUserController {
   }
 
   @Put(':adminId')
+  @UseGuards(RolesGuard)
+  @Roles(AdminRoles.SUPER_ADMIN)
   async updateAdminUser(
     @Param('adminId') adminId: string,
     @Body() updateAdminUserDto: UpdateAdminUserDto
@@ -67,6 +75,8 @@ export class AdminUserController {
   }
 
   @Patch(':adminId/password')
+  @UseGuards(RolesGuard)
+  @Roles(AdminRoles.SUPER_ADMIN)
   async updatePassword(
     @Param('adminId') adminId: string,
     @Body() updatePasswordDto: UpdatePasswordDto,
@@ -84,6 +94,8 @@ export class AdminUserController {
   }
 
   @Patch(':adminId/status')
+  @UseGuards(RolesGuard)
+  @Roles(AdminRoles.SUPER_ADMIN)
   async updateStatus(
     @Param('adminId') adminId: string,
     @Body('status') status: 'active' | 'inactive',
@@ -95,6 +107,8 @@ export class AdminUserController {
   }
 
   @Delete(':adminId')
+  @UseGuards(RolesGuard)
+  @Roles(AdminRoles.SUPER_ADMIN)
   remove(@Param('adminId') adminId: string) {
     return this.adminUserService.deleteAdminUser(adminId);
   }
