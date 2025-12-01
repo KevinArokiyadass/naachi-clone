@@ -2,20 +2,43 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ReviewReportDto, UpdateReviewReportDto } from './dto/review-report.dto';
-import { ReviewReport } from './entities/review-report.entity';
+import { ReportSchema, ReviewReport } from './entities/review-report.entity';
 
 @Injectable()
 export class ReviewReportService {
 
   constructor(
     @InjectModel(ReviewReport.name)
-    private reportModel: Model<ReviewReport>
+    private reportModel: Model<Report>    
   ) { }
 
-  async create(dto: ReviewReportDto) {
-    const newReport = new this.reportModel({ ...dto });
-    return newReport.save();
-}
+  
+    async create(dto: ReviewReportDto) {
+      const payload = {
+        reasonCode: dto.reasonCode,
+        reasonText: dto.reasonText,
+    
+        reporterId: dto.reporter.id,
+        reportedUserId: dto.reportedUser.id,
+    
+        reportType: dto.reportType,
+        severity: dto.severity,
+        evidenceMessages: dto.evidenceMessages,
+    
+        status: dto.status ?? 'pending',
+        moderatorId: dto.moderatorId,
+        resolutionNote: dto.resolutionNote,
+    
+        conversationId: dto.conversationId,
+        ipAddress: dto.ipAddress,
+        deviceInfo: dto.deviceInfo,
+        platform: dto.platform,
+      };
+    
+      return await this.reportModel.create(payload);
+    }
+    
+
   async findAll() {
     return this.reportModel.find().sort({ createdAt: -1 });
   }

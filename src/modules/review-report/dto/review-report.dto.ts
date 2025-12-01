@@ -1,106 +1,137 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsArray, ValidateNested, IsDateString, IsEmpty, IsObject } from 'class-validator';
+import { 
+  IsString, 
+  IsNotEmpty, 
+  IsOptional, 
+  IsEnum, 
+  IsArray, 
+  ValidateNested, 
+  IsDateString, 
+  IsObject 
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
-class ReporterDto {
-    @IsString()
-    @IsNotEmpty()
-    name: string;
+export class ReporterDto {
+  @IsString()
+  @IsNotEmpty()
+  id: string; // reporterId
 
-    @IsString()
-    @IsNotEmpty()
-    username: string;
+  @IsString()
+  @IsNotEmpty()
+  name: string;
 
-    @IsString()
-    @IsNotEmpty()
-    role: string;
+  @IsString()
+  @IsNotEmpty()
+  username: string;
 
-    @IsOptional()
-    @IsNotEmpty()
-    avatar?: string;
+  @IsEnum(['student', 'external', 'teacher', 'admin', 'guest'])
+  role: string;
 
-    @IsEnum(['student', 'teacher', 'external', 'guest', 'admin'])
-    issuedBy: 'student' | 'external' | 'teacher' | 'admin' | 'guest';
+  @IsOptional()
+  @IsString()
+  avatar?: string;
 }
 
-class ReportedAccountDto {
-    @IsString()
-    @IsNotEmpty()
-    name: string;
+export class ReportedAccountDto {
+  @IsString()
+  @IsNotEmpty()
+  id: string; // reportedUserId
 
-    @IsString()
-    @IsNotEmpty()
-    username: string;
+  @IsString()
+  @IsNotEmpty()
+  name: string;
 
-    @IsString()
-    @IsNotEmpty()
-    role: string;
+  @IsString()
+  @IsNotEmpty()
+  username: string;
 
-    @IsOptional()
-    @IsNotEmpty()
-    avatar?: string;
+  @IsEnum(['student', 'external', 'teacher', 'admin', 'guest'])
+  role: string;
 
-    @IsEnum(['pending', 'blocked', 'approved', 'legitimate'])
-    accountStatus: 'pending' | 'blocked' | 'approved' | 'legitimate';
+  @IsOptional()
+  @IsString()
+  avatar?: string;
 
+  @IsEnum(['pending', 'blocked', 'approved', 'legitimate'])
+  accountStatus: string;
 }
 
-class ChatMessageDto {
-    @IsString()
-    sender: string;
+export class EvidenceMessageDto {
+  @IsString()
+  messageId: string;
 
-    @IsString()
-    text: string;
+  @IsString()
+  @IsOptional()
+  senderId: string;
 
-    @IsDateString()
-    timestamp: Date;
+  @IsString()
+  @IsOptional()
+  content: string;
+
+  @IsOptional()
+  @IsArray()
+  attachments?: { url: string; type: string }[];
+
+  @IsOptional()
+  @IsDateString()
+  createdAt?: string;
 }
 
 export class ReviewReportDto {
-    @IsString()
-    @IsNotEmpty()
-    date: string;
+  @IsString()
+  @IsNotEmpty()
+  reasonCode: string;
 
-    @ValidateNested()
-    @Type(() => ReportedAccountDto)
-    accReported: ReportedAccountDto;
+  @IsOptional()
+  @IsString()
+  reasonText?: string;
 
-    @IsObject()
-    reportedBy: any;
+  @ValidateNested()
+  @Type(() => ReporterDto)
+  reporter: ReporterDto;
 
-    @IsString()
-    @IsNotEmpty()
-    comment: string;
+  @ValidateNested()
+  @Type(() => ReportedAccountDto)
+  reportedUser: ReportedAccountDto;
 
-    @IsEnum(['spam', 'scam', 'fake account', 'abuse', 'other'])
-    reportType: string;
+  @IsEnum(['spam', 'scam', 'fake account', 'fraud', 'harassment','porn', 'abuse', 'other'])
+  reportType: string;
 
-    @IsEnum(['low', 'medium', 'high'])
-    severity: string;
+  @IsEnum(['low', 'medium', 'high', 'critical'])
+  severity: string;
 
-    @IsArray()
-    @ValidateNested({ each: true })
-    @Type(() => ChatMessageDto)
-    lastMessage: ChatMessageDto[]; 
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EvidenceMessageDto)
+  evidenceMessages: EvidenceMessageDto[];
 
-    @IsOptional()
-    isReviewed?: boolean;
+  @IsEnum(['pending', 'in_review', 'resolved', 'rejected'])
+  @IsOptional()
+  status?: string;
 
-    @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-    attachment?: string[];  
+  @IsOptional()
+  @IsString()
+  moderatorId?: string;
 
-    @IsOptional()
-    @IsString()
-    platform?: string;
+  @IsOptional()
+  @IsString()
+  resolutionNote?: string;
 
-    @IsOptional()
-    @IsString()
-    ipAddress?: string;
+  @IsOptional()
+  @IsString()
+  conversationId?: string;
 
-    @IsOptional()
-    @IsString()
-    deviceInfo?: string;
+  @IsOptional()
+  @IsString()
+  ipAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  deviceInfo?: string;
+
+  @IsOptional()
+  @IsString()
+  platform?: string;
 }
+
 export class UpdateReviewReportDto extends PartialType(ReviewReportDto) {}
