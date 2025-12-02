@@ -1,67 +1,50 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { ReviewReportDto, UpdateReviewReportDto } from './dto/review-report.dto';
-import { ReportSchema, ReviewReport } from './entities/review-report.entity';
+import { CreateReviewReportDto } from './dto/create-review-report.dto';
+import { UpdateReviewReportDto } from './dto/update-review-report.dto';
+import { ReviewReport, Report } from './entities/review-report.entity';
 
 @Injectable()
 export class ReviewReportService {
 
   constructor(
     @InjectModel(ReviewReport.name)
-    private reportModel: Model<Report>    
-  ) { }
+    private readonly reportModel: Model<Report>,
+  ) {}
 
-  
-    async create(dto: ReviewReportDto) {
-      const payload = {
-        reasonCode: dto.reasonCode,
-        reasonText: dto.reasonText,
-    
-        reporterId: dto.reporter.id,
-        reportedUserId: dto.reportedUser.id,
-    
-        reportType: dto.reportType,
-        severity: dto.severity,
-        evidenceMessages: dto.evidenceMessages,
-    
-        status: dto.status ?? 'pending',
-        moderatorId: dto.moderatorId,
-        resolutionNote: dto.resolutionNote,
-    
-        conversationId: dto.conversationId,
-        ipAddress: dto.ipAddress,
-        deviceInfo: dto.deviceInfo,
-        platform: dto.platform,
-      };
-    
-      return await this.reportModel.create(payload);
-    }
-    
+  async create(dto: CreateReviewReportDto): Promise<ReviewReport> {
+    const createdReport = new this.reportModel(dto);
+    return createdReport.save();
+  }
 
-  async findAll() {
+  async findAll(): Promise<ReviewReport[]> {
     return this.reportModel.find().sort({ createdAt: -1 });
   }
 
-  async findOne(id: string) {
-    const report = await this.reportModel.findById(id);
+  async findOne(id: string): Promise<ReviewReport> {
+    const report = await this.reportModel.findById(id).exec();
     if (!report) {
-      throw new NotFoundException('Report not found');
+      throw new NotFoundException(`ReviewReport with ID ${id} not found`);
     }
     return report;
   }
 
-  async update(id: string, dto: UpdateReviewReportDto) {
-    const updated = await this.reportModel.findByIdAndUpdate(id, dto, { new: true });
-    if (!updated) throw new NotFoundException('Report npot found');
-    return updated;
+  async update(id: string, updateDto: UpdateReviewReportDto): Promise<ReviewReport> {
+    const updatedReport = await this.reportModel
+      .findByIdAndUpdate(id, updateDto, { new: true })
+      .exec();
+    if (!updatedReport) {
+      throw new NotFoundException(`ReviewReport with ID ${id} not found`);
+    }
+    return updatedReport;
   }
 
-  async delete(id: string) {
-    const deleted = await this.reportModel.findByIdAndDelete(id);
+  async delete(id: string): Promise<{ message: string }> {
+    const deleted = await this.reportModel.findByIdAndDelete(id).exec();
     if (!deleted) {
-      throw new NotFoundException('Report not found');
+      throw new NotFoundException(`ReviewReport with ID ${id} not found`);
     }
-    return deleted;
+    return { message: 'ReviewReport deleted successfully' };
   }
 }

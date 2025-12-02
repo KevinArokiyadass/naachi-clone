@@ -1,57 +1,43 @@
-import { Schema, Document } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, SchemaTypes } from 'mongoose';
+import { RecordStatus } from 'src/common/enums/user.enum';
 
-export const UserRoleEnum = ['student', 'external', 'teacher', 'admin', 'guest'] as const;
-export const AccountStatusEnum = ['pending', 'blocked', 'approved', 'legitimate'] as const;
-export const ReportTypeEnum = ['spam', 'scam', 'fake account','harassment','porn','fraud', 'abuse', 'other'] as const;
-export const SeverityEnum = ['low', 'medium', 'high', 'critical'] as const;
+export type Report = ReviewReport & Document;
 
-export const ReportSchema = new Schema(
-  {
-    reporterId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+@Schema({ timestamps: true })
 
-    reportedUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+export class ReviewReport extends Document{
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'User', required: true, index: true })
+  reporterId: string;
 
-    conversationId: { type: Schema.Types.ObjectId, ref: 'Conversation', index: true },
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'User', required: true, index: true })
+  reportedUserId: string;
 
-    reasonCode: { type: String, required: true },
-    reasonText: { type: String },
+  @Prop({type:SchemaTypes.ObjectId, ref: 'Conversation', index: true })
+  conversationId?: string;
 
-    evidenceMessages: [
-      {
-        messageId: { type: Schema.Types.ObjectId },
-        senderId: { type: Schema.Types.ObjectId, ref: 'User' },
-        content: { type: String },
-        attachments: [
-          {
-            url: { type: String },
-            type: { type: String }
-          }
-        ],
-        createdAt: { type: Date },
-      },
-    ],
+  @Prop({ type: String, required: true })
+  reasonCodeId: string;
 
-    status: {
-      type: String,
-      enum: ['pending', 'in_review', 'resolved', 'rejected'],
-      default: 'pending',
-    },
+  @Prop({ type: String, required: false })
+  reasonText?: string;
+  
+  @Prop({ type: String, required: true })
+  reviewId: string;
+  
+  @Prop({
+    type: [{
+      messageId: { type: SchemaTypes.ObjectId }
+    }],
+    default: []
+  })
+  evidenceMessages?: { messageId: string }[];
 
-    moderatorId: { type: Schema.Types.ObjectId, ref: 'User' },
-    resolutionNote: { type: String },
-
-    reportType: { type: String, enum: ReportTypeEnum, required: true },
-    severity: { type: String, enum: SeverityEnum, default: 'low' },
-
-    isAnonymous: { type: Boolean, default: false },
-
-    ipAddress: { type: String },
-    deviceInfo: { type: String },
-    platform: { type: String },
-  },
-  { timestamps: true }
-);
-
-export class ReviewReport extends Document {}
-
-export { ReportSchema as ReviewReportSchema };
+  @Prop({
+    type: String,
+    enum: Object.values(RecordStatus),
+    default: RecordStatus.PENDING
+  })
+  status: RecordStatus;
+}
+export const ReviewReportSchema = SchemaFactory.createForClass(ReviewReport);

@@ -1,28 +1,30 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
 import { ReviewReportService } from './review-report.service';
-import { ReviewReportDto, UpdateReviewReportDto } from './dto/review-report.dto';
+import { CreateReviewReportDto } from './dto/create-review-report.dto';
+import { UpdateReviewReportDto } from './dto/update-review-report.dto';
+import { ReviewReport } from './entities/review-report.entity';
 
 @Controller('review-report')
 export class ReviewReportController {
   constructor(private readonly service: ReviewReportService) { }
 
   @Post()
-  create(@Body() dto: ReviewReportDto) {
+  create(@Body() dto: CreateReviewReportDto): Promise<ReviewReport> {
     return this.service.create(dto);
   }
 
   @Get()
-  findAll() {
+  findAll(): Promise<ReviewReport[]> {
     return this.service.findAll();
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: string): Promise<ReviewReport> {
     return this.service.findOne(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateReviewReportDto) {
+  update(@Param('id') id: string, @Body() dto: UpdateReviewReportDto,): Promise<ReviewReport> {
     return this.service.update(id, dto);
   }
 
