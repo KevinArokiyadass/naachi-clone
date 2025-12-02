@@ -2,7 +2,6 @@ import {
   IsString,
   IsNotEmpty,
   IsOptional,
-  IsMongoId,
   IsEnum,
   IsArray,
   ValidateNested,
@@ -11,22 +10,26 @@ import { Type } from 'class-transformer';
 import { RecordStatus } from 'src/common/enums/user.enum';
 
 class EvidenceMessageDto {
-  @IsMongoId()
+  @IsOptional()
+  @IsString()
+  messageId?: string;
+
+  @IsString()
   @IsNotEmpty()
-  messageId: string;
+  content: string;
 }
 
 export class CreateReviewReportDto {
-  @IsMongoId()
+  @IsString()
   @IsNotEmpty()
   reporterId: string;
 
-  @IsMongoId()
+  @IsString()
   @IsNotEmpty()
   reportedUserId: string;
 
-  @IsMongoId()
   @IsOptional()
+  @IsString()
   conversationId?: string;
 
   @IsString()
@@ -39,15 +42,11 @@ export class CreateReviewReportDto {
 
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => EvidenceMessageDto)
   @IsOptional()
+  @Type(() => EvidenceMessageDto)
   evidenceMessages?: EvidenceMessageDto[];
 
   @IsEnum(RecordStatus)
   @IsOptional()
   status?: RecordStatus;
-
-  @IsString()
-  @IsNotEmpty()
-  reviewId: string;
 }

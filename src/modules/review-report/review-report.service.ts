@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { CreateReviewReportDto } from './dto/create-review-report.dto';
 import { UpdateReviewReportDto } from './dto/update-review-report.dto';
 import { ReviewReport, Report } from './entities/review-report.entity';
+import { generateUniqueId } from 'src/common/utils/util';
 
 @Injectable()
 export class ReviewReportService {
@@ -14,7 +15,18 @@ export class ReviewReportService {
   ) {}
 
   async create(dto: CreateReviewReportDto): Promise<ReviewReport> {
-    const createdReport = new this.reportModel(dto);
+    const evidenceMessages =
+      dto.evidenceMessages?.map((msg) => ({
+        messageId: msg.messageId || generateUniqueId(),
+        content: msg.content,
+      })) || [];
+
+    const createdReport = new this.reportModel({
+      ...dto,
+      reviewId: generateUniqueId(),
+      evidenceMessages,
+    });
+
     return createdReport.save();
   }
 
@@ -30,9 +42,16 @@ export class ReviewReportService {
     return report;
   }
 
-  async update(id: string, updateDto: UpdateReviewReportDto): Promise<ReviewReport> {
+  async update(id: string, dto: UpdateReviewReportDto): Promise<ReviewReport> {
+    if (dto.evidenceMessages) {
+      dto.evidenceMessages = dto.evidenceMessages.map((msg) => ({
+        messageId: msg.messageId || generateUniqueId(),
+        content: msg.content,
+      }));
+    }
+
     const updatedReport = await this.reportModel
-      .findByIdAndUpdate(id, updateDto, { new: true })
+      .findByIdAndUpdate(id, dto, { new: true })
       .exec();
     if (!updatedReport) {
       throw new NotFoundException(`ReviewReport with ID ${id} not found`);
