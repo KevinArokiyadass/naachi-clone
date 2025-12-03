@@ -7,6 +7,8 @@ import { IPaginatedResult } from '../../common/interfaces/paginated-result.inter
 import { PaginationService } from '../../common/shared/pagination/pagination.service';
 import { CognitoService } from '../cognito/cognito.service';
 import { FilterQuery } from 'mongoose';
+import { RecordService } from '@noukha-technologies/mdm-core';
+
 
 @Injectable()
 export class AdminUserService {
@@ -14,6 +16,7 @@ export class AdminUserService {
     private dbServices: IMongoDBServices,
     private readonly paginationService: PaginationService,
     private readonly cognitoService: CognitoService,
+    private readonly recordService: RecordService,
   ) { }
 
   async createAdminUser(createAdminDto: any) {
@@ -26,13 +29,12 @@ export class AdminUserService {
       throw new BadRequestException("Role is required");
     }
 
-    // Generate userName from email if not provided
     const userName = createAdminDto.userName || createAdminDto.email.split('@')[0];
 
     const { password, ...adminDataWithoutPassword } = createAdminDto;
     const created = await this.dbServices.adminUser.create({
       ...adminDataWithoutPassword,
-      userName: userName, // Ensure userName is set in the database
+      userName: userName,
       password: password,
       status: createAdminDto.status ?? 'active',
     });
@@ -64,7 +66,7 @@ export class AdminUserService {
     limit: number = 10,
     filter: Record<string, any> = {},
     nonPaginated: boolean
-  ): Promise<IPaginatedResult<IAdminUser[]>> {
+  ): Promise<IPaginatedResult<(IAdminUser & { permissions?: string[] })[]>> {
     filter.isDeleted = { $in: [null, false] };
     const users = await this.paginationService.findAndPaginate(this.dbServices.adminUser, {
       skip,
@@ -72,15 +74,38 @@ export class AdminUserService {
       filter,
       nonPaginated
     });
+    
+  
+    if (users.items && users.items.length > 0) {
+      const enrichedUsers = await Promise.all(
+        users.items.map(async (user: IAdminUser) => {
+          const permissions = await this.fetchPermissionsForUser(user.permissionGroupsId);
+          return {
+            ...user,
+            permissions
+          } as IAdminUser & { permissions: string[] };
+        })
+      );
+      return {
+        ...users,
+        items: enrichedUsers
+      };
+    }
+    
     return users;
   }
 
-  async getAdminUserById(adminId: string): Promise<IAdminUser> {
+  async getAdminUserById(adminId: string): Promise<IAdminUser & { permissions?: string[] }> {
     const adminUser = await this.dbServices.adminUser.findOne({ adminId });
     if (!adminUser) {
       throw new NotFoundException('Admin user not found');
     }
-    return adminUser;
+    
+    const permissions = await this.fetchPermissionsForUser(adminUser.permissionGroupsId);
+    return {
+      ...adminUser,
+      permissions
+    };
   }
 
 
@@ -166,6 +191,51 @@ export class AdminUserService {
 
   async updateRefreshToken(adminId: string, refreshToken: string) {
     return await this.dbServices.adminUser.findOneAndUpdate({ adminId }, { refreshToken: refreshToken }, { new: true });
+  }
+
+
+  private async fetchPermissionsForUser(permissionGroupIds: string[]): Promise<string[]> {
+    if (!permissionGroupIds || permissionGroupIds.length === 0) {
+      return [];
+    }
+
+    try {
+      let permissionGroups: any[] = [];
+      
+      const permissionGroupPromises = permissionGroupIds.map(async (permissionGroupId) => {
+        try {
+          const result = await this.recordService.findAll('permissiongroups', {
+            filters: {
+              permissionGroupsId: permissionGroupId
+            },
+            nonPaginated: true
+          });
+          const items = result?.items || [];
+          return items;
+        } catch (error) {
+          console.error(`Error fetching permission group ${permissionGroupId}:`, error);
+          return [];
+        }
+      });
+      
+      const results = await Promise.all(permissionGroupPromises);
+      permissionGroups = results.flat();
+      
+      const allPermissions: string[] = [];
+      permissionGroups.forEach((group: any) => {
+        if (group && group.permissionsId && Array.isArray(group.permissionsId)) {
+          allPermissions.push(...group.permissionsId);
+        } else {
+          console.warn('Permission group missing permissionsId array:', group);
+        }
+      });
+
+      const uniquePermissions = [...new Set(allPermissions)];
+      return uniquePermissions;
+    } catch (error) {
+      console.error('Error fetching permissions for user:', error);
+      return [];
+    }
   }
 
 }

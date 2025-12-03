@@ -12,4 +12,5 @@ export interface IAdminUser {
     isDeleted?: boolean;
     permissionGroupsId: string[];
     metaTags?: IMetaTag[];
+    permissions?: string[];
 }
