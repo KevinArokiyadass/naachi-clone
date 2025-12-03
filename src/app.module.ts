@@ -14,6 +14,7 @@ import { UsersModule } from './modules/users/users.module';
 import { AwsStoreModule } from './modules/aws-store/aws-store.module';
 import { AdminUserModule } from './modules/admin-users/admin-user.module';
 import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
+import { ReviewReportModule } from './modules/review-report/review-report.module';
 
 const ENV = process.env.NODE_ENV;
 
@@ -29,6 +30,7 @@ const ENV = process.env.NODE_ENV;
     UsersModule,
     AdminUserModule,
     AdminAuthModule,
+    ReviewReportModule,
     MdmCoreModule.forRoot({
       database: {
         connectionString: process.env.MONGODB_URI

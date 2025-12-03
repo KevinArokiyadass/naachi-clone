@@ -691,47 +691,21 @@ import { RecordService } from '@noukha-technologies/mdm-core';
       const users = await this.paginationService.findAndPaginate(this.dbService.users, { skip, limit, filter, nonPaginated });
       return users;
     }
-
-    async getPermissions(
-      skip: number = 0,
-      limit: number = 10,
-      filter: Record<string, any> = {},
-      nonPaginated: boolean,
-      sort: Record<string, any> = { createdAt: -1 },
-    ) {
-      try {
-        const page =
-          nonPaginated || !limit ? 1 : Math.floor(skip / limit) + 1;
-
-        const sortField = Object.keys(sort || {})[0] || 'createdAt';
-        const sortDir = sort?.[sortField];
-        const order = sortDir === -1 ? 'desc' : 'asc';
-
-        const response = await this.recordService.findAll('permissions', {
-          filters: filter,
-          page: nonPaginated ? 1 : page,
-          limit: nonPaginated ? 1000 : limit,
-          search: '',
-          sort: sortField,
-          order,
-          nonPaginated,
-        });
-
-        return {
-          totalItems: response?.totalItems ?? response?.items?.length ?? 0,
-          totalPages: response?.totalPages || 1,
-          skip,
-          limit: nonPaginated ? response?.items?.length ?? 0 : limit,
-          items: response?.items || [],
-        };
-      } catch (error) {
-        throw new BadRequestException({
-          message: 'Failed to fetch permissions',
-          errorCode: 'PERMISSIONS_FETCH_ERROR',
-          details: error.message,
-        });
-      }
-    }
+  
+  async getPermissions(
+    skip: number = 0,
+    limit: number = 10,
+    filter: Record<string, any> = {},
+    nonPaginated: boolean = false,
+    sortObj: Record<string, any> = { createdAt: -1 }
+  ): Promise<IPaginatedResult<any>> {
+    filter.isDeleted = { $in: [null, false] };
+    return this.paginationService.findAndPaginate(
+      this.dbService.users, 
+      { skip, limit, filter, nonPaginated, sort: sortObj }
+    );
   }
+}
+  
   
   
