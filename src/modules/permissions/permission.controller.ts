@@ -31,7 +31,7 @@ export class PermissionController {
     );
   }
 
-  @Get('permission-groups')
+  @Get('groups')
   async getPermissionGroups(@Query() query: GetPermissionGroupsQueryDto) {
     const {
       institutionsId,
