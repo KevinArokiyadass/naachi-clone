@@ -13,10 +13,6 @@ class EvidenceMessageDto {
   @IsOptional()
   @IsString()
   messageId?: string;
-
-  @IsString()
-  @IsNotEmpty()
-  content: string;
 }
 
 export class CreateReviewReportDto {

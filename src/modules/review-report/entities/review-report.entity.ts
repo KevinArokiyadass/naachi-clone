@@ -30,7 +30,6 @@ export class ReviewReport extends Document{
     type: [
       {
         messageId: { type: String, default: () => generateUniqueId() }, // auto nanoid
-        content: { type: String, required: true }
       }
     ],
     default: []

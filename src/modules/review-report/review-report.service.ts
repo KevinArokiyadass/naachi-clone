@@ -18,7 +18,6 @@ export class ReviewReportService {
     const evidenceMessages =
       dto.evidenceMessages?.map((msg) => ({
         messageId: msg.messageId || generateUniqueId(),
-        content: msg.content,
       })) || [];
 
     const createdReport = new this.reportModel({
@@ -46,7 +45,6 @@ export class ReviewReportService {
     if (dto.evidenceMessages) {
       dto.evidenceMessages = dto.evidenceMessages.map((msg) => ({
         messageId: msg.messageId || generateUniqueId(),
-        content: msg.content,
       }));
     }
 
