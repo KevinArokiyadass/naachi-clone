@@ -692,19 +692,6 @@ import { RecordService } from '@noukha-technologies/mdm-core';
       return users;
     }
   
-  async getPermissions(
-    skip: number = 0,
-    limit: number = 10,
-    filter: Record<string, any> = {},
-    nonPaginated: boolean = false,
-    sortObj: Record<string, any> = { createdAt: -1 }
-  ): Promise<IPaginatedResult<any>> {
-    filter.isDeleted = { $in: [null, false] };
-    return this.paginationService.findAndPaginate(
-      this.dbService.users, 
-      { skip, limit, filter, nonPaginated, sort: sortObj }
-    );
-  }
 }
   
   

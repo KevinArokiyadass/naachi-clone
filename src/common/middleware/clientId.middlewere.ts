@@ -29,8 +29,8 @@ export class ClientIdMiddleware implements NestMiddleware {
       const institutions = institutionsResult?.items || [];
       
       const institution = institutions.find((inst: any) => {
-        if (!inst.Domain) return false;
-        return inst.Domain === origin;
+        if (!inst.adminDomain) return false;
+        return inst.adminDomain === origin;
       });
       
       if (!institution) {

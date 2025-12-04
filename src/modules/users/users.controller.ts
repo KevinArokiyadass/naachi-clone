@@ -111,40 +111,6 @@ export class UsersController {
   getUsersByPhone(@Body() dto: GetUsersByPhoneDto) {
     return this.usersService.getUsersByPhoneNumbers(dto.phoneNumbers);
   }
-
-
-  @Get('permissions')
-  getPermissions(@Query() query: GetPermissionsQueryDto) {
-    const {
-      institutionsId,
-      skip = 0,
-      limit = 10,
-      filter = '{}',
-      sort = 'createdAt',
-      order = 'desc',
-      nonPaginated = false,
-    } = query;
-
-    let parsedFilter: Record<string, any>;
-    try {
-      parsedFilter = JSON.parse(filter);
-    } catch {
-      parsedFilter = {};
-    }
-    parsedFilter.institutionsId = institutionsId;
-
-    const sortObj: Record<string, any> = {
-      [sort]: order === 'asc' ? 1 : -1,
-    };
-
-    return this.usersService.getPermissions(
-      skip,
-      limit,
-      parsedFilter,
-      nonPaginated,
-      sortObj,
-    );
-  }
 }
 
 
