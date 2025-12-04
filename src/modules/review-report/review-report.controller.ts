@@ -18,18 +18,18 @@ export class ReviewReportController {
     return this.service.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string): Promise<ReviewReport> {
-    return this.service.findOne(id);
+  @Get(':reviewId')
+  findOne(@Param('reviewId') reviewId: string): Promise<ReviewReport> {
+    return this.service.findOne(reviewId);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateReviewReportDto,): Promise<ReviewReport> {
-    return this.service.update(id, dto);
+  @Patch(':reviewId')
+  update(@Param('reviewId') reviewId: string, @Body() dto: UpdateReviewReportDto): Promise<ReviewReport> {
+    return this.service.update(reviewId, dto);
   }
 
-  @Delete(':id')
-  delete(@Param('id') id: string) {
-    return this.service.delete(id);
+  @Delete(':reviewId')
+  delete(@Param('reviewId') reviewId: string) {
+    return this.service.delete(reviewId);
   }
 }
