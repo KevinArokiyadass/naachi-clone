@@ -2,16 +2,17 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import { RecordStatus } from 'src/common/enums/user.enum';
 import { generateUniqueId } from 'src/common/utils/util';
+import { Types } from 'mongoose';
 
 export type Report = ReviewReport & Document;
 
 @Schema({ timestamps: true })
 
 export class ReviewReport extends Document{
-  @Prop({ type: String, ref: 'User', required: true, index: true })
+  @Prop({ type: Types.ObjectId, ref: 'Users', required: true, index: true })
   reporterId: string;
 
-  @Prop({ type: String, ref: 'User', required: true, index: true })
+  @Prop({ type: Types.ObjectId, ref: 'Users', required: true, index: true })
   reportedUserId: string;
 
   @Prop({ type: String, ref: 'Conversation', index: true })
@@ -22,19 +23,18 @@ export class ReviewReport extends Document{
 
   @Prop({ type: String, required: false })
   reasonText?: string;
-  
-  @Prop({ type: String, default: () => generateUniqueId(), required: true, trim: true })
+  @Prop({ type: String, default: () => generateUniqueId(), required: true, trim: true, unique: true })
   reviewId: string;
 
   @Prop({
     type: [
       {
-        messageId: { type: String, default: () => generateUniqueId() }, // auto nanoid
+        messageId: { type: String, default: () => generateUniqueId() }
       }
     ],
     default: []
   })
-  evidenceMessages?: { messageId: string; content: string }[];
+  evidenceMessages?: { messageId: string}[];
 
   @Prop({
     type: String,

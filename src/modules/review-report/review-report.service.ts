@@ -30,18 +30,63 @@ export class ReviewReportService {
   }
 
   async findAll(): Promise<ReviewReport[]> {
-    return this.reportModel.find().sort({ createdAt: -1 });
+    return this.reportModel.find().sort({ createdAt: -1 }).exec();
   }
 
-  async findOne(id: string): Promise<ReviewReport> {
-    const report = await this.reportModel.findById(id).exec();
-    if (!report) {
-      throw new NotFoundException(`ReviewReport with ID ${id} not found`);
+  async findOne(reviewId: string): Promise<ReviewReport> {
+    const report = await this.reportModel.aggregate([
+      { $match: { reviewId } },
+  
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'reporterId',
+          foreignField: 'userId',
+          as: 'reporter',
+        },
+      },
+      { $unwind: '$reporter' },
+  
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'reportedUserId',
+          foreignField: 'userId',
+          as: 'reportedUser',
+        },
+      },
+      { $unwind: '$reportedUser' },
+  
+      {
+        $project: {
+          _id: 0,
+          reviewId: 1,
+          reasonCodeId: 1,
+          reasonText: 1,
+          conversationId: 1,
+          status: 1,
+          evidenceMessages: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          reporterId: '$reporter.userId',
+          reporterName: '$reporter.userName',
+          reporterFullName: '$reporter.name',
+          reportedUserId: '$reportedUser.userId',
+          reportedName: '$reportedUser.userName',
+          reportedFullName: '$reportedUser.name',
+        },
+      },
+    ]);
+  
+    if (!report || report.length === 0) {
+      throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
     }
-    return report;
+  
+    return report[0];
   }
+  
 
-  async update(id: string, dto: UpdateReviewReportDto): Promise<ReviewReport> {
+  async update(reviewId: string, dto: UpdateReviewReportDto): Promise<ReviewReport> {
     if (dto.evidenceMessages) {
       dto.evidenceMessages = dto.evidenceMessages.map((msg) => ({
         messageId: msg.messageId || generateUniqueId(),
@@ -49,18 +94,18 @@ export class ReviewReportService {
     }
 
     const updatedReport = await this.reportModel
-      .findByIdAndUpdate(id, dto, { new: true })
+      .findOneAndUpdate({ reviewId }, dto, { new: true })
       .exec();
     if (!updatedReport) {
-      throw new NotFoundException(`ReviewReport with ID ${id} not found`);
+      throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
     }
     return updatedReport;
   }
 
-  async delete(id: string): Promise<{ message: string }> {
-    const deleted = await this.reportModel.findByIdAndDelete(id).exec();
+  async delete(reviewId: string): Promise<{ message: string }> {
+    const deleted = await this.reportModel.findOneAndDelete({ reviewId }).exec();
     if (!deleted) {
-      throw new NotFoundException(`ReviewReport with ID ${id} not found`);
+      throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
     }
     return { message: 'ReviewReport deleted successfully' };
   }

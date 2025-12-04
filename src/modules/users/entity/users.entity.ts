@@ -6,7 +6,7 @@ export type UsersDocument = Users & Document;
 
 @Schema({ timestamps: true, versionKey: false })
 export class Users extends Document {
-    @Prop({ type: String, default: () => generateUniqueId(), trim: true })
+    @Prop({ type: String, default: () => generateUniqueId(), unique: true, trim: true })
     userId: string;
 
     @Prop({ type: String, required: true, trim: true })
