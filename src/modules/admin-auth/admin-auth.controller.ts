@@ -69,7 +69,7 @@ export class AdminAuthController {
 
         if (!hasMatchingInstitution) {
           throw new UnauthorizedException(
-            `Access denied. Institution ID "${institutionsId}" does not match your assigned institutions.`,
+            `Access denied. Institution domain does not match your assigned institutions.`,
           );
         }
       }
