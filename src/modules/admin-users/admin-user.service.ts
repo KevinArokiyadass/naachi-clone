@@ -200,26 +200,22 @@ export class AdminUserService {
     }
 
     try {
+      // Fetch all permission groups in a single optimized query
       let permissionGroups: any[] = [];
       
-      const permissionGroupPromises = permissionGroupIds.map(async (permissionGroupId) => {
-        try {
-          const result = await this.recordService.findAll('permissiongroups', {
-            filters: {
-              permissionGroupsId: permissionGroupId
-            },
-            nonPaginated: true
-          });
-          const items = result?.items || [];
-          return items;
-        } catch (error) {
-          console.error(`Error fetching permission group ${permissionGroupId}:`, error);
-          return [];
-        }
-      });
-      
-      const results = await Promise.all(permissionGroupPromises);
-      permissionGroups = results.flat();
+      try {
+        const permissionGroupsResult = await this.recordService.findAll('permissiongroups', {
+          filters: {
+            permissionGroupsId: { $in: permissionGroupIds },
+            isDeleted: false
+          },
+          nonPaginated: true
+        });
+        permissionGroups = permissionGroupsResult?.items || [];
+      } catch (error) {
+        console.error('Error fetching permission groups:', error);
+        return [];
+      }
       
       const allPermissions: string[] = [];
       permissionGroups.forEach((group: any) => {
@@ -231,7 +227,38 @@ export class AdminUserService {
       });
 
       const uniquePermissions = [...new Set(allPermissions)];
-      return uniquePermissions;
+      
+      // If no permissions found, return empty array
+      if (uniquePermissions.length === 0) {
+        return [];
+      }
+
+      // Fetch all permissions in a single optimized query
+      try {
+        const permissionsResult = await this.recordService.findAll('permissions', {
+          filters: {
+            permissionsId: { $in: uniquePermissions },
+            isDeleted: false
+          },
+          nonPaginated: true
+        });
+
+        const permissions = permissionsResult?.items || [];
+        
+        const permissionCodes: string[] = [];
+        permissions.forEach((permission: any) => {
+          if (permission && permission.code) {
+            permissionCodes.push(permission.code);
+          } else {
+            console.warn('Permission missing code field:', permission);
+          }
+        });
+
+        return permissionCodes;
+      } catch (error) {
+        console.error('Error fetching permission codes:', error);
+        return [];
+      }
     } catch (error) {
       console.error('Error fetching permissions for user:', error);
       return [];
