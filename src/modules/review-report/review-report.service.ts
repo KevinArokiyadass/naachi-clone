@@ -30,7 +30,52 @@ export class ReviewReportService {
   }
 
   async findAll(): Promise<ReviewReport[]> {
-    return this.reportModel.find().sort({ createdAt: -1 }).exec();
+    const reports = await this.reportModel.aggregate([
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'reporterId',
+          foreignField: 'userId',
+          as: 'reporter',
+        },
+      },
+      { $unwind: '$reporter' },
+  
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'reportedUserId',
+          foreignField: 'userId',
+          as: 'reportedUser',
+        },
+      },
+      { $unwind: '$reportedUser' },
+  
+      {
+        $project: {
+          _id: 0,
+          reviewId: 1,
+          reasonCodeId: 1,
+          reasonText: 1,
+          conversationId: 1,
+          status: 1,
+          evidenceMessages: 1,
+          createdAt: 1,
+          updatedAt: 1,
+  
+          reporterId: '$reporter.userId',
+          reporterUsername: '$reporter.userName',
+          reporterName: '$reporter.Name',
+  
+          reportedUserId: '$reportedUser.userId',
+          reportedUsername: '$reportedUser.userName',
+          reportedName: '$reportedUser.Name',
+        },
+      },
+      { $sort: { createdAt: -1 } },
+    ]);
+  
+    return reports;
   }
 
   async findOne(reviewId: string): Promise<ReviewReport> {
@@ -69,13 +114,14 @@ export class ReviewReportService {
           createdAt: 1,
           updatedAt: 1,
           reporterId: '$reporter.userId',
-          reporterName: '$reporter.userName',
-          reporterFullName: '$reporter.name',
+          reporterUsername: '$reporter.userName',
+          reporterName: '$reporter.Name',
           reportedUserId: '$reportedUser.userId',
-          reportedName: '$reportedUser.userName',
-          reportedFullName: '$reportedUser.name',
+          reportedUsername: '$reportedUser.userName',
+          reportedName: '$reportedUser.Name',
         },
       },
+      { $sort: { createdAt: -1 } },
     ]);
   
     if (!report || report.length === 0) {
@@ -100,6 +146,22 @@ export class ReviewReportService {
       throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
     }
     return updatedReport;
+  }
+
+  async updateStatus(reviewId: string, status: string): Promise<ReviewReport> {
+    const updated = await this.reportModel
+      .findOneAndUpdate(
+        { reviewId },
+        { status },
+        { new: true }
+      )
+      .exec();
+
+    if (!updated) {
+      throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
+    }
+
+    return updated;
   }
 
   async delete(reviewId: string): Promise<{ message: string }> {
