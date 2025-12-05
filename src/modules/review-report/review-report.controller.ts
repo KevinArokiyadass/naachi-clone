@@ -23,9 +23,9 @@ export class ReviewReportController {
     return this.service.findOne(reviewId);
   }
 
-  @Patch(':reviewId')
-  update(@Param('reviewId') reviewId: string, @Body() dto: UpdateReviewReportDto): Promise<ReviewReport> {
-    return this.service.update(reviewId, dto);
+  @Patch(':reviewId/status')
+  update(@Param('reviewId') reviewId: string, @Body('status') status: string): Promise<ReviewReport> {
+    return this.service.updateStatus(reviewId, status);
   }
 
   @Delete(':reviewId')
