@@ -36,7 +36,7 @@ export class AdminUserController {
     @Query() fetchDto: FetchAdminUsersDto,
     @Req() req: Request
   ) {
-    const { skip, limit, nonPaginated, role, status, departmentsId } = fetchDto;
+    const { skip, limit, nonPaginated, role, status, departmentsId, search } = fetchDto;
     const filter: Record<string, any> = {};
     if (role === AdminRoles.INSTITUTIONADMIN && !req['institutionsId']) {
       throw new BadRequestException('institutionsId is required for institutional admins');
@@ -56,6 +56,16 @@ export class AdminUserController {
     }
     if (departmentsId) {
       filter['metaTags.departmentsId'] = departmentsId as string;
+    }
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phoneNumber: { $regex: search, $options: 'i' } },
+        { userName: { $regex: search, $options: 'i' } },
+        { adminId: { $regex: search, $options: 'i' } },
+      ];
     }
 
     return this.adminUserService.findAllAdminUsers(skip, limit, filter, nonPaginated);

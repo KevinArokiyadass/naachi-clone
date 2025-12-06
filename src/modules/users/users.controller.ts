@@ -85,22 +85,34 @@ export class UsersController {
 
   @Get()
   getAllUsers(@Query() query: GetUsersQueryDto) {
-    const { skip, limit, nonPaginated, phoneNumber, userName, userId } = query;
+    const { skip, limit, nonPaginated, phoneNumber, userName, userId, search } = query;
 
     const filter: Record<string, any> = {};
 
     filter.status = 'completed';
 
-    if (phoneNumber) {
-      filter.phoneNumber = { $regex: phoneNumber, $options: 'i' };
-    }
+    if (search) {
+      // When search is provided, search across all relevant fields
+      filter.$or = [
+        { phoneNumber: { $regex: search, $options: 'i' } },
+        { userName: { $regex: search, $options: 'i' } },
+        { userId: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } },
+      ];
+    } else {
+      // When search is not provided, use individual field filters
+      if (phoneNumber) {
+        filter.phoneNumber = { $regex: phoneNumber, $options: 'i' };
+      }
 
-    if (userName) {
-      filter.userName = { $regex: userName, $options: 'i' };
-    }
+      if (userName) {
+        filter.userName = { $regex: userName, $options: 'i' };
+      }
 
-    if (userId) {
-      filter.userId = { $regex: userId, $options: 'i' };
+      if (userId) {
+        filter.userId = { $regex: userId, $options: 'i' };
+      }
     }
 
     return this.usersService.findAllUsers(skip, limit, filter, nonPaginated);
