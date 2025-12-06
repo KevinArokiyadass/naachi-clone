@@ -30,17 +30,17 @@ export class AdminUserController {
     return await this.adminUserService.createAdminUser(createAdminDto);
   }
 
-  
+
   @Get()
   getAllAdminUsers(
-    @Query() fetchDto: FetchAdminUsersDto, 
+    @Query() fetchDto: FetchAdminUsersDto,
     @Req() req: Request
   ) {
     const { skip, limit, nonPaginated, role, status, departmentsId } = fetchDto;
     const filter: Record<string, any> = {};
     if (role === AdminRoles.INSTITUTIONADMIN && !req['institutionsId']) {
       throw new BadRequestException('institutionsId is required for institutional admins');
-     }
+    }
 
     if (role) {
       filter.role = role;
@@ -48,14 +48,15 @@ export class AdminUserController {
     if (status) {
       filter.status = status;
     }
-    if (req['institutionsId']) 
-      {
-        filter['metaTags.institutionsId'] = req['institutionsId'] as string;
-       } 
-    if (departmentsId)
-      {
-        filter['metaTags.departmentsId'] = departmentsId as string;
-      }
+    if (req['institutionsId']) {
+      filter['metaTags.institutionsId'] = req['institutionsId'] as string;
+    }
+    else{
+      filter['metaTags.institutionsId'] = {$exists: false};
+    }
+    if (departmentsId) {
+      filter['metaTags.departmentsId'] = departmentsId as string;
+    }
 
     return this.adminUserService.findAllAdminUsers(skip, limit, filter, nonPaginated);
   }
