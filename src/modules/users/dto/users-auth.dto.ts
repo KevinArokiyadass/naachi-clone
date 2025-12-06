@@ -127,6 +127,10 @@ export class GetUsersQueryDto extends FetchDto {
   @IsOptional()
   @IsString()
   userId?: string;
+
+  @IsOptional()
+  @IsString()
+  institutionsId?: string;
 }
 
 export class GetPermissionsQueryDto extends FetchDto {

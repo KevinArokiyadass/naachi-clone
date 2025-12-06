@@ -85,7 +85,7 @@ export class UsersController {
 
   @Get()
   getAllUsers(@Query() query: GetUsersQueryDto) {
-    const { skip, limit, nonPaginated, phoneNumber, userName, userId } = query;
+    const { skip, limit, nonPaginated, phoneNumber, userName, userId, institutionsId } = query;
 
     const filter: Record<string, any> = {};
 
@@ -101,6 +101,10 @@ export class UsersController {
 
     if (userId) {
       filter.userId = { $regex: userId, $options: 'i' };
+    }
+
+    if (institutionsId) {
+      filter.institutionsId = institutionsId;
     }
 
     return this.usersService.findAllUsers(skip, limit, filter, nonPaginated);

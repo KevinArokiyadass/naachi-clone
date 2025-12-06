@@ -193,7 +193,6 @@ export class AdminUserService {
     return await this.dbServices.adminUser.findOneAndUpdate({ adminId }, { refreshToken: refreshToken }, { new: true });
   }
 
-
   private async fetchPermissionsForUser(permissionGroupIds: string[]): Promise<string[]> {
     if (!permissionGroupIds || permissionGroupIds.length === 0) {
       return [];

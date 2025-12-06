@@ -79,6 +79,9 @@ export class Users extends Document {
 
     @Prop({ type: Date })
     expiresAt?: Date;
+
+    @Prop({ type: String })
+    institutionsId?: string;
 }
 
 export const UsersSchema = SchemaFactory.createForClass(Users);

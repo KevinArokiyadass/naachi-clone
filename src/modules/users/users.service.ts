@@ -34,6 +34,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
     VerifyEmailDto,
   } from './dto/users-auth.dto';
 import { RecordService } from '@noukha-technologies/mdm-core';
+import { response } from 'express';
 
   
   @Injectable()
@@ -245,7 +246,7 @@ import { RecordService } from '@noukha-technologies/mdm-core';
       };
     }
 
-    async validateInstitute(email: string) {
+    async validateInstitute(email: string): Promise<string> {
       const atIndex = email?.lastIndexOf('@') ?? -1;
       if (atIndex === -1 || atIndex === email.length - 1) {
         throw new BadRequestException('Invalid email format');
@@ -260,6 +261,7 @@ import { RecordService } from '@noukha-technologies/mdm-core';
               { institutionDomain: domain }
             ],
           },
+          fields: ['institutionDomain', 'institutionsId'],
           nonPaginated: true,
         });
 
@@ -271,6 +273,16 @@ import { RecordService } from '@noukha-technologies/mdm-core';
             errorCode: 'INVALID_EMAIL_DOMAIN',
           });
         }
+
+        const matchingInstitution = response.items[0];
+        if (!matchingInstitution?.institutionsId) {
+          throw new BadRequestException({
+            message: 'Institution ID not found for the matching domain.',
+            errorCode: 'INSTITUTION_ID_MISSING',
+          });
+        }
+
+        return matchingInstitution.institutionsId;
       } catch (error) {
         if (error instanceof BadRequestException) {
           throw error;
@@ -316,12 +328,13 @@ import { RecordService } from '@noukha-technologies/mdm-core';
         throw new BadRequestException('Email already registered');
       }
 
-      await this.validateInstitute(dto.email);
-  
+      const institutionsId = await this.validateInstitute(dto.email);
+
       await this.dbService.users.findOneAndUpdate(
         { userId: dto.userId, status: 'pending' },
         {
           email: dto.email,
+          institutionsId: institutionsId,
           emailVerified: false,
           updatedAt: new Date()
         }
