@@ -2,7 +2,7 @@ import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { FetchDto } from 'src/common/shared/pagination/dto/fetch.dto';
 
 export class GetPermissionsQueryDto extends FetchDto {
-  @IsNotEmpty({ message: 'Institution ID is required' })
+  @IsOptional()
   @IsString()
   institutionsId: string;
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { PermissionService } from './permission.service';
 import { GetPermissionsQueryDto } from './dto/get-permissions.dto';
@@ -9,9 +9,9 @@ export class PermissionController {
   constructor(private readonly permissionService: PermissionService) {}
 
   @Get()
-  async getPermissions(@Query() query: GetPermissionsQueryDto) {
+  async getPermissions(@Query() query: GetPermissionsQueryDto,  @Req() req: Request) {
     const {
-      institutionsId,
+      institutionsId = req['institutionsId'],
       skip = 0,
       limit = 10,
       search,

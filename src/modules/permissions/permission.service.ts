@@ -18,7 +18,12 @@ export class PermissionService {
     let filters: Record<string, any> = {
       institutionsId: institutionsId,
       isDeleted: false,
-    };
+    }; 
+
+    if(!institutionsId) {
+      filters['institutionsId'] = {$exists: false};
+    }
+    console.log(filters);
 
     if (search && search.trim()) {
       filters.$or = [
