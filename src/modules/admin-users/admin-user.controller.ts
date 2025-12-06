@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AdminUserService } from './admin-user.service';
 import { CreateAdminWithPasswordDto } from './dto/create-admin-with-password.dto';
@@ -33,11 +33,12 @@ export class AdminUserController {
   
   @Get()
   getAllAdminUsers(
-    @Query() fetchDto: FetchAdminUsersDto
+    @Query() fetchDto: FetchAdminUsersDto, 
+    @Req() req: Request
   ) {
-    const { skip, limit, nonPaginated, role, status, institutionsId, departmentsId } = fetchDto;
+    const { skip, limit, nonPaginated, role, status, departmentsId } = fetchDto;
     const filter: Record<string, any> = {};
-    if (role === AdminRoles.INSTITUTIONADMIN && !institutionsId) {
+    if (role === AdminRoles.INSTITUTIONADMIN && !req['institutionsId']) {
       throw new BadRequestException('institutionsId is required for institutional admins');
      }
 
@@ -47,13 +48,13 @@ export class AdminUserController {
     if (status) {
       filter.status = status;
     }
-    if (institutionsId) 
+    if (req['institutionsId']) 
       {
-        filter['metaTags.institutionsId'] = institutionsId;
+        filter['metaTags.institutionsId'] = req['institutionsId'] as string;
        } 
     if (departmentsId)
       {
-        filter['metaTags.departmentsId'] = departmentsId;
+        filter['metaTags.departmentsId'] = departmentsId as string;
       }
 
     return this.adminUserService.findAllAdminUsers(skip, limit, filter, nonPaginated);
