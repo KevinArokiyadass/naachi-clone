@@ -1,5 +1,6 @@
 import { Body, Controller, Post, Get, Param, Query } from '@nestjs/common';
 import {
+  ActivateByQrCodeDto,
   ConfirmEmailDto,
   GetUsersByPhoneDto,
   GetPermissionsQueryDto,
@@ -122,6 +123,11 @@ export class UsersController {
   @Post('Users-by-phone')
   getUsersByPhone(@Body() dto: GetUsersByPhoneDto) {
     return this.usersService.getUsersByPhoneNumbers(dto.phoneNumbers);
+  }
+
+  @Post('activate-by-qr-code')
+  async activateByQrCode(@Body() dto: ActivateByQrCodeDto) {
+    return this.usersService.activateByQrCode(dto.userId, dto.referrerUserId);
   }
 }
 

@@ -20,6 +20,8 @@ export interface IUsers {
     emailOtp?: string;
     emailOtpExpiry?: Date;
     expiresAt?: Date;
+    referredBy?: string;
+    activationMedium?: 'qr_code' | 'friend_request' | 'institution';
     createdAt?: Date;
     updatedAt?: Date;
 }

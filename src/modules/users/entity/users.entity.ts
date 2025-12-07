@@ -79,6 +79,16 @@ export class Users extends Document {
 
     @Prop({ type: Date })
     expiresAt?: Date;
+
+    @Prop({ type: String, required: false, trim: true })
+    referredBy?: string;
+
+    @Prop({ 
+        type: String, 
+        enum: ['qr_code', 'friend_request', 'institution'],
+        required: false 
+    })
+    activationMedium?: string;
 }
 
 export const UsersSchema = SchemaFactory.createForClass(Users);

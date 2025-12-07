@@ -691,6 +691,59 @@ import { RecordService } from '@noukha-technologies/mdm-core';
       const users = await this.paginationService.findAndPaginate(this.dbService.users, { skip, limit, filter, nonPaginated });
       return users;
     }
+
+    async activateByQrCode(userId: string, referrerUserId: string) {
+      // Check if the user exists
+      const user = await this.dbService.users.findOne({
+        userId,
+        isDeleted: false,
+      });
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      // Check if user is already active
+      if (user.isActive) {
+        throw new BadRequestException('User is already active');
+      }
+
+      // Verify that the referrer user exists
+      const referrer = await this.dbService.users.findOne({
+        userId: referrerUserId,
+        isDeleted: false,
+      });
+
+      if (!referrer) {
+        throw new NotFoundException('Referrer user not found');
+      }
+
+      // Prevent self-referral
+      if (userId === referrerUserId) {
+        throw new BadRequestException('Cannot refer yourself');
+      }
+
+      // Update user: activate, set referrer, and set activation medium
+      const updatedUser = await this.dbService.users.findOneAndUpdate(
+        { userId, isDeleted: false },
+        {
+          isActive: true,
+          referredBy: referrerUserId,
+          activationMedium: 'qr_code',
+          updatedAt: new Date(),
+        },
+        { new: true },
+      );
+
+      if (!updatedUser) {
+        throw new NotFoundException('Failed to update user');
+      }
+
+      return {
+        message: 'User activated successfully via QR code',
+        user: updatedUser,
+      };
+    }
   
 }
   
