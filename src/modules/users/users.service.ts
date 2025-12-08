@@ -716,9 +716,9 @@ import { response } from 'express';
         throw new NotFoundException('User not found');
       }
 
-      // Check if user is already active
-      if (user.isActive) {
-        throw new BadRequestException('User is already active');
+      // Check if user has already completed signup
+      if (user.status === 'completed') {
+        throw new BadRequestException('User signup is already completed. Cannot activate via QR code.');
       }
 
       // Verify that the referrer user exists
