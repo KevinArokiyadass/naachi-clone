@@ -17,7 +17,7 @@ export class ClientIdMiddleware implements NestMiddleware {
 
     let naachiAdminUrl = process.env.NAACHI_ADMIN_URL;
     naachiAdminUrl = JSON.parse(naachiAdminUrl);
-    if (naachiAdminUrl && origin.includes(naachiAdminUrl)) {
+    if (naachiAdminUrl && naachiAdminUrl.includes(origin)) {
       req['isSuperAdminRequest'] = true;
       return next();
     }
