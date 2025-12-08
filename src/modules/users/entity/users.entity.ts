@@ -80,6 +80,8 @@ export class Users extends Document {
     @Prop({ type: Date })
     expiresAt?: Date;
 
+    @Prop({ type: String })
+    institutionsId?: string;
     @Prop({ type: String, required: false, trim: true })
     referredBy?: string;
 
