@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { AdminUserService } from './admin-user.service';
 import { AdminUserController } from './admin-user.controller';
 import { DBServicesModule } from '../../common/repository/repository-services.module';
@@ -20,11 +20,13 @@ import { ClientIdMiddleware } from '../../common/middleware/clientId.middlewere'
 })
 export class AdminUserModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Apply ClientIdMiddleware to all admin-user routes
+    // Apply ClientIdMiddleware to all admin-user routes except 'create'
     // This sets req['isSuperAdminRequest'] or req['institutionsId'] based on origin
     // This must run BEFORE CognitoAuthGuard and RolesGuard
+    // The 'create' route only uses JWT role validation, not origin validation
     consumer
       .apply(ClientIdMiddleware)
+      .exclude({ path: 'admin-user/create', method: RequestMethod.POST })
       .forRoutes(AdminUserController);
   }
 }

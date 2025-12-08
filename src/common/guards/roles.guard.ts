@@ -75,8 +75,15 @@ export class RolesGuard implements CanActivate {
       );
     }
 
-
-    this.validateDomainAccess(adminUser, userRole, request);
+    // Skip domain validation for create route - only validate JWT token role
+    // Check handler name to identify the create route
+    const handler = context.getHandler();
+    const handlerName = handler?.name || '';
+    const isCreateRoute = handlerName === 'createAdminUser';
+    
+    if (!isCreateRoute) {
+      this.validateDomainAccess(adminUser, userRole, request);
+    }
 
 
 
