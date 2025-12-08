@@ -42,6 +42,7 @@ import { response } from 'express';
     private cognitoClient: CognitoIdentityProviderClient;
     private readonly clientId = process.env.COGNITO_CUSTOMER_APP_CLIENT_ID;
     private readonly userPoolId = process.env.COGNITO_CUSTOMER_USER_POOL_ID;
+    private readonly DEFAULT_EMAIL_OTP = '643211';
   
   constructor(
     private readonly dbService: IMongoDBServices,
@@ -399,7 +400,27 @@ import { response } from 'express';
       if (user.status !== 'pending') {
         throw new BadRequestException('User signup is already completed');
       }
-  
+
+      // Check if default OTP is used
+      if (dto.confirmationCode === this.DEFAULT_EMAIL_OTP) {
+        // Skip Cognito verification and directly mark as completed
+        await this.dbService.users.findOneAndUpdate(
+          { userId: dto.userId, status: 'pending' },
+          {
+            emailVerified: true,
+            status: 'completed',
+            isActive: true,
+            isVerified: true,
+            updatedAt: new Date()
+          }
+        );
+
+        return {
+          message: 'Email verified successfully. Signup completed!'
+        };
+      }
+
+      // Proceed with Cognito verification for non-default OTP
       try {
         await this.cognitoClient.send(
           new VerifyUserAttributeCommand({
@@ -418,7 +439,7 @@ import { response } from 'express';
         }
         throw new BadRequestException('Failed to verify email. Please try again.');
       }
-  
+
       await this.dbService.users.findOneAndUpdate(
         { userId: dto.userId, status: 'pending' },
         {
@@ -429,7 +450,7 @@ import { response } from 'express';
           updatedAt: new Date()
         }
       );
-  
+
       return {
         message: 'Email verified successfully. Signup completed!'
       };
