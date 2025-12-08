@@ -6,6 +6,34 @@ import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interfa
 export class PermissionGroupService {
   constructor(private readonly recordService: RecordService) {}
 
+  async createPermissionGroup(data: any, institutionsId?: string) {
+    const recordData = { ...data };
+    if (institutionsId) {
+      recordData.institutionsId = institutionsId;
+    }
+    // CreateRecordDto expects { data: Record<string, any> }
+    return await this.recordService.createRecord('permissiongroups', { data: recordData });
+  }
+
+  async updatePermissionGroup(id: string, data: any, institutionsId?: string) {
+    const recordData = { ...data };
+    if (institutionsId) {
+      recordData.institutionsId = institutionsId;
+    }
+    // UpdateRecordDto expects { data: Record<string, any> }
+    return await this.recordService.updateRecord('permissiongroups', id, { data: recordData });
+  }
+
+  async replacePermissionGroup(id: string, data: any, institutionsId?: string) {
+    const recordData = { ...data };
+    if (institutionsId) {
+      recordData.institutionsId = institutionsId;
+    }
+    // RecordService doesn't have replace, so we use updateRecord which will replace the entire record
+    // UpdateRecordDto expects { data: Record<string, any> }
+    return await this.recordService.updateRecord('permissiongroups', id, { data: recordData });
+  }
+
   async getPermissionGroups(
     institutionsId: string,
     skip: number = 0,
