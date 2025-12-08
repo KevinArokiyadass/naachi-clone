@@ -15,8 +15,9 @@ export class ClientIdMiddleware implements NestMiddleware {
       throw new ForbiddenException('Origin header is required');
     }
 
-    const naachiAdminUrl = process.env.NAACHI_ADMIN_URL;
-    if (naachiAdminUrl && naachiAdminUrl === origin) {
+    let naachiAdminUrl = process.env.NAACHI_ADMIN_URL;
+    naachiAdminUrl = JSON.parse(naachiAdminUrl);
+    if (naachiAdminUrl && origin.includes(naachiAdminUrl)) {
       req['isSuperAdminRequest'] = true;
       return next();
     }

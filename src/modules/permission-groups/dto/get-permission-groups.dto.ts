@@ -15,3 +15,4 @@ export class GetPermissionGroupsQueryDto extends FetchDto {
   order?: 'asc' | 'desc' = 'desc';
 }
 
+
