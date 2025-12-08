@@ -16,6 +16,7 @@ import { AdminUserModule } from './modules/admin-users/admin-user.module';
 import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
 import { ReviewReportModule } from './modules/review-report/review-report.module';
 import { PermissionModule } from './modules/permissions/permission.module';
+import { PermissionGroupModule } from './modules/permission-groups/permission-group.module';
 
 const ENV = process.env.NODE_ENV;
 
@@ -33,6 +34,7 @@ const ENV = process.env.NODE_ENV;
     AdminAuthModule,
     ReviewReportModule,
     PermissionModule,
+    PermissionGroupModule,
     MdmCoreModule.forRoot({
       database: {
         connectionString: process.env.MONGODB_URI

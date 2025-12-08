@@ -1,4 +1,4 @@
-import { Injectable, NestMiddleware, ForbiddenException } from '@nestjs/common';
+import { Injectable, NestMiddleware, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { RecordService } from '@noukha-technologies/mdm-core';
 
@@ -6,51 +6,49 @@ import { RecordService } from '@noukha-technologies/mdm-core';
 export class ClientIdMiddleware implements NestMiddleware {
   constructor(
     private readonly recordService: RecordService
-  ) {}
+  ) { }
 
   async use(req: Request, res: Response, next: NextFunction) {
     const origin = req.headers.origin;
-  
+
     if (!origin) {
       throw new ForbiddenException('Origin header is required');
     }
 
+    const naachiAdminUrl = process.env.NAACHI_ADMIN_URL;
+    if (naachiAdminUrl && naachiAdminUrl === origin) {
+      req['isSuperAdminRequest'] = true;
+      return next();
+    }
     try {
-      const naachiAdminUrl = process.env.NAACHI_ADMIN_URL;
-      if (naachiAdminUrl && naachiAdminUrl === origin) {
-        req['isSuperAdminRequest'] = true;
-        return next();
-      }
+      // Extract hostname from origin URL (e.g., "http://sastra.localhost:3000" -> "sastra.localhost")
+      const originUrl = new URL(origin);
+      const adminDomain = originUrl.origin;
+      
+      
+      // Find institution by institutionDomain field using findAll with filters
       const institutionsResult = await this.recordService.findAll('institutions', {
-        filters: {},
-        nonPaginated: true
+        filters: {
+          adminDomain: adminDomain,
+          
+        },
+        nonPaginated: true,
       });
-
-      const institutions = institutionsResult?.items || [];
-      
-      const institution = institutions.find((inst: any) => {
-        if (!inst.adminDomain) return false;
-        return inst.adminDomain === origin;
-      });
-      
-      if (!institution) {
-        throw new ForbiddenException(`Unable to find institution for domain: ${origin}`);
+      if (!institutionsResult?.items || institutionsResult.items.length === 0) {
+        throw new ForbiddenException(`Unable to find institution for domain: ${adminDomain}`);
       }
 
-      const institutionsId = institution?.institutionsId;
-  
-      if (!institutionsId) {
-        throw new ForbiddenException(`Institution found but missing institutionsId for domain: ${origin}`);
-      }
-
-      req['institutionsId'] = institutionsId;
-  
+      const institution = institutionsResult.items[0];
+      req['institutionsId'] = institution.institutionsId as string;
       next();
     } catch (error) {
       if (error instanceof ForbiddenException) {
         throw error;
       }
-      throw new ForbiddenException(`Failed to fetch institutionId details: ${error.message}`);
+      if (error instanceof NotFoundException) {
+        throw new ForbiddenException(`Unable to find institution for domain: ${origin}`);
+      }
+      throw error;
     }
   }
 }

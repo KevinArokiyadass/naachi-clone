@@ -1,10 +1,10 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 import { FetchDto } from 'src/common/shared/pagination/dto/fetch.dto';
 
-export class GetPermissionsQueryDto extends FetchDto {
+export class GetPermissionGroupsQueryDto extends FetchDto {
   @IsOptional()
   @IsString()
-  institutionsId: string;
+  institutionsId?: string;
 
   @IsOptional()
   @IsString()

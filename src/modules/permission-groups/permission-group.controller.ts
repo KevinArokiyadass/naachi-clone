@@ -1,16 +1,18 @@
 import { Controller, Get, Post, Patch, Put, Query, Req, Body, Param } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
-import { PermissionService } from './permission.service';
-import { GetPermissionsQueryDto } from './dto/get-permissions.dto';
+import { PermissionGroupService } from './permission-group.service';
+import { GetPermissionGroupsQueryDto } from './dto/get-permission-groups.dto';
 import { interServiceRequestHelper } from '../../common/inter-service-communication/axios-wrapper';
 import { ErrorException } from '../../common/errors/custom-error.exception';
 
-@Controller('permissions')
-export class PermissionController {
-  constructor(private readonly permissionService: PermissionService) {}
+@Controller('permissionGroups')
+export class PermissionGroupController {
+  constructor(private readonly permissionGroupService: PermissionGroupService) {}
 
   @Get()
-  async getPermissions(@Query() query: GetPermissionsQueryDto,  @Req() req: Request) {
+  @ApiOperation({ summary: 'Get permission groups' })
+  @ApiResponse({ status: 200, description: 'Permission groups retrieved successfully' })
+  async getPermissionGroups(@Query() query: GetPermissionGroupsQueryDto, @Req() req: Request) {
     const {
       institutionsId = req['institutionsId'],
       skip = 0,
@@ -21,7 +23,7 @@ export class PermissionController {
       order = 'desc',
     } = query;
 
-    return this.permissionService.getPermissions(
+    return this.permissionGroupService.getPermissionGroups(
       institutionsId,
       skip,
       limit,
@@ -33,14 +35,14 @@ export class PermissionController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create permission (redirected to record service)' })
-  async createPermission(@Body() body: any, @Query() query: any, @Req() req: Request) {
+  @ApiOperation({ summary: 'Create permission group (redirected to record service)' })
+  async createPermissionGroup(@Body() body: any, @Query() query: any, @Req() req: Request) {
     try {
       const headers = this.extractHeaders(req);
       return await interServiceRequestHelper({
         method: 'post',
         service: 'record',
-        requestPath: 'permissions',
+        requestPath: 'permissionGroups',
         headers,
         query,
         body,
@@ -51,14 +53,14 @@ export class PermissionController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update permission (redirected to record service)' })
-  async updatePermission(@Param('id') id: string, @Body() body: any, @Query() query: any, @Req() req: Request) {
+  @ApiOperation({ summary: 'Update permission group (redirected to record service)' })
+  async updatePermissionGroup(@Param('id') id: string, @Body() body: any, @Query() query: any, @Req() req: Request) {
     try {
       const headers = this.extractHeaders(req);
       return await interServiceRequestHelper({
         method: 'patch',
         service: 'record',
-        requestPath: `permissions/${id}`,
+        requestPath: `permissionGroups/${id}`,
         headers,
         query,
         body,
@@ -69,14 +71,14 @@ export class PermissionController {
   }
 
   @Put(':id')
-  @ApiOperation({ summary: 'Replace permission (redirected to record service)' })
-  async replacePermission(@Param('id') id: string, @Body() body: any, @Query() query: any, @Req() req: Request) {
+  @ApiOperation({ summary: 'Replace permission group (redirected to record service)' })
+  async replacePermissionGroup(@Param('id') id: string, @Body() body: any, @Query() query: any, @Req() req: Request) {
     try {
       const headers = this.extractHeaders(req);
       return await interServiceRequestHelper({
         method: 'put',
         service: 'record',
-        requestPath: `permissions/${id}`,
+        requestPath: `permissionGroups/${id}`,
         headers,
         query,
         body,
@@ -127,3 +129,4 @@ export class PermissionController {
     throw new ErrorException(null, errorMessage, statusCode);
   }
 }
+

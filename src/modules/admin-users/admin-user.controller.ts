@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AdminUserService } from './admin-user.service';
 import { CreateAdminWithPasswordDto } from './dto/create-admin-with-password.dto';
@@ -30,16 +30,17 @@ export class AdminUserController {
     return await this.adminUserService.createAdminUser(createAdminDto);
   }
 
-  
+
   @Get()
   getAllAdminUsers(
-    @Query() fetchDto: FetchAdminUsersDto
+    @Query() fetchDto: FetchAdminUsersDto,
+    @Req() req: Request
   ) {
-    const { skip, limit, nonPaginated, role, status, institutionsId, departmentsId } = fetchDto;
+    const { skip, limit, nonPaginated, role, status, departmentsId, search } = fetchDto;
     const filter: Record<string, any> = {};
-    if (role === AdminRoles.INSTITUTIONADMIN && !institutionsId) {
+    if (role === AdminRoles.INSTITUTIONADMIN && !req['institutionsId']) {
       throw new BadRequestException('institutionsId is required for institutional admins');
-     }
+    }
 
     if (role) {
       filter.role = role;
@@ -47,14 +48,25 @@ export class AdminUserController {
     if (status) {
       filter.status = status;
     }
-    if (institutionsId) 
-      {
-        filter['metaTags.institutionsId'] = institutionsId;
-       } 
-    if (departmentsId)
-      {
-        filter['metaTags.departmentsId'] = departmentsId;
-      }
+    if (req['institutionsId']) {
+      filter['metaTags.institutionsId'] = req['institutionsId'] as string;
+    }
+    else{
+      filter['metaTags.institutionsId'] = {$exists: false};
+    }
+    if (departmentsId) {
+      filter['metaTags.departmentsId'] = departmentsId as string;
+    }
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phoneNumber: { $regex: search, $options: 'i' } },
+        { userName: { $regex: search, $options: 'i' } },
+        { adminId: { $regex: search, $options: 'i' } },
+      ];
+    }
 
     return this.adminUserService.findAllAdminUsers(skip, limit, filter, nonPaginated);
   }

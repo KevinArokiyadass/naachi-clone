@@ -3,10 +3,10 @@ import { RecordService } from '@noukha-technologies/mdm-core';
 import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
 
 @Injectable()
-export class PermissionService {
+export class PermissionGroupService {
   constructor(private readonly recordService: RecordService) {}
 
-  async getPermissions(
+  async getPermissionGroups(
     institutionsId: string,
     skip: number = 0,
     limit: number = 10,
@@ -18,23 +18,21 @@ export class PermissionService {
     let filters: Record<string, any> = {
       institutionsId: institutionsId,
       isDeleted: false,
-    }; 
+    };
 
     if(!institutionsId) {
       filters['institutionsId'] = {$exists: false};
     }
-    console.log(filters);
 
     if (search && search.trim()) {
       filters.$or = [
         { name: { $regex: search, $options: 'i' } },
-        { code: { $regex: search, $options: 'i' } },
-        { permissionsId: { $regex: search, $options: 'i' } },
+        { permissionGroupsId: { $regex: search, $options: 'i' } },
       ];
     }
 
     try {
-      let result = await this.recordService.findAll('permissions', {
+      let result = await this.recordService.findAll('permissiongroups', {
         filters,
         nonPaginated: true,
       });
@@ -46,11 +44,10 @@ export class PermissionService {
         if (search && search.trim()) {
           filters.$or = [
             { name: { $regex: search, $options: 'i' } },
-            { code: { $regex: search, $options: 'i' } },
-            { permissionsId: { $regex: search, $options: 'i' } },
+            { permissionGroupsId: { $regex: search, $options: 'i' } },
           ];
         }
-        result = await this.recordService.findAll('permissions', {
+        result = await this.recordService.findAll('permissiongroups', {
           filters,
           nonPaginated: true,
         });
@@ -61,20 +58,20 @@ export class PermissionService {
         return item.isDeleted === false || item.isDeleted === null || item.isDeleted === undefined;
       });
 
-
       if (search && search.trim() && (!filters.$or || allItems.length > 0)) {
         const searchLower = search.toLowerCase();
         const filteredItems = allItems.filter((item: any) => {
           const nameMatch = item.name?.toLowerCase().includes(searchLower);
-          const codeMatch = item.code?.toLowerCase().includes(searchLower);
-          const permissionsIdMatch = item.permissionsId?.toLowerCase().includes(searchLower);
-          return nameMatch || codeMatch || permissionsIdMatch;
+          const permissionGroupsIdMatch = item.permissionGroupsId?.toLowerCase().includes(searchLower);
+          const permissionsIdMatch = Array.isArray(item.permissionsId) 
+            ? item.permissionsId.some((id: string) => id.toLowerCase().includes(searchLower))
+            : false;
+          return nameMatch || permissionGroupsIdMatch || permissionsIdMatch;
         });
         if (filteredItems.length !== allItems.length || allItems.length === 0) {
           allItems = filteredItems;
         }
       }
-
 
       if (sort && allItems.length > 0) {
         const sortOrder = order === 'asc' ? 1 : -1;
@@ -88,7 +85,6 @@ export class PermissionService {
       }
 
       const totalItems = allItems.length;
-
 
       if (nonPaginated) {
         return {
@@ -113,8 +109,9 @@ export class PermissionService {
         };
       }
     } catch (error) {
-      console.error('Error fetching permissions:', error);
+      console.error('Error fetching permission groups:', error);
       throw error;
     }
   }
 }
+

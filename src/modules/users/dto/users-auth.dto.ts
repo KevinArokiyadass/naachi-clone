@@ -152,3 +152,13 @@ export class GetUsersByPhoneDto {
   @IsString({ each: true })
   phoneNumbers: string[];
 }
+
+export class ActivateByQrCodeDto {
+  @IsNotEmpty({ message: 'User ID is required' })
+  @IsString()
+  userId: string;
+
+  @IsNotEmpty({ message: 'Referrer User ID is required' })
+  @IsString()
+  referrerUserId: string;
+}

@@ -1,5 +1,6 @@
 import { Body, Controller, Post, Get, Param, Query } from '@nestjs/common';
 import {
+  ActivateByQrCodeDto,
   ConfirmEmailDto,
   GetUsersByPhoneDto,
   GetPermissionsQueryDto,
@@ -85,22 +86,34 @@ export class UsersController {
 
   @Get()
   getAllUsers(@Query() query: GetUsersQueryDto) {
-    const { skip, limit, nonPaginated, phoneNumber, userName, userId, institutionsId } = query;
+    const { skip, limit, nonPaginated, phoneNumber, userName, userId, institutionsId, search } = query;
 
     const filter: Record<string, any> = {};
 
     filter.status = 'completed';
 
-    if (phoneNumber) {
-      filter.phoneNumber = { $regex: phoneNumber, $options: 'i' };
-    }
+    if (search) {
+      // When search is provided, search across all relevant fields
+      filter.$or = [
+        { phoneNumber: { $regex: search, $options: 'i' } },
+        { userName: { $regex: search, $options: 'i' } },
+        { userId: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } },
+      ];
+    } else {
+      // When search is not provided, use individual field filters
+      if (phoneNumber) {
+        filter.phoneNumber = { $regex: phoneNumber, $options: 'i' };
+      }
 
-    if (userName) {
-      filter.userName = { $regex: userName, $options: 'i' };
-    }
+      if (userName) {
+        filter.userName = { $regex: userName, $options: 'i' };
+      }
 
-    if (userId) {
-      filter.userId = { $regex: userId, $options: 'i' };
+      if (userId) {
+        filter.userId = { $regex: userId, $options: 'i' };
+      }
     }
 
     if (institutionsId) {
@@ -114,6 +127,11 @@ export class UsersController {
   @Post('Users-by-phone')
   getUsersByPhone(@Body() dto: GetUsersByPhoneDto) {
     return this.usersService.getUsersByPhoneNumbers(dto.phoneNumbers);
+  }
+
+  @Post('activate-by-qr-code')
+  async activateByQrCode(@Body() dto: ActivateByQrCodeDto) {
+    return this.usersService.activateByQrCode(dto.userId, dto.referrerUserId);
   }
 }
 
