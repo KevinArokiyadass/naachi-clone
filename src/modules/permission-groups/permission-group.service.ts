@@ -12,7 +12,8 @@ export class PermissionGroupService {
       recordData.institutionsId = institutionsId;
     }
     // CreateRecordDto expects { data: Record<string, any> }
-    return await this.recordService.createRecord('permissiongroups', { data: recordData });
+    // Note: Schema name must match exactly what's registered in the schemas collection
+    return await this.recordService.createRecord('permissionGroups', { data: recordData });
   }
 
   async updatePermissionGroup(id: string, data: any, institutionsId?: string) {
@@ -21,7 +22,7 @@ export class PermissionGroupService {
       recordData.institutionsId = institutionsId;
     }
     // UpdateRecordDto expects { data: Record<string, any> }
-    return await this.recordService.updateRecord('permissiongroups', id, { data: recordData });
+    return await this.recordService.updateRecord('permissionGroups', id, { data: recordData });
   }
 
   async replacePermissionGroup(id: string, data: any, institutionsId?: string) {
@@ -31,7 +32,7 @@ export class PermissionGroupService {
     }
     // RecordService doesn't have replace, so we use updateRecord which will replace the entire record
     // UpdateRecordDto expects { data: Record<string, any> }
-    return await this.recordService.updateRecord('permissiongroups', id, { data: recordData });
+    return await this.recordService.updateRecord('permissionGroups', id, { data: recordData });
   }
 
   async getPermissionGroups(
