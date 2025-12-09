@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { FetchDto } from 'src/common/shared/pagination/dto/fetch.dto';
 
 export class UsersSignupDto {
@@ -131,6 +131,10 @@ export class GetUsersQueryDto extends FetchDto {
   @IsOptional()
   @IsString()
   institutionsId?: string;
+
+  @IsOptional()
+  @IsEnum(['pending', 'completed'], { message: 'Status must be pending or completed' })
+  status?: 'pending' | 'completed';
 }
 
 export class GetPermissionsQueryDto extends FetchDto {

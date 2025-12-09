@@ -87,11 +87,16 @@ export class UsersController {
 
   @Get()
   getAllUsers(@Query() query: GetUsersQueryDto) {
-    const { skip, limit, nonPaginated, phoneNumber, userName, userId, institutionsId, search } = query;
+    const { skip, limit, nonPaginated, phoneNumber, userName, userId, institutionsId, search, status } = query;
 
     const filter: Record<string, any> = {};
 
-    filter.status = 'completed';
+    // Filter by status if provided, otherwise default to 'completed' for backward compatibility
+    if (status) {
+      filter.status = status;
+    } else {
+      filter.status = 'completed';
+    }
 
     if (search) {
       // When search is provided, search across all relevant fields
