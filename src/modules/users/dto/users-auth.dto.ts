@@ -135,6 +135,10 @@ export class GetUsersQueryDto extends FetchDto {
   @IsOptional()
   @IsString()
   institutionsId?: string;
+
+  @IsOptional()
+  @IsEnum(['pending', 'completed'], { message: 'Status must be pending or completed' })
+  status?: 'pending' | 'completed';
 }
 
 export class GetPermissionsQueryDto extends FetchDto {
