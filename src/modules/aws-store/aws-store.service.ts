@@ -47,7 +47,11 @@ export class AwsStoreService {
 
   getCloudFrontUrl(s3FileName: string): string {
     console.log('s3FileName', s3FileName)
-    return `${this.cloudFrontUrl}${s3FileName}`;
+    // Ensure there's a single slash between CloudFront URL and filename
+    const baseUrl = this.cloudFrontUrl.endsWith('/') 
+      ? this.cloudFrontUrl 
+      : `${this.cloudFrontUrl}/`;
+    return `${baseUrl}${s3FileName}`;
   }
 
   async getFileUrl(s3FileName: string): Promise<string> {
