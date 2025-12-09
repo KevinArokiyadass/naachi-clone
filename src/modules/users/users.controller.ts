@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Post, Get, Param, Query, Patch } from '@nestjs/common';
 import {
   ActivateByQrCodeDto,
   ConfirmEmailDto,
@@ -16,6 +16,7 @@ import {
   UsersVerifySignupDto,
   VerifyEmailDto
 } from './dto/users-auth.dto';
+import { UpdateUserProfileDto } from './dto/user-profile.dto';
 import { UsersAuthService } from './users.service';
 import {RecordService} from "@noukha-technologies/mdm-core"
 
@@ -132,6 +133,14 @@ export class UsersController {
   @Post('activate-by-qr-code')
   async activateByQrCode(@Body() dto: ActivateByQrCodeDto) {
     return this.usersService.activateByQrCode(dto.userId, dto.referrerUserId);
+  }
+
+  @Patch(':userId')
+  async updateUserProfile(
+    @Param('userId') userId: string,
+    @Body() dto: UpdateUserProfileDto,
+  ) {
+    return this.usersService.updateUserProfile(userId, dto);
   }
 }
 

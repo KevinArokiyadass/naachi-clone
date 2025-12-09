@@ -6,11 +6,13 @@ import { UsersController } from './users.controller';
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Users, UsersSchema } from './entity/users.entity';
+import { AwsStoreModule } from '../aws-store/aws-store.module';
 
 @Module({
     imports: [
         DBServicesModule,
         CommonAuthModule,
+        AwsStoreModule,
     MongooseModule.forFeature([
       { name: Users.name, schema: UsersSchema }
     ])

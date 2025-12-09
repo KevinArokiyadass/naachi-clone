@@ -35,6 +35,8 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
   } from './dto/users-auth.dto';
 import { RecordService } from '@noukha-technologies/mdm-core';
 import { response } from 'express';
+import { UpdateUserProfileDto } from './dto/user-profile.dto';
+import { AwsStoreService } from '../aws-store/aws-store.service';
 
   
   @Injectable()
@@ -49,6 +51,7 @@ import { response } from 'express';
     private readonly jwtService: JwtService,
     private readonly paginationService: PaginationService,
     private readonly recordService: RecordService,
+    private readonly awsStoreService: AwsStoreService,
   ) {
       if (!this.clientId) {
         throw new Error('COGNITO_CUSTOMER_APP_CLIENT_ID is not configured');
@@ -130,7 +133,7 @@ import { response } from 'express';
       return {
         message: 'Phone number verified successfully',
         tokens,
-        user: updatedUser ?? user,
+        user: this.attachProfileImageUrl(updatedUser ?? user),
       };
     }
   
@@ -186,7 +189,7 @@ import { response } from 'express';
       return {
         message: 'Login successful',
         tokens,
-        user: updatedUser ?? user,
+        user: this.attachProfileImageUrl(updatedUser ?? user),
       };
     }
   
@@ -551,7 +554,7 @@ import { response } from 'express';
         accessToken: token,
         tokenType: 'Bearer',
         expiresIn: '365d',
-        user,
+        user: this.attachProfileImageUrl(user),
       };
     }
   
@@ -706,11 +709,14 @@ import { response } from 'express';
         },
       );
 
-      return users.map((u: any) => ({
-        phoneNumber: u.phoneNumber,
-        name: u.name,
-        userName: u.userName,
-      }));
+      return users.map((u: any) => {
+        const userObj = {
+          phoneNumber: u.phoneNumber,
+          name: u.name,
+          userName: u.userName,
+        };
+        return this.attachProfileImageUrl({ ...u, ...userObj });
+      });
     }
 
     
@@ -722,8 +728,14 @@ import { response } from 'express';
       nonPaginated: boolean
     ): Promise<IPaginatedResult<IUsers[]>> {
       filter.isDeleted = { $in: [null, false] };
-      const users = await this.paginationService.findAndPaginate(this.dbService.users, { skip, limit, filter, nonPaginated });
-      return users;
+      const result = await this.paginationService.findAndPaginate(this.dbService.users, { skip, limit, filter, nonPaginated });
+      
+      // Attach profileImageUrl to each user in the items array
+      if (result.items && Array.isArray(result.items)) {
+        result.items = result.items.map((user: any) => this.attachProfileImageUrl(user));
+      }
+      
+      return result;
     }
 
     async activateByQrCode(userId: string, referrerUserId: string) {
@@ -775,10 +787,74 @@ import { response } from 'express';
 
       return {
         message: 'User activated successfully via QR code',
-        user: updatedUser,
+        user: this.attachProfileImageUrl(updatedUser),
       };
     }
-  
+
+    private attachProfileImageUrl(user: any): any {
+      if (!user) return user;
+      
+      const userObj = user.toObject ? user.toObject() : { ...user };
+      
+      if (userObj.profileImage) {
+        userObj.profileImageUrl = this.awsStoreService.getCloudFrontUrl(userObj.profileImage);
+      } else {
+        userObj.profileImageUrl = null;
+      }
+      
+      return userObj;
+    }
+
+    async updateUserProfile(userId: string, dto: UpdateUserProfileDto) {
+      const user = await this.dbService.users.findOne({
+        userId,
+        isDeleted: false,
+      });
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      const updatePayload: Record<string, any> = {
+        updatedAt: new Date(),
+      };
+
+      if (dto.name !== undefined) {
+        updatePayload.name = dto.name;
+      }
+
+      if (dto.userName !== undefined) {
+        // Check if username is already taken by another user
+        if (dto.userName) {
+          const existingUser = await this.dbService.users.findOne({
+            userName: dto.userName,
+            isDeleted: false,
+          });
+
+          if (existingUser && existingUser.userId !== userId) {
+            throw new BadRequestException('Username already taken');
+          }
+        }
+        updatePayload.userName = dto.userName;
+      }
+
+      if (dto.s3FileName !== undefined) {
+        updatePayload.profileImage = dto.s3FileName;
+        updatePayload.profileImageUpdatedAt = new Date();
+      }
+
+      const updatedUser = await this.dbService.users.findOneAndUpdate(
+        { userId, isDeleted: false },
+        updatePayload,
+        { new: true },
+      );
+
+      return {
+        message: 'Profile updated successfully',
+        user: this.attachProfileImageUrl(updatedUser),
+      };
+    }
+
 }
   
   

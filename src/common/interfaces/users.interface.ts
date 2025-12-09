@@ -22,6 +22,8 @@ export interface IUsers {
     expiresAt?: Date;
     referredBy?: string;
     activationMedium?: 'qr_code' | 'friend_request' | 'institution';
+    profileImage?: string;
+    profileImageUpdatedAt?: Date;
     createdAt?: Date;
     updatedAt?: Date;
 }

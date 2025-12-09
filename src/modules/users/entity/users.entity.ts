@@ -91,6 +91,13 @@ export class Users extends Document {
         required: false 
     })
     activationMedium?: string;
+
+
+    @Prop({ type: String, required: false, trim: true })
+    profileImage?: string;
+
+    @Prop({ type: Date, required: false })
+    profileImageUpdatedAt?: Date;
 }
 
 export const UsersSchema = SchemaFactory.createForClass(Users);
