@@ -98,6 +98,13 @@ export class Users extends Document {
 
     @Prop({ type: Date, required: false })
     profileImageUpdatedAt?: Date;
+
+    @Prop({
+      type: String,
+      enum: ['institution mail', 'qr code', 'mutual friend'],
+      required: false,
+    })
+    referredMedium?: string;
 }
 
 export const UsersSchema = SchemaFactory.createForClass(Users);

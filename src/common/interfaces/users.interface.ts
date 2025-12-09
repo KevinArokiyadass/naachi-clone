@@ -26,4 +26,5 @@ export interface IUsers {
     profileImageUpdatedAt?: Date;
     createdAt?: Date;
     updatedAt?: Date;
+    referredMedium?: string;
 }

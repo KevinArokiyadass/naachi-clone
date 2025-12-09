@@ -1,10 +1,14 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, IsIn } from 'class-validator';
 import { FetchDto } from 'src/common/shared/pagination/dto/fetch.dto';
 
 export class UsersSignupDto {
   @IsNotEmpty({ message: 'Phone number is required' })
   @IsString()
   phoneNumber: string;
+
+  @IsString()
+  @IsIn(['institution mail', 'qr code', 'mutual friend'])
+  authType: 'institution mail' | 'qr code' | 'mutual friend';
 }
 
 export class UsersVerifySignupDto {
