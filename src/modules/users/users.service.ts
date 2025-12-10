@@ -730,7 +730,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
       filter.isDeleted = { $in: [null, false] };
       const result = await this.paginationService.findAndPaginate(this.dbService.users, { skip, limit, filter, nonPaginated });
       
-      // Attach profileImageUrl to each user in the items array
+      // Transform profileImage field to include CloudFront URL for each user
       if (result.items && Array.isArray(result.items)) {
         result.items = result.items.map((user: any) => this.attachProfileImageUrl(user));
       }
@@ -796,10 +796,10 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
       
       const userObj = user.toObject ? user.toObject() : { ...user };
       
+      // Transform profileImage to include CloudFront URL if filename exists
+      // Database stores only the filename, we append CloudFront URL when returning
       if (userObj.profileImage) {
-        userObj.profileImageUrl = this.awsStoreService.getCloudFrontUrl(userObj.profileImage);
-      } else {
-        userObj.profileImageUrl = null;
+        userObj.profileImage = this.awsStoreService.getCloudFrontUrl(userObj.profileImage);
       }
       
       return userObj;
