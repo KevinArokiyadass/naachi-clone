@@ -83,6 +83,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         emailVerified: false,
         createdAt: new Date(),
         updatedAt: new Date(),
+        referredMedium: '', 
       };
 
       try {
