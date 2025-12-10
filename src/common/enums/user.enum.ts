@@ -42,3 +42,8 @@ export enum accountStatus
   LEGITIMATE = 'LEGITIMATE'
 }
 
+export enum ReferrerMedium {
+  QR_CODE = 'qrCode',
+  INSTITUTION_MAIL = 'institutionMail',
+  MUTUAL_FRIEND = 'mutualFriend',
+}
