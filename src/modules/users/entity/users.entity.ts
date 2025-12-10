@@ -82,15 +82,20 @@ export class Users extends Document {
 
     @Prop({ type: String })
     institutionsId?: string;
-    @Prop({ type: String, required: false, trim: true })
-    referredBy?: string;
 
-    @Prop({ 
-        type: String, 
-        enum: ['qr_code', 'friend_request', 'institution'],
-        required: false 
+    @Prop({ type: String, required: false, trim: true })
+    referrerId?: string;
+
+    @Prop({
+        type: String,
+        enum: ['qrCode', 'institutionMail', 'mutualFriend'],
+        required: false,
+        trim: true,
     })
-    activationMedium?: string;
+    referrerMedium?: string;
+
+    @Prop({ type: Boolean, default: false })
+    qrAuth?: boolean;
 
 
     @Prop({ type: String, required: false, trim: true })
@@ -98,13 +103,6 @@ export class Users extends Document {
 
     @Prop({ type: Date, required: false })
     profileImageUpdatedAt?: Date;
-
-    @Prop({
-      type: String,
-      enum: ['institution mail', 'qr code', 'mutual friend'],
-      required: false,
-    })
-    referredMedium?: string;
 }
 
 export const UsersSchema = SchemaFactory.createForClass(Users);

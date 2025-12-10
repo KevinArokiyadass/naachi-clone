@@ -5,10 +5,6 @@ export class UsersSignupDto {
   @IsNotEmpty({ message: 'Phone number is required' })
   @IsString()
   phoneNumber: string;
-
-  @IsString()
-  @IsIn(['institution mail', 'qr code', 'mutual friend'])
-  authType: 'institution mail' | 'qr code' | 'mutual friend';
 }
 
 export class UsersVerifySignupDto {

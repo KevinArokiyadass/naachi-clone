@@ -21,10 +21,12 @@ export interface IUsers {
     emailOtpExpiry?: Date;
     expiresAt?: Date;
     referredBy?: string;
+    referrerId?: string;
     activationMedium?: 'qr_code' | 'friend_request' | 'institution';
+    referrerMedium?: 'qrCode' | 'institutionMail' | 'mutualFriend';
+    qrAuth?: boolean;
     profileImage?: string;
     profileImageUpdatedAt?: Date;
     createdAt?: Date;
     updatedAt?: Date;
-    referredMedium?: string;
 }

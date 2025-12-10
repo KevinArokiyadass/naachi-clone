@@ -22,6 +22,7 @@ import {
 import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
 import { IUsers } from 'src/common/interfaces/users.interface';
 import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
+import { ReferrerMedium } from 'src/common/enums/user.enum';
 import { generateRandomPassword, generateUniqueId } from 'src/common/utils/util';
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
   import {
@@ -83,7 +84,6 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         emailVerified: false,
         createdAt: new Date(),
         updatedAt: new Date(),
-        referredMedium: '', 
       };
 
       try {
@@ -341,6 +341,8 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
           email: dto.email,
           institutionsId: institutionsId,
           emailVerified: false,
+          referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
+          qrAuth: false,
           updatedAt: new Date()
         }
       );
@@ -415,6 +417,8 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
             status: 'completed',
             isActive: true,
             isVerified: true,
+            referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
+            qrAuth: false,
             updatedAt: new Date()
           }
         );
@@ -451,6 +455,8 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
           status: 'completed',
           isActive: true,
           isVerified: true,
+          referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
+          qrAuth: false,
           updatedAt: new Date()
         }
       );
@@ -720,8 +726,6 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
       });
     }
 
-    
-
     async findAllUsers(
       skip: number = 0,
       limit: number = 10,
@@ -775,8 +779,13 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         { userId, isDeleted: false },
         {
           isActive: true,
+          isVerified: true,
+          status: 'completed',
           referredBy: referrerUserId,
+          referrerId: referrerUserId,
+          referrerMedium: ReferrerMedium.QR_CODE,
           activationMedium: 'qr_code',
+          qrAuth: true,
           updatedAt: new Date(),
         },
         { new: true },
