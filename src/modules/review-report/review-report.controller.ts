@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { ReviewReportService } from './review-report.service';
 import { CreateReviewReportDto } from './dto/create-review-report.dto';
 import { UpdateReviewReportDto } from './dto/update-review-report.dto';
 import { ReviewReport } from './entities/review-report.entity';
+import { FetchDto } from 'src/common/shared/pagination/dto/fetch.dto';
+import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
 
 @Controller('review-report')
 export class ReviewReportController {
@@ -14,8 +16,20 @@ export class ReviewReportController {
   }
 
   @Get()
-  findAll(): Promise<ReviewReport[]> {
-    return this.service.findAll();
+  findAll(@Query() query: FetchDto): Promise<IPaginatedResult<any>> {
+    const { skip, limit, nonPaginated, search } = query;
+    const filter: Record<string, any> = {};
+
+    if (search) {
+      filter.$or = [
+        { reviewId: { $regex: search, $options: 'i' } },
+        { reasonText: { $regex: search, $options: 'i' } },
+        { conversationId: { $regex: search, $options: 'i' } },
+        { status: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    return this.service.findAll(skip, limit, filter, nonPaginated);
   }
 
   @Get(':reviewId')

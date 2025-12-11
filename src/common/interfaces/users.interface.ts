@@ -1,3 +1,4 @@
+import { ReferrerMedium } from "../enums/user.enum";
 export interface IUsers {
     userId: string;
     phoneNumber: string;
@@ -22,8 +23,7 @@ export interface IUsers {
     expiresAt?: Date;
     referredBy?: string;
     referrerId?: string;
-    activationMedium?: 'qr_code' | 'friend_request' | 'institution';
-    referrerMedium?: 'qrCode' | 'institutionMail' | 'mutualFriend';
+    referrerMedium?: ReferrerMedium;
     qrAuth?: boolean;
     profileImage?: string;
     profileImageUpdatedAt?: Date;
