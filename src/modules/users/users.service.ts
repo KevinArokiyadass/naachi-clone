@@ -784,6 +784,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
           isVerified: true,
           status: 'completed',
           referrerId: referrerUserId,
+          referredBy: referrerUserName,
           referrerMedium: ReferrerMedium.QR_CODE,
           qrAuth: true,
           updatedAt: new Date(),
