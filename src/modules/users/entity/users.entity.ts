@@ -85,6 +85,9 @@ export class Users extends Document {
 
     @Prop({ type: String, required: false, trim: true })
     referrerId?: string;
+    
+    @Prop({ type: String, required: false })
+    referredBy?: string;
 
     @Prop({
         type: String,
