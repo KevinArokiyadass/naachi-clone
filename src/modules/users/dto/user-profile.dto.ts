@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class UpdateUserProfileDto {
   @IsOptional()
@@ -12,5 +12,9 @@ export class UpdateUserProfileDto {
   @IsOptional()
   @IsString()
   s3FileName?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  mutualfriendReferral?: boolean;
 }
 

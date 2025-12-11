@@ -853,6 +853,15 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         updatePayload.profileImageUpdatedAt = new Date();
       }
 
+      if (dto.mutualfriendReferral !== undefined) {
+        updatePayload.mutualfriendReferral = dto.mutualfriendReferral;
+
+        if (dto.mutualfriendReferral === true) {
+          updatePayload.status = 'completed';
+          updatePayload.referrerMedium = ReferrerMedium.MUTUAL_FRIEND;
+        }
+      }
+
       const updatedUser = await this.dbService.users.findOneAndUpdate(
         { userId, isDeleted: false },
         updatePayload,
