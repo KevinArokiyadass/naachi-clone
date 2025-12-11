@@ -100,6 +100,9 @@ export class Users extends Document {
     @Prop({ type: Boolean, default: false })
     qrAuth?: boolean;
 
+    @Prop({ type: Boolean, default: false })
+    mutualfriendReferral?: boolean;
+
 
     @Prop({ type: String, required: false, trim: true })
     profileImage?: string;

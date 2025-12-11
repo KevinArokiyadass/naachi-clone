@@ -158,7 +158,6 @@ export class ReviewReportService {
     return report[0];
   }
   
-
   async update(reviewId: string, dto: UpdateReviewReportDto): Promise<ReviewReport> {
     if (dto.evidenceMessages) {
       dto.evidenceMessages = dto.evidenceMessages.map((msg) => ({
