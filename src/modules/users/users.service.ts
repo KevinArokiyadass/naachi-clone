@@ -774,6 +774,8 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         throw new BadRequestException('Cannot refer yourself');
       }
 
+      const referrerUserName= referrer.userName ?? referrerUserId;
+
       // Update user: activate, set referrer, and set activation medium
       const updatedUser = await this.dbService.users.findOneAndUpdate(
         { userId, isDeleted: false },
@@ -781,10 +783,8 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
           isActive: true,
           isVerified: true,
           status: 'completed',
-          referredBy: referrerUserId,
           referrerId: referrerUserId,
           referrerMedium: ReferrerMedium.QR_CODE,
-          activationMedium: 'qr_code',
           qrAuth: true,
           updatedAt: new Date(),
         },
