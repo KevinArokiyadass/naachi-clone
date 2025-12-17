@@ -707,11 +707,13 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         {
           phoneNumber: { $in: phoneNumbers },
           isDeleted: false,
+          status: 'completed',
         },
         {
           phoneNumber: 1,
           name: 1,
           userName: 1,
+          userId: 1,
           _id: 0,
         },
       );
@@ -721,8 +723,9 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
           phoneNumber: u.phoneNumber,
           name: u.name,
           userName: u.userName,
+          userId: u.userId,
         };
-        return this.attachProfileImageUrl({ ...u, ...userObj });
+        return this.attachProfileImageUrl(userObj);
       });
     }
 
