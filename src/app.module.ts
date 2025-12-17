@@ -17,6 +17,7 @@ import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
 import { ReviewReportModule } from './modules/review-report/review-report.module';
 import { PermissionModule } from './modules/permissions/permission.module';
 import { PermissionGroupModule } from './modules/permission-groups/permission-group.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 const ENV = process.env.NODE_ENV;
 
@@ -49,7 +50,8 @@ const ENV = process.env.NODE_ENV;
         level: 'info'
       }
     }),
-    AwsStoreModule
+    AwsStoreModule,
+    DashboardModule
   ],
   controllers: [AppController],
   providers: [
