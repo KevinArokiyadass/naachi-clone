@@ -12,7 +12,66 @@ export class DashboardService {
     private readonly recordService: RecordService, 
   ) {}
 
-  async getDashboardMetrics(): Promise<DashboardMetricsResponseDto> {
+  async getDashboardMetrics(origin?: string): Promise<DashboardMetricsResponseDto> {
+    const cleanOrigin = origin?.trim();
+
+    this.logger.log(
+      `Dashboard metrics requested. Mode: ${cleanOrigin ? 'INSTITUTION' : 'GLOBAL'}`
+    );
+    if (cleanOrigin) {
+      const institutions = await this.recordService.findAll('institutions', {
+        page: 1,
+        limit: 1,
+        filters: { adminDomain: cleanOrigin },
+      });
+
+      const institution = institutions.items?.[0];
+      if (institution) {
+        const institutionId = institution.institutionsId;
+
+        this.logger.log(
+          `Institution resolved. Domain=${cleanOrigin}, institutionsId=${institutionId}`
+        );
+
+        const baseUserFilter = { isDeleted: false, institutionsId: institutionId };
+        const baseReportFilter = { institutionsId: institutionId }; 
+        const [activeUsers, inactiveUsers, totalUsers, departments, reviewReportsCount, pendingReportsCount, resolvedReportsCount] =
+          await Promise.all([
+            this.dbService.users.countDocuments({ ...baseUserFilter, isActive: true }),
+            this.dbService.users.countDocuments({ ...baseUserFilter, isActive: false }),
+            this.dbService.users.countDocuments(baseUserFilter),
+            this.recordService.findAll('departments', {
+              page: 1,
+              limit: 1,
+              filters: { institutionsId: institutionId },
+            }),
+            this.dbService.reviewReports.countDocuments(baseReportFilter),
+            this.dbService.reviewReports.countDocuments({ ...baseReportFilter, status: 'PENDING' }),
+            this.dbService.reviewReports.countDocuments({ ...baseReportFilter, status: 'RESOLVED' }),
+          ]);
+
+        return {
+          activeUsers,
+          inactiveUsers,
+          totalUsers,
+          departmentCount: departments.totalItems,
+          reviewReportsCount,
+          pendingReportsCount,
+          resolvedReportsCount,
+        };
+      }
+
+      this.logger.warn(`No institution found for origin: ${cleanOrigin}`);
+      return {
+        activeUsers: 0,
+        inactiveUsers: 0,
+        totalUsers: 0,
+        departmentCount: 0,
+        reviewReportsCount: 0,
+        pendingReportsCount: 0,
+        resolvedReportsCount: 0,
+      };
+    }
     const [
       activeUsers,
       inactiveUsers,
