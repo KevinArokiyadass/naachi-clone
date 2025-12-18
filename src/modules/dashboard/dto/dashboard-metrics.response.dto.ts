@@ -1,6 +1,5 @@
 import { IsNumber, IsOptional, ValidateNested, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
-import { InstitutionMetricsDto } from 'src/modules/dashboard/dto/institution-metrics-dto';
 
 export class DashboardMetricsResponseDto {
   @IsNumber()
@@ -11,19 +10,26 @@ export class DashboardMetricsResponseDto {
 
   @IsOptional()
   @IsNumber()
-  reviewReports?: number;
+  reviewReportsCount?: number;
+
+  
+  @IsOptional()
+  @IsNumber()
+  pendingReportsCount?: number;
 
   @IsOptional()
   @IsNumber()
-  totalReviews?: number;
+  resolvedReportsCount?: number;
 
   @IsOptional()
   @IsNumber()
   institutionCount?: number;
 
   @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => InstitutionMetricsDto)
-  institutions?: InstitutionMetricsDto[];
+  @IsNumber()
+  departmentCount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  totalUsers: number;  
 }
