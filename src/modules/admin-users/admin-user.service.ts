@@ -284,10 +284,10 @@ export class AdminUserService {
     
     const userObj = adminUser.toObject ? adminUser.toObject() : { ...adminUser };
     
-    // Transform s3ProfileImageName (filename) to CloudFront URL when returning
-    // Database stores only the filename, we replace it with CloudFront URL when returning
+    // Add s3ProfileImageUrl as a separate field with CloudFront URL
+    // Keep s3ProfileImageName as the filename, add s3ProfileImageUrl with the full URL
     if (userObj.s3ProfileImageName) {
-      userObj.s3ProfileImageName = this.awsStoreService.getCloudFrontUrl(userObj.s3ProfileImageName);
+      userObj.s3ProfileImageUrl = this.awsStoreService.getCloudFrontUrl(userObj.s3ProfileImageName);
     }
     
     return userObj;
