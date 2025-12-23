@@ -7,12 +7,14 @@ import { HttpClientModule } from '../../common/inter-service-communication/http-
 import { CognitoService } from '../cognito/cognito.service';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ClientIdMiddleware } from '../../common/middleware/clientId.middlewere';
+import { AwsStoreModule } from '../aws-store/aws-store.module';
 
 @Module({
   imports: [
     DBServicesModule,
     PaginationModule,
     HttpClientModule,
+    AwsStoreModule,
   ],
   controllers: [AdminUserController],
   providers: [AdminUserService, CognitoService, RolesGuard, ClientIdMiddleware],

@@ -82,7 +82,7 @@ export class CreateAdminWithPasswordDto {
 
   @IsString()
   @IsOptional()
-  s3ProfileImageUrl?: string;
+  s3ProfileImageName?: string;
  
 }
  

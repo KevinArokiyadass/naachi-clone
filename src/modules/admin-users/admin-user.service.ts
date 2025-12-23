@@ -8,6 +8,7 @@ import { PaginationService } from '../../common/shared/pagination/pagination.ser
 import { CognitoService } from '../cognito/cognito.service';
 import { FilterQuery } from 'mongoose';
 import { RecordService } from '@noukha-technologies/mdm-core';
+import { AwsStoreService } from '../aws-store/aws-store.service';
 
 
 @Injectable()
@@ -17,6 +18,7 @@ export class AdminUserService {
     private readonly paginationService: PaginationService,
     private readonly cognitoService: CognitoService,
     private readonly recordService: RecordService,
+    private readonly awsStoreService: AwsStoreService,
   ) { }
 
   async createAdminUser(createAdminDto: any) {
@@ -49,7 +51,7 @@ export class AdminUserService {
         createAdminDto.phoneNumber
       );
       return {
-        adminUser: created,
+        adminUser: this.attachProfileImageUrl(created),
         message: 'Admin user created successfully and ready to login.',
         requiresVerification: false
       };
@@ -80,10 +82,11 @@ export class AdminUserService {
       const enrichedUsers = await Promise.all(
         users.items.map(async (user: IAdminUser) => {
           const permissions = await this.fetchPermissionsForUser(user.permissionGroupsId);
-          return {
+          const userWithPermissions = {
             ...user,
             permissions
           } as IAdminUser & { permissions: string[] };
+          return this.attachProfileImageUrl(userWithPermissions);
         })
       );
       return {
@@ -102,10 +105,11 @@ export class AdminUserService {
     }
     
     const permissions = await this.fetchPermissionsForUser(adminUser.permissionGroupsId);
-    return {
+    const userWithPermissions = {
       ...adminUser,
       permissions
     };
+    return this.attachProfileImageUrl(userWithPermissions);
   }
 
 
@@ -116,11 +120,21 @@ export class AdminUserService {
         throw new NotFoundException(`AdminUser with adminId ${adminId} not found`);
       }
 
-      return await this.dbServices.adminUser.findOneAndUpdate(
+      const updatePayload: Record<string, any> = { ...updateAdminUserDto };
+      
+      // Transform s3FileName to s3ProfileImageName for storage
+      if (updateAdminUserDto.s3FileName !== undefined) {
+        updatePayload.s3ProfileImageName = updateAdminUserDto.s3FileName;
+        delete updatePayload.s3FileName;
+      }
+
+      const updatedUser = await this.dbServices.adminUser.findOneAndUpdate(
         { adminId },
-        updateAdminUserDto,
+        updatePayload,
         { new: true }
       );
+
+      return this.attachProfileImageUrl(updatedUser);
     }
     catch (error) {
       if (error instanceof NotFoundException) {
@@ -164,11 +178,12 @@ export class AdminUserService {
       throw new NotFoundException('Admin user not found');
     }
 
-    return await this.dbServices.adminUser.findOneAndUpdate(
+    const updatedUser = await this.dbServices.adminUser.findOneAndUpdate(
       { adminId },
       { status },
       { new: true }
     );
+    return this.attachProfileImageUrl(updatedUser);
   }
 
   async getOneAdminUser(
@@ -262,6 +277,20 @@ export class AdminUserService {
       console.error('Error fetching permissions for user:', error);
       return [];
     }
+  }
+
+  private attachProfileImageUrl(adminUser: any): any {
+    if (!adminUser) return adminUser;
+    
+    const userObj = adminUser.toObject ? adminUser.toObject() : { ...adminUser };
+    
+    // Transform s3ProfileImageName (filename) to CloudFront URL when returning
+    // Database stores only the filename, we replace it with CloudFront URL when returning
+    if (userObj.s3ProfileImageName) {
+      userObj.s3ProfileImageName = this.awsStoreService.getCloudFrontUrl(userObj.s3ProfileImageName);
+    }
+    
+    return userObj;
   }
 
 }
