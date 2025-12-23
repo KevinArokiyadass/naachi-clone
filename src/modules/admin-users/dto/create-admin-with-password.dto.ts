@@ -79,6 +79,10 @@ export class CreateAdminWithPasswordDto {
   @IsString({ each: true, message: 'Each permission group ID must be a string' })
   @IsNotEmpty({ message: 'Permission groups ID is required' })
   permissionGroupsId: string[];
+
+  @IsString()
+  @IsOptional()
+  s3ProfileImageUrl?: string;
  
 }
  

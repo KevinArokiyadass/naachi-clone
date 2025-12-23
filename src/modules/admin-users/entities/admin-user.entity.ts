@@ -47,6 +47,9 @@ export class AdminUser extends Document {
     required: false
   })
   metaTags?: IMetaTag[];
+
+  @Prop({ type: String })
+  s3ProfileImageUrl?: string;
 }
  
 export const AdminUserSchema = SchemaFactory.createForClass(AdminUser);
