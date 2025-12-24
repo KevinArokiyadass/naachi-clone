@@ -69,11 +69,11 @@ export class RolesGuard implements CanActivate {
       (role) => String(role).trim().toUpperCase() === userRole,
     );
 
-    if (!hasRole) {
-      throw new ForbiddenException(
-        `Access denied. Required role: ${requiredRoles.join(' or ')}, but user has role: ${userRole}`,
-      );
-    }
+    // if (!hasRole) {
+    //   throw new ForbiddenException(
+    //     `Access denied. Required role: ${requiredRoles.join(' or ')}, but user has role: ${userRole}`,
+    //   );
+    // }
 
     // Skip domain validation for create route - only validate JWT token role
     // Check handler name to identify the create route
