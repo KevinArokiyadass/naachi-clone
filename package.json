@@ -18,7 +18,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "create-users": "ts-node -r tsconfig-paths/register scripts/create-users-per-institution.ts"
+    "create-users": "ts-node -r tsconfig-paths/register scripts/create-users-per-institution.ts",
+    "update-admin-names": "ts-node -r tsconfig-paths/register scripts/update-admin-names.ts"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.879.0",
