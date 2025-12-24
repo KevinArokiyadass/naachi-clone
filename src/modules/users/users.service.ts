@@ -260,10 +260,12 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
       const domain = email.substring(atIndex + 1).trim().replace(/^@/, '').toLowerCase();
 
       try {
+        // Search for domain with or without @ prefix to handle both cases in database
         const response = await this.recordService.findAll('institutions', {
           filters: {
             $or: [
-              { institutionDomain: domain }
+              { institutionDomain: domain },
+              { institutionDomain: `@${domain}` }
             ],
           },
           fields: ['institutionDomain', 'institutionsId'],
