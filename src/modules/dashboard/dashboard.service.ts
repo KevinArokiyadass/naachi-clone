@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DashboardMetricsResponseDto } from './dto/dashboard-metrics.response.dto';
 import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
 import { RecordService } from '@noukha-technologies/mdm-core';
+import { AwsStoreService } from '../aws-store/aws-store.service';
 
 @Injectable()
 export class DashboardService {
@@ -9,7 +10,8 @@ export class DashboardService {
 
   constructor(
     private readonly dbService: IMongoDBServices,
-    private readonly recordService: RecordService, 
+    private readonly recordService: RecordService,
+    private readonly awsStoreService: AwsStoreService,
   ) {}
 
   async getDashboardMetrics(origin?: string): Promise<DashboardMetricsResponseDto> {
@@ -107,9 +109,30 @@ export class DashboardService {
           isDeleted: false,
         });
 
-        // Return full institution object with activeUsers appended
+        // Convert Mongoose document to plain object by extracting _doc or using JSON serialization
+        let plainInstitution: any;
+        if (institution && typeof institution === 'object') {
+          // If it's a Mongoose document with _doc, use that (most efficient)
+          if (institution._doc) {
+            plainInstitution = { ...institution._doc };
+          } else {
+            // Use JSON serialization to strip all Mongoose internals ($__, $isNew, etc.)
+            plainInstitution = JSON.parse(JSON.stringify(institution));
+          }
+        } else {
+          plainInstitution = institution;
+        }
+
+        // Compute s3ProfileImageUrl from s3ProfileImageName if it exists
+        if (plainInstitution.s3ProfileImageName) {
+          plainInstitution.s3ProfileImageUrl = this.awsStoreService.getCloudFrontUrl(
+            plainInstitution.s3ProfileImageName
+          );
+        }
+
+        // Return plain institution object with activeUsers appended
         return {
-          ...institution,
+          ...plainInstitution,
           activeUsers: activeUsersCount,
         };
       })
