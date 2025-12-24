@@ -37,8 +37,8 @@ export class DashboardService {
         const baseReportFilter = { institutionsId: institutionId }; 
         const [activeUsers, inactiveUsers, totalUsers, departments, reviewReportsCount, pendingReportsCount, resolvedReportsCount] =
           await Promise.all([
-            this.dbService.users.countDocuments({ ...baseUserFilter, isActive: true }),
-            this.dbService.users.countDocuments({ ...baseUserFilter, isActive: false }),
+            this.dbService.users.countDocuments({ ...baseUserFilter, status:"completed" }),
+            this.dbService.users.countDocuments({ ...baseUserFilter, status:"pending" }),
             this.dbService.users.countDocuments(baseUserFilter),
             this.recordService.findAll('departments', {
               page: 1,
@@ -82,8 +82,8 @@ export class DashboardService {
       institutions,
       departments,
     ] = await Promise.all([
-      this.dbService.users.countDocuments({ isActive: true, isDeleted: false }),
-      this.dbService.users.countDocuments({ isActive: false, isDeleted: false }),
+      this.dbService.users.countDocuments({ status:"completed", isDeleted: false }),
+      this.dbService.users.countDocuments({ status:"pending", isDeleted: false }),
       this.dbService.users.countDocuments({ isDeleted: false }),
       this.dbService.reviewReports.countDocuments({}),
       this.dbService.reviewReports.countDocuments({status:'PENDING'}),
