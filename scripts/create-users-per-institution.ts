@@ -42,6 +42,8 @@ import { AppModule } from '../src/app.module';
 import { UsersAuthService } from '../src/modules/users/users.service';
 import { getConnectionToken } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
+import { IMongoDBServices } from '../src/common/repository/mongodb-repository/abstract.repository';
+import { ReferrerMedium } from '../src/common/enums/user.enum';
 
 // UK student names
 const UK_STUDENT_NAMES = [
@@ -153,11 +155,14 @@ function generateRollNumberEmail(institutionDomain: string, index: number): stri
 // Create a single user with full signup flow
 async function createSingleUser(
   usersService: UsersAuthService,
+  dbService: IMongoDBServices,
   institution: any,
   institutionDomain: string,
   index: number,
   OTP: string,
-  isUK: boolean
+  isUK: boolean,
+  referrerUserId: string,
+  referrerUserName: string
 ): Promise<any> {
   try {
     // Generate user data based on institution type
@@ -207,7 +212,8 @@ async function createSingleUser(
       throw new Error('Failed to set username after multiple retries');
     }
 
-    // Step 4: Verify Email (skip if email limit exceeded, we'll use default OTP)
+    // Step 4: Verify Email (bypass if email limit exceeded)
+    let emailLimitExceeded = false;
     try {
       await usersService.verifyEmail({
         userId,
@@ -215,21 +221,58 @@ async function createSingleUser(
         accessToken
       });
     } catch (error) {
-      // If email limit exceeded, we can still proceed with default OTP
-      if (error.message && error.message.includes('LimitExceededException')) {
-        console.log(`   ⚠️  Email limit exceeded for ${email}, using default OTP`);
+      // If email limit exceeded, bypass and directly mark as completed
+      if (error.message && (error.message.includes('LimitExceededException') || 
+          (error.response && error.response['$metadata'] && error.response['$metadata'].httpStatusCode === 400))) {
+        emailLimitExceeded = true;
+        console.log(`   ⚠️  Email limit exceeded for ${email}, bypassing verification`);
       } else {
         throw error;
       }
     }
 
-    // Step 5: Confirm Email with OTP
-    await usersService.confirmEmail({
-      userId,
-      email,
-      confirmationCode: OTP,
-      accessToken
-    });
+    // Step 5: Confirm Email or Bypass
+    if (emailLimitExceeded) {
+      // Directly update user to completed status, bypassing email verification
+      // Use the institution ID from the institution parameter
+      const institutionsId = institution.institutionsId;
+      
+      // Directly update user to completed status in database
+      await dbService.users.findOneAndUpdate(
+        { userId, status: 'pending' },
+        {
+          email: email,
+          institutionsId: institutionsId,
+          emailVerified: true,
+          status: 'completed',
+          isActive: true,
+          isVerified: true,
+          referrerId: referrerUserId,
+          referredBy: referrerUserName,
+          referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
+          qrAuth: false,
+          updatedAt: new Date()
+        }
+      );
+    } else {
+      // Normal flow: Confirm Email with OTP
+      await usersService.confirmEmail({
+        userId,
+        email,
+        confirmationCode: OTP,
+        accessToken
+      });
+      
+      // Update referrer info after email confirmation
+      await dbService.users.findOneAndUpdate(
+        { userId, status: 'completed' },
+        {
+          referrerId: referrerUserId,
+          referredBy: referrerUserName,
+          updatedAt: new Date()
+        }
+      );
+    }
 
     return {
       userId,
@@ -244,11 +287,76 @@ async function createSingleUser(
   }
 }
 
+// Find or create a referrer user without institution
+async function getOrCreateReferrerUser(
+  usersService: UsersAuthService,
+  dbService: IMongoDBServices,
+  connection: Connection
+): Promise<{ userId: string; userName: string }> {
+  // First, try to find an existing user without institution
+  const existingReferrer = await dbService.users.findOne({
+    isDeleted: false,
+    status: 'completed',
+    $or: [
+      { institutionsId: { $exists: false } },
+      { institutionsId: null }
+    ]
+  });
+
+  if (existingReferrer) {
+    return {
+      userId: existingReferrer.userId,
+      userName: existingReferrer.userName || existingReferrer.userId
+    };
+  }
+
+  // Create a new referrer user without institution
+  console.log('📝 Creating referrer user (no institution)...');
+  const phoneNumber = generateUKPhoneNumber();
+  const OTP = '643211';
+  
+  const signupResponse = await usersService.signup({ phoneNumber });
+  const userId = signupResponse.userId;
+  const session = signupResponse.session;
+
+  const verifyResponse = await usersService.verifySignupOtp({
+    phoneNumber,
+    otp: OTP,
+    session
+  });
+
+  const userName = `referrer.${Math.floor(Math.random() * 10000)}`;
+  await usersService.setUsername({
+    userId,
+    userName,
+    name: 'Referrer User'
+  });
+
+  // Mark as completed without institution (no email needed for referrer)
+  await dbService.users.findOneAndUpdate(
+    { userId, status: 'pending' },
+    {
+      emailVerified: true,
+      status: 'completed',
+      isActive: true,
+      isVerified: true,
+      updatedAt: new Date()
+    }
+  );
+
+  console.log(`✅ Referrer user created: ${userName} (${userId})`);
+  return { userId, userName };
+}
+
 async function createUsersForInstitution(
   usersService: UsersAuthService,
+  dbService: IMongoDBServices,
+  connection: Connection,
   institution: any,
   count: number = 10,
-  batchSize: number = 5
+  batchSize: number = 5,
+  referrerUserId: string,
+  referrerUserName: string
 ) {
   const institutionName = institution.institutionName || 'Unknown';
   const rawDomain = institution.institutionDomain;
@@ -282,7 +390,7 @@ async function createUsersForInstitution(
     const batchPromises = [];
     for (let i = batchStart; i < batchEnd; i++) {
       batchPromises.push(
-        createSingleUser(usersService, institution, institutionDomain, i + 1, OTP, isUK)
+        createSingleUser(usersService, dbService, institution, institutionDomain, i + 1, OTP, isUK, referrerUserId, referrerUserName)
           .then(result => ({ success: true, index: i + 1, result }))
           .catch(error => ({ success: false, index: i + 1, error }))
       );
@@ -297,8 +405,11 @@ async function createUsersForInstitution(
         createdUsers.push(result.result);
         console.log(`   ✅ User ${result.index} created: ${result.result.userName}`);
       } else {
-        errors.push({ index: result.index, error: result.error });
-        console.log(`   ❌ User ${result.index} failed: ${result.error}`);
+        const errorMsg = typeof result.error === 'object' && result.error.error 
+          ? result.error.error 
+          : (typeof result.error === 'string' ? result.error : JSON.stringify(result.error));
+        errors.push({ index: result.index, error: errorMsg });
+        console.log(`   ❌ User ${result.index} failed: ${errorMsg}`);
       }
     }
 
@@ -323,6 +434,7 @@ async function main() {
   // Get MongoDB connection - default connection
   const connection = app.get<Connection>(getConnectionToken());
   const usersService = app.get(UsersAuthService);
+  const dbService = app.get(IMongoDBServices);
 
   try {
     // Get all institutions directly from MongoDB
@@ -343,14 +455,23 @@ async function main() {
       return;
     }
 
+    // Get or create referrer user (without institution)
+    const referrer = await getOrCreateReferrerUser(usersService, dbService, connection);
+    console.log(`\n👤 Using referrer: ${referrer.userName} (${referrer.userId})\n`);
+
     const allCreatedUsers = [];
 
     // Create 10 users for each institution
     for (const institution of institutions) {
       const users = await createUsersForInstitution(
         usersService,
+        dbService,
+        connection,
         institution,
-        10
+        10,
+        5,
+        referrer.userId,
+        referrer.userName
       );
       if (users) {
         allCreatedUsers.push(...users);
