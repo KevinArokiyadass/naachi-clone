@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DashboardMetricsResponseDto, InstitutionUserBreakdown } from './dto/dashboard-metrics.response.dto';
+import { DashboardMetricsResponseDto } from './dto/dashboard-metrics.response.dto';
 import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
 import { RecordService } from '@noukha-technologies/mdm-core';
 
@@ -97,8 +97,8 @@ export class DashboardService {
       nonPaginated: true,
     });
 
-    // Get active users count for each institution
-    const institutionBreakdown: InstitutionUserBreakdown[] = await Promise.all(
+    // Get active users count for each institution and append to institution data
+    const institutionBreakdown = await Promise.all(
       allInstitutions.items.map(async (institution) => {
         const institutionId = institution.institutionsId;
         const activeUsersCount = await this.dbService.users.countDocuments({
@@ -107,8 +107,9 @@ export class DashboardService {
           isDeleted: false,
         });
 
+        // Return full institution object with activeUsers appended
         return {
-          institutionName: institution.institutionName || 'Unknown',
+          ...institution,
           activeUsers: activeUsersCount,
         };
       })

@@ -1,13 +1,4 @@
-import { IsNumber, IsOptional, ValidateNested, IsArray, IsString } from 'class-validator';
-import { Type } from 'class-transformer';
-
-export class InstitutionUserBreakdown {
-  @IsString()
-  institutionName: string;
-
-  @IsNumber()
-  activeUsers: number;
-}
+import { IsNumber, IsOptional, IsArray } from 'class-validator';
 
 export class DashboardMetricsResponseDto {
   @IsNumber()
@@ -43,7 +34,5 @@ export class DashboardMetricsResponseDto {
 
   @IsOptional()
   @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => InstitutionUserBreakdown)
-  institutionBreakdown?: InstitutionUserBreakdown[];
+  institutionBreakdown?: Array<Record<string, any> & { activeUsers: number }>;
 }
