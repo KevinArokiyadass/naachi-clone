@@ -18,6 +18,8 @@ import { ReviewReportModule } from './modules/review-report/review-report.module
 import { PermissionModule } from './modules/permissions/permission.module';
 import { PermissionGroupModule } from './modules/permission-groups/permission-group.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { NotificationModule } from './modules/notifications/notification.module';
+
 
 const ENV = process.env.NODE_ENV;
 
@@ -35,6 +37,7 @@ const ENV = process.env.NODE_ENV;
     AdminAuthModule,
     ReviewReportModule,
     PermissionModule,
+    NotificationModule,
     PermissionGroupModule,
     MdmCoreModule.forRoot({
       database: {

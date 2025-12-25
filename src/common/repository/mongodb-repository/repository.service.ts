@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { IMongoRepository } from './repository.abstract';
@@ -12,12 +12,19 @@ import { IAdminUser } from 'src/common/interfaces/admin-user.interface';
 import { IMongoDBServices } from './abstract.repository';
 import { ReviewReport, Report } from 'src/modules/review-report/entities/review-report.entity';
 import { IReviewReport } from 'src/common/interfaces/review-report.interface';
+import { DeviceToken, DeviceTokenDocument } from 'src/modules/notifications/entity/device-token.entity';
+import { IDeviceToken } from 'src/common/interfaces/device.token.interface';
+import { NotificationHistory, NotificationHistoryDocument } from 'src/modules/notifications/entity/notification-management.entity';
+import { INotificationManagement } from 'src/common/interfaces/notification.interface';
 
 @Injectable()
-export class MongoDBServices {
+export class MongoDBServices implements IMongoDBServices, OnApplicationBootstrap {
   users: IMongoRepository<Users, IUsers, UsersDocument>;
   adminUser: IMongoRepository<AdminUser, IAdminUser, AdminUserDocument>;
-  reviewReports: IMongoRepository<ReviewReport, IReviewReport, Report>;
+  reviewReports: IMongoRepository<Report, IReviewReport, ReviewReport>;
+  deviceToken: IMongoRepository<DeviceToken, IDeviceToken, DeviceTokenDocument>;
+  notificationHistory: IMongoRepository<NotificationHistory, INotificationManagement, NotificationHistoryDocument>;
+
   constructor(
     @InjectModel(Users.name)
     private usersRepository: Model<Users>,
@@ -25,6 +32,10 @@ export class MongoDBServices {
     private adminUserRepository: Model<AdminUser>,
     @InjectModel(ReviewReport.name)
     private reviewReportRepository: Model<ReviewReport>,
+    @InjectModel(DeviceToken.name)
+    private deviceTokenRepository: Model<DeviceToken>,
+    @InjectModel(NotificationHistory.name)
+    private notificationHistoryRepository: Model<NotificationHistory>,
   ) {
     console.log('MongoDBServices loaded');
   }
@@ -38,6 +49,12 @@ export class MongoDBServices {
     );
     this.reviewReports = new MongoRepository<ReviewReport, IReviewReport, ReviewReport>(
       this.reviewReportRepository
+    );
+    this.deviceToken = new MongoRepository<DeviceToken, IDeviceToken, DeviceTokenDocument>(
+      this.deviceTokenRepository
+    );
+    this.notificationHistory = new MongoRepository<NotificationHistory, INotificationManagement, NotificationHistoryDocument>(
+      this.notificationHistoryRepository
     );
     console.log('<== Mongo DB repositories got initialised ==>');
   }
