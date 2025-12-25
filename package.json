@@ -17,9 +17,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
-    "create-users": "ts-node -r tsconfig-paths/register scripts/create-users-per-institution.ts",
-    "update-admin-names": "ts-node -r tsconfig-paths/register scripts/update-admin-names.ts"
+    "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.879.0",
@@ -45,8 +43,7 @@
     "cluster": "^0.7.7",
     "dotenv": "^16.4.7",
     "exceljs": "^4.4.0",
-    "firebase": "^12.7.0",
-    "firebase-admin": "^13.6.0",
+    "firebase-admin": "^13.5.0",
     "jsonwebtoken": "^9.0.2",
     "jwk-to-pem": "^2.0.7",
     "latest": "^0.2.0",
