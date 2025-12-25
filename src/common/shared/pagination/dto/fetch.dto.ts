@@ -41,4 +41,24 @@ export class FetchDto {
   @IsOptional()
   @IsString()
   isActive?: string;
+
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
+
+  @IsOptional()
+  @IsString()
+  deviceTokenId?: string;
+
+  @IsOptional()
+  @IsString()
+  deviceType?: string;
+
+  @IsOptional()
+  @IsString()
+  userId?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
 }
