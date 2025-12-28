@@ -97,3 +97,27 @@ export function normalizeUserName(value: string): string {
   if (!value) return value;
   return value.trim().toLowerCase();
 }
+
+export const generateUniqueUserNameFromEmail = async (
+  email: string,
+  dbService: any,
+  prefix: string = 'NA'
+): Promise<string> => {
+  const baseName = email.split('@')[0]; // get name from email
+  let userName: string;
+  let isUnique = false;
+
+  while (!isUnique) {
+    const randomNumber = Math.floor(1000 + Math.random() * 9000); // 4-digit random number
+    userName = `${prefix}_${baseName}${randomNumber}`;
+
+    // Check uniqueness in DB
+    const existingUser = await dbService.adminUser.findOne({ userName });
+    if (!existingUser) {
+      isUnique = true;
+    }
+  }
+
+  return userName;
+};
+
