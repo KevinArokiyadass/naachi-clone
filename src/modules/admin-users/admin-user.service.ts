@@ -26,7 +26,20 @@ export class AdminUserService {
     if (existingAdmin) {
       throw new BadRequestException('Admin with this email already exists');
     }
-
+   // phone number duplicate check
+    const phoneNumber = createAdminDto.phoneNumber?.trim();
+    if (phoneNumber) {
+      const existingPhone = await this.dbServices.adminUser.findOne({
+        phoneNumber,
+        isDeleted: { $ne: true },
+      });
+  
+      if (existingPhone) {
+        throw new BadRequestException(
+          'Admin with this phone number already exists'
+        );
+      }
+    }
     if (!createAdminDto.role) {
       throw new BadRequestException("Role is required");
     }
@@ -115,12 +128,78 @@ export class AdminUserService {
 
   async update(adminId: string, updateAdminUserDto: UpdateAdminUserDto) {
     try {
-      const adminUser = await this.dbServices.adminUser.findOne({ adminId });
+      const adminUser = await this.dbServices.adminUser.findOne({ adminId, isDeleted: { $ne: true }});
       if (!adminUser) {
         throw new NotFoundException(`AdminUser with adminId ${adminId} not found`);
       }
 
       const updatePayload: Record<string, any> = { ...updateAdminUserDto };
+
+   //EMAIL DUPLICATE VALIDATION
+     const incomingEmail = updateAdminUserDto.email?.trim().toLowerCase();
+
+    if ( incomingEmail && incomingEmail !== adminUser.email ) {
+    const duplicateEmail = await this.dbServices.adminUser.findOne({
+    email: incomingEmail,
+    adminId: { $ne: adminId },
+    isDeleted: { $ne: true },
+    });
+
+    if (duplicateEmail) {
+    throw new BadRequestException(
+      'Email already exists. Please use another email address.'
+    );
+    }
+
+    updatePayload.email = incomingEmail;
+  }
+
+  // USERNAME DUPLICATE VALIDATION
+
+    const incomingUserName = updateAdminUserDto.userName?.trim();
+  
+    if (
+      incomingUserName &&
+      incomingUserName !== adminUser.userName
+    ) {
+      const duplicateUserName = await this.dbServices.adminUser.findOne({
+        userName: incomingUserName,
+        adminId: { $ne: adminId }, // exclude current admin
+        isDeleted: { $ne: true },
+      });
+  
+      if (duplicateUserName) {
+        throw new BadRequestException(
+          'Username already exists. Please choose another username.'
+        );
+      }
+  
+      updatePayload.userName = incomingUserName;
+    }
+  
+    
+    //   PHONE NUMBER DUPLICATE VALIDATION
+     
+    const incomingPhoneNumber = updateAdminUserDto.phoneNumber?.trim();
+  
+    if (
+      incomingPhoneNumber &&
+      incomingPhoneNumber !== adminUser.phoneNumber
+    ) {
+      const duplicatePhone = await this.dbServices.adminUser.findOne({
+        phoneNumber: incomingPhoneNumber,
+        adminId: { $ne: adminId }, // exclude current admin
+        isDeleted: { $ne: true },
+      });
+  
+      if (duplicatePhone) {
+        throw new BadRequestException(
+          'Phone number already exists. Please use another phone number.'
+        );
+      }
+  
+      updatePayload.phoneNumber = incomingPhoneNumber;
+    }
       
       // Transform s3FileName to s3ProfileImageName for storage
       if (updateAdminUserDto.s3FileName !== undefined) {
