@@ -9,6 +9,7 @@ import { CognitoService } from '../cognito/cognito.service';
 import { FilterQuery } from 'mongoose';
 import { RecordService } from '@noukha-technologies/mdm-core';
 import { AwsStoreService } from '../aws-store/aws-store.service';
+import { generateUniqueUserNameFromEmail } from 'src/common/utils/util';
 
 
 @Injectable()
@@ -44,7 +45,7 @@ export class AdminUserService {
       throw new BadRequestException("Role is required");
     }
 
-    const userName = createAdminDto.userName || createAdminDto.email.split('@')[0];
+    const userName = createAdminDto.userName?.trim() || await generateUniqueUserNameFromEmail(createAdminDto.email, this.dbServices);
 
     const { password, ...adminDataWithoutPassword } = createAdminDto;
     const created = await this.dbServices.adminUser.create({
