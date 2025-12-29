@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { RecordService } from '@noukha-technologies/mdm-core';
 import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
 
@@ -7,15 +7,59 @@ export class PermissionService {
   constructor(private readonly recordService: RecordService) {}
 
   async createPermission(data: any, institutionsId?: string) {
+    if (data?.name) {
+      await this.checkDuplicatePermissionName(data.name, institutionsId);
+    }
+  
     const recordData = { ...data };
     if (institutionsId) {
       recordData.institutionsId = institutionsId;
     }
     // CreateRecordDto expects { data: Record<string, any> }
+    try {
     return await this.recordService.createRecord('permissions', { data: recordData });
+    } catch (err) {
+      // Handles duplicate requests
+      if (err?.code === 11000) {
+        throw new BadRequestException('Permission name already exists');
+      }
+      throw err;
+    }
   }
 
   async updatePermission(id: string, data: any, institutionsId?: string) {
+    const existingPermission = await this.recordService.findOne(
+      'permissions',
+      id,
+    );
+  
+    if (!existingPermission) {
+      throw new BadRequestException('Permission not found');
+    }
+  
+   
+    const incomingName = data.name ?? existingPermission.name;
+    const incomingCode = data.code ?? existingPermission.code;
+  
+   
+    if (
+      incomingName === existingPermission.name &&
+      incomingCode === existingPermission.code
+    ) {
+      throw new BadRequestException(
+        'Permission already exists with same name and code',
+      );
+    }
+  
+  
+    if (data?.name) {
+      await this.checkDuplicatePermissionName(
+        data.name,
+        institutionsId,
+        id,
+      );
+    }
+  
     const recordData = { ...data };
     if (institutionsId) {
       recordData.institutionsId = institutionsId;
@@ -140,4 +184,33 @@ export class PermissionService {
       throw error;
     }
   }
+
+  private async checkDuplicatePermissionName(
+    name: string,
+    institutionsId?: string,
+    excludeId?: string,
+  ) {
+    const filters: any = {
+      name,
+      isDeleted: { $ne: true },
+    };
+  
+    if (institutionsId) {
+      filters.institutionsId = institutionsId;
+    }
+  
+    if (excludeId) {
+      filters._id = { $ne: excludeId };
+    }
+  
+    const existing = await this.recordService.findAll('permissions', {
+      filters,
+      nonPaginated: true,
+    });
+  
+    if (existing?.items?.length > 0) {
+      throw new BadRequestException('Permission name already exists');
+    }
+  }
+  
 }
