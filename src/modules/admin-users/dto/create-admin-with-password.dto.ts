@@ -2,20 +2,6 @@ import { IsString, IsNotEmpty, IsOptional, IsEmail, IsArray, IsEnum, MinLength, 
 import { Transform, Type } from 'class-transformer';
 import { AdminRoles, IMetaTag } from 'src/common/enums/user.enum';
  
-const normalizeUserName = (value: unknown): string | undefined => {
-  if (typeof value !== 'string') {
-    return value as string | undefined;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return trimmed;
-  }
-
-  const atIndex = trimmed.indexOf('@');
-  return atIndex === -1 ? trimmed : trimmed.slice(0, atIndex);
-};
-
 export class MetaTagDto implements IMetaTag {
   @IsString()
   @IsNotEmpty({ message: 'Institution ID is required' })
@@ -37,9 +23,7 @@ export class CreateAdminWithPasswordDto {
   @IsNotEmpty({ message: 'Email is required' })
   email: string;
 
-  @Transform(({ value }) => normalizeUserName(value))
   @IsOptional()
-  @ValidateIf((o) => o.userName !== undefined && o.userName !== null && o.userName !== '')
   @IsString({ message: 'userName must be a string' })
   @MinLength(3, { message: 'Username must be at least 3 characters long' })
   @MaxLength(20, { message: 'Username must be at most 20 characters long' })
@@ -50,7 +34,6 @@ export class CreateAdminWithPasswordDto {
   @MinLength(8, { message: 'Password must be at least 8 characters long' })
   password: string;
  
-
   @IsString()
   @IsOptional()
   phoneNumber?: string;
@@ -59,7 +42,6 @@ export class CreateAdminWithPasswordDto {
   @IsNotEmpty({ message: 'Role is required' })
   role: AdminRoles;
  
-
   @ValidateIf((o) => o.role === AdminRoles.INSTITUTIONADMIN)
   @IsDefined({ message: 'MetaTags are required for INSTITUTION_ADMIN role' })
   @IsNotEmpty({ message: 'MetaTags are required for INSTITUTION_ADMIN role' })
@@ -68,7 +50,6 @@ export class CreateAdminWithPasswordDto {
   @ValidateNested({ each: true })
   @Type(() => MetaTagDto)
   metaTags?: IMetaTag[];
-
 
   @IsOptional()
   @IsEnum(['active', 'inactive'], { message: 'Status must be either active or inactive' })

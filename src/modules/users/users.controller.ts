@@ -14,7 +14,9 @@ import {
   UsersSignupDto,
   UsersVerifyLoginDto,
   UsersVerifySignupDto,
-  VerifyEmailDto
+  VerifyEmailDto,
+  UnifiedPhoneOtpRequestDto,
+  UnifiedPhoneOtpVerifyDto,
 } from './dto/users-auth.dto';
 import { UpdateUserProfileDto } from './dto/user-profile.dto';
 import { UsersAuthService } from './users.service';
@@ -25,20 +27,36 @@ import {RecordService} from "@noukha-technologies/mdm-core"
 export class UsersController {
   constructor(private readonly usersService: UsersAuthService) {}
 
-  @Post('signup')
-  async signup(@Body() dto: UsersSignupDto) {
-    return this.usersService.signup(dto);
+// unified endpoint inorder to take care of both signUp and login
+  @Post('phn-otp/request')
+  async requestPhnOtp(@Body() dto: UnifiedPhoneOtpRequestDto) {
+    return this.usersService.requestUnifiedPhoneOtp(dto);
   }
 
-  @Post('signup/verify')
-  async verifySignup(@Body() dto: UsersVerifySignupDto) { 
-    return this.usersService.verifySignupOtp(dto);
+  @Post('phn-otp/verify')
+  async verifyPhnOtp(@Body() dto: UnifiedPhoneOtpVerifyDto) {
+    return this.usersService.verifyUnifiedPhoneOtp(dto);
   }
 
-  @Post('signup/resend-otp')
-  async resendSignupOtp(@Body() dto: UsersLoginDto) {
-    return this.usersService.resendSignupOtp(dto.phoneNumber);
+  @Post('phn-otp/resend')
+  async resendPhnOtp(@Body() dto: UnifiedPhoneOtpRequestDto) {
+    return this.usersService.resendUnifiedPhoneOtp(dto);
   }
+
+  // @Post('signup')
+  // async signup(@Body() dto: UsersSignupDto) {
+  //   return this.usersService.signup(dto);
+  // }
+
+  // @Post('signup/verify')
+  // async verifySignup(@Body() dto: UsersVerifySignupDto) { 
+  //   return this.usersService.verifySignupOtp(dto);
+  // }
+
+  // @Post('signup/resend-otp')
+  // async resendSignupOtp(@Body() dto: UsersLoginDto) {
+  //   return this.usersService.resendSignupOtp(dto.phoneNumber);
+  // }
 
   @Post('check-available-username')
   async checkAvailableUserName(@Body() dto: UsersCheckAvailableUserNameDto) {
@@ -60,15 +78,16 @@ export class UsersController {
     return this.usersService.confirmEmail(dto);
   }
 
-  @Post('login')
-  async requestLogin(@Body() dto: UsersLoginDto) {  
-    return this.usersService.requestLoginOtp(dto);
-  }
+  // @Post('login')
+  // async requestLogin(@Body() dto: UsersLoginDto) {  
+  //   return this.usersService.requestLoginOtp(dto);
+  // }
 
-  @Post('login/verify')
-  async verifyLogin(@Body() dto: UsersVerifyLoginDto) { 
-    return this.usersService.verifyLoginOtp(dto);
-  }
+  // @Post('login/verify')
+  // async verifyLogin(@Body() dto: UsersVerifyLoginDto) { 
+  //   return this.usersService.verifyLoginOtp(dto);
+  // }
+
 
   @Post('refresh-token')
   async refreshToken(@Body() dto: UsersRefreshTokenDto) {
