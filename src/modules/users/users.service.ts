@@ -33,6 +33,8 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
     UsersVerifyLoginDto,
     UsersVerifySignupDto,
     VerifyEmailDto,
+    UnifiedPhoneOtpRequestDto,
+    UnifiedPhoneOtpVerifyDto,
   } from './dto/users-auth.dto';
 import { RecordService } from '@noukha-technologies/mdm-core';
 import { response } from 'express';
@@ -137,6 +139,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         user: this.attachProfileImageUrl(updatedUser ?? user),
       };
     }
+
   
     async requestLoginOtp(dto: UsersLoginDto) {
       const user = await this.getUserOrThrow(dto.phoneNumber);
@@ -191,6 +194,99 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         message: 'Login successful',
         tokens,
         user: this.attachProfileImageUrl(updatedUser ?? user),
+      };
+    }
+
+    async requestUnifiedPhoneOtp(dto: UnifiedPhoneOtpRequestDto) {
+      const { phoneNumber } = dto;
+
+      const existingUser = await this.dbService.users.findOne({
+        phoneNumber,
+        isDeleted: false,
+      });
+
+      if (!existingUser) {
+        const signupResult = await this.signup({ phoneNumber } as UsersSignupDto);
+
+        return {
+          authMode: 'signup',
+          ...signupResult,
+        };
+      }
+      if (existingUser.status === 'completed') {
+        const loginResult = await this.requestLoginOtp({ phoneNumber } as UsersLoginDto);
+
+        return {
+          authMode: 'login',
+          ...loginResult,
+        };
+      }
+
+      if (existingUser.phoneVerified) {
+        return {
+          authMode: 'signup',
+          message: 'Phone already verified. Continue signup',
+          userId: existingUser.userId
+        };
+      }
+
+      const otpResponse = await this.generateOtp(phoneNumber);
+
+      return {
+        authMode: 'signup',
+        message: 'OTP sent to phone number',
+        challengeName: otpResponse.ChallengeName,
+        session: otpResponse.Session,
+        userId: existingUser.userId,
+      };
+    }
+
+    async verifyUnifiedPhoneOtp(dto: UnifiedPhoneOtpVerifyDto) {
+      const { phoneNumber, otp, session } = dto;
+
+      const user = await this.dbService.users.findOne({
+        phoneNumber,
+        isDeleted: false,
+      });
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      if (user.status === 'completed') {
+        const loginResult = await this.verifyLoginOtp({
+          phoneNumber,
+          otp,
+          session,
+        } as UsersVerifyLoginDto);
+
+        return {
+          authMode: 'login',
+          ...loginResult,
+        };
+      }
+
+      if (user.phoneVerified) {
+        return {
+          authMode: 'signUp',
+          nextStep: 'setUsername',
+          message: 'Phone verified continue to set Username',
+          userId: user.userId,
+        };
+      }
+
+      const signupResult = await this.verifySignupOtp({
+        phoneNumber,
+        otp,
+        session,
+      } as UsersVerifySignupDto);
+
+      return {
+        authMode: 'signup',
+        nextStep: 'setUsername',
+        message: 'Phone verified successfully. Continue signup.',
+        userId: signupResult.user?.userId ?? user.userId,
+        tokens: signupResult.tokens,
       };
     }
   

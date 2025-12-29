@@ -166,3 +166,23 @@ export class ActivateByQrCodeDto {
   @IsString()
   referrerUserId: string;
 }
+
+export class UnifiedPhoneOtpRequestDto {
+  @IsNotEmpty({ message: 'Phone number is required' })
+  @IsString()
+  phoneNumber: string;
+}
+
+export class UnifiedPhoneOtpVerifyDto {
+  @IsNotEmpty({ message: 'Phone number is required' })
+  @IsString()
+  phoneNumber: string;
+
+  @IsNotEmpty({ message: 'OTP is required' })
+  @IsString()
+  otp: string;
+
+  @IsNotEmpty({ message: 'Session is required' })
+  @IsString()
+  session: string;
+}
