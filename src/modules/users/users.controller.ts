@@ -38,6 +38,11 @@ export class UsersController {
     return this.usersService.verifyUnifiedPhoneOtp(dto);
   }
 
+  @Post('phn-otp/resend')
+  async resendPhnOtp(@Body() dto: UnifiedPhoneOtpRequestDto) {
+    return this.usersService.resendUnifiedPhoneOtp(dto);
+  }
+
   // @Post('signup')
   // async signup(@Body() dto: UsersSignupDto) {
   //   return this.usersService.signup(dto);
@@ -48,10 +53,10 @@ export class UsersController {
   //   return this.usersService.verifySignupOtp(dto);
   // }
 
-  @Post('signup/resend-otp')
-  async resendSignupOtp(@Body() dto: UsersLoginDto) {
-    return this.usersService.resendSignupOtp(dto.phoneNumber);
-  }
+  // @Post('signup/resend-otp')
+  // async resendSignupOtp(@Body() dto: UsersLoginDto) {
+  //   return this.usersService.resendSignupOtp(dto.phoneNumber);
+  // }
 
   @Post('check-available-username')
   async checkAvailableUserName(@Body() dto: UsersCheckAvailableUserNameDto) {

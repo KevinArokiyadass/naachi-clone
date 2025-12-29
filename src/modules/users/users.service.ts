@@ -289,6 +289,38 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         tokens: signupResult.tokens,
       };
     }
+
+    async resendUnifiedPhoneOtp(dto: UnifiedPhoneOtpRequestDto) {
+      const { phoneNumber } = dto;
+
+      const user = await this.dbService.users.findOne({
+        phoneNumber,
+        isDeleted: false,
+      });
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      if (user.status === 'completed') {
+        const loginResult = await this.requestLoginOtp({ phoneNumber } as UsersLoginDto);
+        return {
+          authMode: 'login',
+          ...loginResult,
+        };
+      }
+
+      if (user.phoneVerified) {
+        throw new BadRequestException('Phone number already verified. Continue signup.');
+      }
+
+      await this.resendSignupOtp(phoneNumber);
+      return {
+        authMode: 'signup',
+        message: 'OTP resent successfully',
+        userId: user.userId,
+      };
+    }
   
     async checkAvailableUserName(userName: string) {
       const user = await this.dbService.users.findOne({
@@ -792,7 +824,6 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
   
       return user;
     }
-
 
     async getUsersByPhoneNumbers(
       phoneNumbers: string[],
