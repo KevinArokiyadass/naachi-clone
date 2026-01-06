@@ -3,6 +3,7 @@ import { DashboardMetricsResponseDto } from './dto/dashboard-metrics.response.dt
 import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
 import { RecordService } from '@noukha-technologies/mdm-core';
 import { AwsStoreService } from '../aws-store/aws-store.service';
+import { HttpClientService } from 'src/common/inter-service-communication/http-client.service';
 
 @Injectable()
 export class DashboardService {
@@ -12,7 +13,28 @@ export class DashboardService {
     private readonly dbService: IMongoDBServices,
     private readonly recordService: RecordService,
     private readonly awsStoreService: AwsStoreService,
+    private readonly httpClient: HttpClientService,
   ) {}
+     private async fetchDeptGroupCount(institutionId?: string): Promise<number> {
+      try {
+        const query: any = {
+          ...(institutionId ? { institutionsId: institutionId } : {}),
+          nonPaginated: true,
+        };
+    
+        const res: any = await this.httpClient.get('NAACHI_CHAT_SERVICE', '/group', query);
+    
+        if (!res?.items) return 0;
+    
+        return res.items.filter(
+          (g: any) => !g.isDeleted && g.departmentName != null
+        ).length;
+    
+      } catch (err: any) {
+        this.logger.warn(`Failed to fetch department group count: ${err.message}`);
+        return 0;
+      }
+    }
 
   async getDashboardMetrics(origin?: string): Promise<DashboardMetricsResponseDto> {
     const cleanOrigin = origin?.trim();
@@ -28,7 +50,19 @@ export class DashboardService {
       });
 
       const institution = institutions.items?.[0];
-      if (institution) {
+      if (!institution) {
+        return {
+          activeUsers: 0,
+          inactiveUsers: 0,
+          totalUsers: 0,
+          departmentCount: 0,
+          departmentGroupCount: 0,
+          reviewReportsCount: 0,
+          pendingReportsCount: 0,
+          resolvedReportsCount: 0,
+        };
+      }
+
         const institutionId = institution.institutionsId;
 
         this.logger.log(
@@ -37,7 +71,7 @@ export class DashboardService {
 
         const baseUserFilter = { isDeleted: false, institutionsId: institutionId };
         const baseReportFilter = { institutionsId: institutionId }; 
-        const [activeUsers, inactiveUsers, totalUsers, departments, reviewReportsCount, pendingReportsCount, resolvedReportsCount] =
+        const [activeUsers, inactiveUsers, totalUsers, departments, reviewReportsCount, pendingReportsCount, resolvedReportsCount, departmentGroupCount] =
           await Promise.all([
             this.dbService.users.countDocuments({ ...baseUserFilter, status:"completed" }),
             this.dbService.users.countDocuments({ ...baseUserFilter, status:"pending" }),
@@ -50,6 +84,7 @@ export class DashboardService {
             this.dbService.reviewReports.countDocuments(baseReportFilter),
             this.dbService.reviewReports.countDocuments({ ...baseReportFilter, status: 'PENDING' }),
             this.dbService.reviewReports.countDocuments({ ...baseReportFilter, status: 'RESOLVED' }),
+            this.fetchDeptGroupCount(institutionId),
           ]);
 
         return {
@@ -57,23 +92,13 @@ export class DashboardService {
           inactiveUsers,
           totalUsers,
           departmentCount: departments.totalItems,
+          departmentGroupCount,
           reviewReportsCount,
           pendingReportsCount,
           resolvedReportsCount,
         };
       }
 
-      this.logger.warn(`No institution found for origin: ${cleanOrigin}`);
-      return {
-        activeUsers: 0,
-        inactiveUsers: 0,
-        totalUsers: 0,
-        departmentCount: 0,
-        reviewReportsCount: 0,
-        pendingReportsCount: 0,
-        resolvedReportsCount: 0,
-      };
-    }
     const [
       activeUsers,
       inactiveUsers,
@@ -83,6 +108,7 @@ export class DashboardService {
       resolvedReportsCount,
       institutions,
       departments,
+      departmentGroupCount,
     ] = await Promise.all([
       this.dbService.users.countDocuments({ status:"completed", isDeleted: false }),
       this.dbService.users.countDocuments({ status:"pending", isDeleted: false }),
@@ -92,6 +118,7 @@ export class DashboardService {
       this.dbService.reviewReports.countDocuments({status:'RESOLVED'}),
       this.recordService.findAll('institutions', { page: 1, limit: 1 }),
       this.recordService.findAll('departments', { page: 1, limit: 1 }),
+      this.fetchDeptGroupCount(),
     ]);
 
     // Fetch all institutions for breakdown
@@ -147,7 +174,99 @@ export class DashboardService {
       resolvedReportsCount,
       institutionCount: institutions.totalItems,
       departmentCount: departments.totalItems,
+      departmentGroupCount,
       institutionBreakdown,
+    };
+  }
+
+  async getInstitutionDashboardMetrics(
+    origin: string,
+  ): Promise<DashboardMetricsResponseDto> {
+    const cleanOrigin = origin?.trim();
+
+    const institutions = await this.recordService.findAll('institutions', {
+      page: 1,
+      limit: 1,
+      filters: { adminDomain: cleanOrigin },
+    });
+
+    const institution = institutions.items?.[0];
+    if (!institution) {
+      return {
+        activeUsers: 0,
+        inactiveUsers: 0,
+        totalUsers: 0,
+        reviewReportsCount: 0,
+        pendingReportsCount: 0,
+        resolvedReportsCount: 0,
+        institutionCount: 0,
+        departmentCount: 0,
+        departmentGroupCount: 0,
+        institutionBreakdown: [],
+      };
+    }
+
+    const institutionId = institution.institutionsId;
+    const baseUserFilter = { institutionsId: institutionId, isDeleted: false };
+    const baseReportFilter = { institutionsId: institutionId };
+
+    const [
+      activeUsers,
+      inactiveUsers,
+      totalUsers,
+      reviewReportsCount,
+      pendingReportsCount,
+      resolvedReportsCount,
+      departments,
+      departmentGroupCount,
+    ] = await Promise.all([
+      this.dbService.users.countDocuments({ ...baseUserFilter, status: 'completed' }),
+      this.dbService.users.countDocuments({ ...baseUserFilter, status: 'pending' }),
+      this.dbService.users.countDocuments(baseUserFilter),
+      this.dbService.reviewReports.countDocuments(baseReportFilter),
+      this.dbService.reviewReports.countDocuments({
+        ...baseReportFilter,
+        status: 'PENDING',
+      }),
+      this.dbService.reviewReports.countDocuments({
+        ...baseReportFilter,
+        status: 'RESOLVED',
+      }),
+      this.recordService.findAll('departments', {
+        page: 1,
+        limit: 1,
+        filters: { institutionsId: institutionId },
+      }),
+      this.fetchDeptGroupCount(institutionId),
+    ]);
+
+    const plainInstitution = institution._doc
+      ? { ...institution._doc }
+      : JSON.parse(JSON.stringify(institution));
+
+    if (plainInstitution.s3ProfileImageName) {
+      plainInstitution.s3ProfileImageUrl =
+        this.awsStoreService.getCloudFrontUrl(
+          plainInstitution.s3ProfileImageName,
+        );
+    }
+
+    return {
+      activeUsers,
+      inactiveUsers,
+      totalUsers,
+      reviewReportsCount,
+      pendingReportsCount,
+      resolvedReportsCount,
+      institutionCount: 1,
+      departmentCount: departments.totalItems,
+      departmentGroupCount,
+      institutionBreakdown: [
+        {
+          ...plainInstitution,
+          activeUsers,
+        },
+      ],
     };
   }
 }

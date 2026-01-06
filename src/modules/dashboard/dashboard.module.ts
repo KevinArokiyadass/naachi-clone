@@ -4,12 +4,14 @@ import { DashboardService } from './dashboard.service';
 import { HttpModule } from '@nestjs/axios';
 import { MongoDBServicesModule } from 'src/common/repository/mongodb-repository/repository.module';
 import { AwsStoreModule } from '../aws-store/aws-store.module';
+import { HttpClientModule } from 'src/common/inter-service-communication/http-client.module';
 
 @Module({
   imports: [
     MongoDBServicesModule,
     HttpModule,
     AwsStoreModule,
+    HttpClientModule,
   ],
   controllers: [DashboardController],
   providers: [DashboardService],
