@@ -23,7 +23,7 @@ export class ReviewReportService {
   async create(dto: CreateReviewReportDto): Promise<ReviewReport> {
     const evidenceMessages =
       dto.evidenceMessages?.map((msg) => ({
-        messageId: msg.messageId || generateUniqueId(),
+        messageId: msg.messageId,
       })) || [];
 
     const createdReport = new this.reportModel({
@@ -128,7 +128,52 @@ export class ReviewReportService {
         },
       },
       { $unwind: '$reportedUser' },
-  
+
+      // Unwind evidenceMessages to lookup each message
+      { $unwind: { path: '$evidenceMessages', preserveNullAndEmptyArrays: true } },
+
+      // Lookup messages for each evidenceMessage
+      {
+        $lookup: {
+          from: 'messages',
+          localField: 'evidenceMessages.messageId',
+          foreignField: 'msgId',
+          as: 'evidenceMessages.message',
+        },
+      },
+      {
+        $unwind: {
+          path: '$evidenceMessages.message',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      // Group back to reconstruct evidenceMessages array with populated messages
+      {
+        $group: {
+          _id: '$_id',
+          reviewId: { $first: '$reviewId' },
+          reasonCodeId: { $first: '$reasonCodeId' },
+          reasonText: { $first: '$reasonText' },
+          conversationId: { $first: '$conversationId' },
+          status: { $first: '$status' },
+          createdAt: { $first: '$createdAt' },
+          updatedAt: { $first: '$updatedAt' },
+          reporterId: { $first: '$reporter.userId' },
+          reporterUsername: { $first: '$reporter.userName' },
+          reporterName: { $first: '$reporter.Name' },
+          reportedUserId: { $first: '$reportedUser.userId' },
+          reportedUsername: { $first: '$reportedUser.userName' },
+          reportedName: { $first: '$reportedUser.Name' },
+          evidenceMessages: {
+            $push: {
+              messageId: '$evidenceMessages.messageId',
+              message: '$evidenceMessages.message',
+            },
+          },
+        },
+      },
+
       {
         $project: {
           _id: 0,
@@ -140,12 +185,12 @@ export class ReviewReportService {
           evidenceMessages: 1,
           createdAt: 1,
           updatedAt: 1,
-          reporterId: '$reporter.userId',
-          reporterUsername: '$reporter.userName',
-          reporterName: '$reporter.Name',
-          reportedUserId: '$reportedUser.userId',
-          reportedUsername: '$reportedUser.userName',
-          reportedName: '$reportedUser.Name',
+          reporterId: 1,
+          reporterUsername: 1,
+          reporterName: 1,
+          reportedUserId: 1,
+          reportedUsername: 1,
+          reportedName: 1,
         },
       },
       { $sort: { createdAt: -1 } },

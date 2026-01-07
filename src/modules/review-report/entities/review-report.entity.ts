@@ -29,13 +29,13 @@ export class ReviewReport extends Document{
   @Prop({
     type: [
       {
-        messageId: { type: String, default: () => generateUniqueId() }
+        messageId: { type: String, required: true },
+        _id: false  
       }
     ],
     default: []
   })
-  evidenceMessages?: { messageId: string}[];
-
+  evidenceMessages?: { messageId: string }[];
   @Prop({
     type: String,
     enum: Object.values(RecordStatus),
