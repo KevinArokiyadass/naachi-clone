@@ -26,6 +26,10 @@ export class DashboardMetricsResponseDto {
 
   @IsOptional()
   @IsNumber()
+  departmentGroupCount?: number;
+
+  @IsOptional()
+  @IsNumber()
   departmentCount?: number;
 
   @IsOptional()

@@ -12,4 +12,10 @@ export class DashboardController {
   ): Promise<DashboardMetricsResponseDto> {
     return this.dashboardService.getDashboardMetrics(origin);
   }
+  @Get('metrics/institution')
+  async getInstitutionDashboardMetrics(
+    @Query('Origin') origin: string,
+  ): Promise<DashboardMetricsResponseDto> {
+    return this.dashboardService.getInstitutionDashboardMetrics(origin);
+  }
 }
