@@ -7,8 +7,11 @@ export class PermissionService {
   constructor(private readonly recordService: RecordService) {}
 
   async createPermission(data: any, institutionsId?: string) {
-    if (data?.name) {
-      await this.checkDuplicatePermissionName(data.name, institutionsId);
+    if (data?.name || data?.code) {
+      await this.checkDuplicatePermission({
+        name: data.name,
+        code: data.code,
+      }, institutionsId);
     }
   
     const recordData = { ...data };
@@ -50,11 +53,12 @@ export class PermissionService {
         'Permission already exists with same name and code',
       );
     }
-  
-  
-    if (data?.name) {
-      await this.checkDuplicatePermissionName(
-        data.name,
+    if (data?.name || data?.code) {
+      await this.checkDuplicatePermission(
+        {
+          name: data.name ?? existingPermission.name,
+          code: data.code ?? existingPermission.code,
+        },
         institutionsId,
         id,
       );
@@ -185,16 +189,27 @@ export class PermissionService {
     }
   }
 
-  private async checkDuplicatePermissionName(
-    name: string,
+  private async checkDuplicatePermission(
+    data: { name: string; code: string },
     institutionsId?: string,
     excludeId?: string,
   ) {
     const filters: any = {
-      name,
       isDeleted: { $ne: true },
+      $or: [],
     };
-  
+
+    if (data.name) {
+      filters.$or.push({ name: data.name });
+    }
+
+    if (data.code) {
+      filters.$or.push({ code: data.code });
+    }
+
+    if (filters.$or.length === 0) {
+      return;
+    }
     if (institutionsId) {
       filters.institutionsId = institutionsId;
     }
@@ -209,7 +224,14 @@ export class PermissionService {
     });
   
     if (existing?.items?.length > 0) {
-      throw new BadRequestException('Permission name already exists');
+      const duplicate = existing.items[0];
+      if (duplicate.name === data.name) {
+        throw new BadRequestException('Permission name already exists');
+      }
+      if (duplicate.code === data.code) {
+        throw new BadRequestException('Permission code already exists');
+      }
+      throw new BadRequestException('Permission already exists');
     }
   }
   
