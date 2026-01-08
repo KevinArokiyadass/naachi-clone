@@ -1,4 +1,4 @@
-import { ReferrerMedium } from "../enums/user.enum";
+import { accountStatus, ReferrerMedium } from "../enums/user.enum";
 export interface IUsers {
     userId: string;
     phoneNumber: string;
@@ -12,7 +12,7 @@ export interface IUsers {
     otp?: string;
     otpExpiry?: Date;
     lastLoginAt?: Date;
-    status: string;
+    status: accountStatus;
     phoneVerified: boolean;
     phoneOtp?: string;
     phoneOtpExpiry?: Date;
