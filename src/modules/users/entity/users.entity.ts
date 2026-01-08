@@ -1,3 +1,4 @@
+import { accountStatus } from "src/common/enums/user.enum";
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Document } from "mongoose";
 import { generateUniqueId } from "src/common/utils/util";
@@ -18,9 +19,9 @@ export class Users extends Document {
     @Prop({ type: String, required: false })
     password?: string;
 
-    @Prop({ 
-        type: String, 
-        required: false, 
+    @Prop({
+        type: String,
+        required: false,
         trim: true,
         unique: true,
         sparse: true,
@@ -49,12 +50,12 @@ export class Users extends Document {
     @Prop({ type: Date })
     lastLoginAt?: Date;
 
-    @Prop({ 
-        type: String, 
-        enum: ['pending', 'completed'], 
-        default: 'pending' 
+    @Prop({
+        type: String,
+        enum: Object.values(accountStatus),
+        default: accountStatus.PENDING
     })
-    status: string;
+    status: accountStatus;
 
     @Prop({ type: Boolean, default: false })
     phoneVerified: boolean;
@@ -85,7 +86,7 @@ export class Users extends Document {
 
     @Prop({ type: String, required: false, trim: true })
     referrerId?: string;
-    
+
     @Prop({ type: String, required: false })
     referredBy?: string;
 
