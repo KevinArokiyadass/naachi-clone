@@ -22,7 +22,7 @@ import {
 import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
 import { IUsers } from 'src/common/interfaces/users.interface';
 import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
-import { ReferrerMedium } from 'src/common/enums/user.enum';
+import { accountStatus, ReferrerMedium } from 'src/common/enums/user.enum';
 import { generateRandomPassword, generateUniqueId } from 'src/common/utils/util';
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
   import {
@@ -80,7 +80,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         isActive: false,
         isVerified: false,
         isDeleted: false,
-        status: 'pending',
+        status: accountStatus.PENDING,
         phoneVerified: false,
         userNameSet: false,
         emailVerified: false,
@@ -144,7 +144,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
     async requestLoginOtp(dto: UsersLoginDto) {
       const user = await this.getUserOrThrow(dto.phoneNumber);
   
-      if (user.status !== 'completed') {
+      if (user.status !== accountStatus.COMPLETED) {
         throw new BadRequestException(
           'Complete email verification before logging in.',
         );
@@ -162,7 +162,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
     async verifyLoginOtp(dto: UsersVerifyLoginDto) {
       const user = await this.getUserOrThrow(dto.phoneNumber);
   
-      if (user.status !== 'completed') {
+      if (user.status !== accountStatus.COMPLETED) {
         throw new BadRequestException(
           'Complete email verification before logging in.',
         );
@@ -349,7 +349,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         throw new BadRequestException('Phone number must be verified first');
       }
   
-      if (user.status !== 'pending') {
+      if (user.status !== accountStatus.PENDING) {
         throw new BadRequestException('User signup is already completed');
       }
   
@@ -365,7 +365,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
   
 
       await this.dbService.users.findOneAndUpdate(
-        { userId: dto.userId, status: 'pending' },
+        { userId: dto.userId, status: accountStatus.PENDING },
         {
           userName: dto.userName,
           name: dto.name,
@@ -533,7 +533,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         throw new BadRequestException('Email does not match the one provided during verification');
       }
   
-      if (user.status !== 'pending') {
+      if (user.status !== accountStatus.PENDING) {
         throw new BadRequestException('User signup is already completed');
       }
 
@@ -541,10 +541,10 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
       if (dto.confirmationCode === this.DEFAULT_EMAIL_OTP) {
         // Skip Cognito verification and directly mark as completed
         await this.dbService.users.findOneAndUpdate(
-          { userId: dto.userId, status: 'pending' },
+          { userId: dto.userId, status: accountStatus.PENDING },
           {
             emailVerified: true,
-            status: 'completed',
+            status: accountStatus.COMPLETED,
             isActive: true,
             isVerified: true,
             referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
@@ -579,10 +579,10 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
       }
 
       await this.dbService.users.findOneAndUpdate(
-        { userId: dto.userId, status: 'pending' },
+        { userId: dto.userId, status: accountStatus.PENDING },
         {
           emailVerified: true,
-          status: 'completed',
+          status: accountStatus.COMPLETED,
           isActive: true,
           isVerified: true,
           referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
@@ -836,7 +836,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         {
           phoneNumber: { $in: phoneNumbers },
           isDeleted: false,
-          status: 'completed',
+          status: accountStatus.COMPLETED,
         },
         {
           phoneNumber: 1,
@@ -887,7 +887,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
       }
 
       // Check if user has already completed signup
-      if (user.status === 'completed') {
+      if (user.status === accountStatus.COMPLETED) {
         throw new BadRequestException('User signup is already completed. Cannot activate via QR code.');
       }
 
@@ -914,7 +914,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         {
           isActive: true,
           isVerified: true,
-          status: 'completed',
+          status: accountStatus.COMPLETED,
           referrerId: referrerUserId,
           referredBy: referrerUserName,
           referrerMedium: ReferrerMedium.QR_CODE,
@@ -990,7 +990,7 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
         updatePayload.mutualfriendReferral = dto.mutualfriendReferral;
 
         if (dto.mutualfriendReferral === true) {
-          updatePayload.status = 'completed';
+          updatePayload.status = accountStatus.COMPLETED;
           updatePayload.referrerMedium = ReferrerMedium.MUTUAL_FRIEND;
         }
       }
