@@ -28,6 +28,39 @@ export class FireBaseController {
     return { messageId };
   }
 
+  @Post('bulk')
+@HttpCode(HttpStatus.OK)
+async sendBulk(
+  @Body()
+  body: {
+    tokens: string[];
+    notification: {
+      title: string;
+      body: string;
+      imageUrl?: string;
+      clickAction?: string;
+    };
+    data?: Record<string, string>;
+  }
+): Promise<{
+  successCount: number;
+  failureCount: number;
+}> {
+  this.logger.log(
+    `Sending bulk notification to ${body.tokens.length} devices`
+  );
+
+  const result = await this.firebaseService.sendToDevices(
+    body.tokens,
+    body.notification,
+    body.data
+  );
+
+  return result;
+}
+
+
+
   /* Validate a single FCM token */
   @Post('validate-token')
   @HttpCode(HttpStatus.OK)

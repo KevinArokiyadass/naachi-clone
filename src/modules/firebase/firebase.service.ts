@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { Injectable, Logger } from '@nestjs/common';
 import { FirebaseConfig } from '../../common/config/firebase.config';
 import { IMongoDBServices } from '../../common/repository/mongodb-repository/abstract.repository';
+import { chunkArray } from '../../common/helper/firebase.helper';
 
 @Injectable()
 export class FirebaseService {
@@ -89,6 +90,72 @@ export class FirebaseService {
       this.logger.error('sendToDevice failed', err as any);
       throw err;
     }
+  }
+
+  async sendToDevices(
+    tokens: string[],
+    notification: any,
+    data?: Record<string, string>
+  ): Promise<{ successCount: number; failureCount: number }> {
+    const messaging = await this.firebaseConfig.getMessaging();
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    const tokenChunks = chunkArray(tokens, 500);
+
+    for (const chunk of tokenChunks) {
+      const message: admin.messaging.MulticastMessage = {
+        tokens: chunk,
+        notification: {
+          title: notification.title,
+          body: notification.body,
+          imageUrl: notification.imageUrl,
+        },
+        data,
+        android: {
+          priority: 'high',
+          notification: { sound: 'default', channelId: 'default' },
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: 'default',
+            },
+          },
+        },
+        webpush: {
+          notification: {
+            icon: '/icon.png',
+            badge: '/badge.png',
+          },
+          fcmOptions: {
+            link: notification.clickAction || '/',
+          },
+        },
+      };
+
+      const response = await messaging.sendEachForMulticast(message);
+
+      successCount += response.successCount;
+      failureCount += response.failureCount;
+
+      response.responses.forEach((res, index) => {
+        if (!res.success) {
+          const failedToken = chunk[index];
+          this.logger.warn(
+            `Invalid token detected, should be removed: ${failedToken.slice(0, 12)}...`
+          );
+          // TODO: remove token from DB
+        }
+      });
+    }
+
+    this.logger.log(
+      `Bulk notification done. success=${successCount} failure=${failureCount}`
+    );
+
+    return { successCount, failureCount };
   }
 
   /**
