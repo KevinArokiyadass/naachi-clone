@@ -230,7 +230,7 @@ export class NotificationService {
       const historyRecord: CreateNotificationHistoryDto = {
         title: createNotificationHistoryDto.title,
         body: createNotificationHistoryDto.body,
-        imageUrl: createNotificationHistoryDto.imageUrl, // Store only filename (e.g., "Ix.png")
+        imageUrl: createNotificationHistoryDto.imageUrl,
         clickAction: createNotificationHistoryDto.clickAction,
         data: createNotificationHistoryDto.data,
         userId: createNotificationHistoryDto.userId,
@@ -277,7 +277,7 @@ export class NotificationService {
       const notificationData = {
         title: notificationRecord.title,
         body: notificationRecord.body,
-        imageUrl: fullImageUrl, // Use full CloudFront URL for notification
+        imageUrl: fullImageUrl,
         clickAction: notificationRecord.clickAction,
         data: {
           ...notificationRecord.data,
@@ -417,6 +417,17 @@ export class NotificationService {
         });
 
         const extractedTokens = userTokens.map(t => t.token);
+        finalTokens = [...new Set([...finalTokens, ...extractedTokens])];
+      }
+
+      // 2. If deviceIds are provided, fetch tokens for those devices
+      if (bulkDto.deviceIds && bulkDto.deviceIds.length > 0) {
+        const deviceTokens = await this.dbServices.deviceToken.find({
+          deviceId: { $in: bulkDto.deviceIds },
+          isActive: true
+        });
+
+        const extractedTokens = deviceTokens.map(t => t.token);
         finalTokens = [...new Set([...finalTokens, ...extractedTokens])];
       }
 

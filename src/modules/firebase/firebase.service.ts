@@ -13,81 +13,58 @@ export class FirebaseService {
     private readonly dbServices: IMongoDBServices
   ) { }
 
-  private detectTokenPlatform(token: string): 'web' | 'android' | 'ios' | 'unknown' {
-    // Heuristics:
-    // - Android tokens usually contain ':APA91' (older/newish)
-    // - iOS APNs device tokens are often 64 hex chars (no colon)
-    // - Web tokens are longer (>100) and usually don't contain colon patterns.
-    if (!token) return 'unknown';
-
-    const preview = `${token.slice(0, 12)}...`;
-    this.logger.log(`Detecting platform for token: ${preview} (len=${token.length})`);
-
-    if (token.includes(':APA91')) return 'android';
-
-    // iOS APNs device tokens are typically 64 hex chars (no ':') — heuristic
-    const isLikelyIos = /^[0-9a-fA-F]{64}$/.test(token);
-    if (isLikelyIos) return 'ios';
-
-    // Web tokens are usually long and do not contain the ':APA91' pattern
-    if (token.length > 100 && !token.includes(':')) return 'web';
-
-    // Fallback: unknown
-    return 'unknown';
-  }
 
   async sendToDevice(token: string, notification: any, data?: Record<string, string>): Promise<string> {
     try {
-      const platform = this.detectTokenPlatform(token);
       const tokenPreview = `${token.slice(0, 12)}...`;
-      this.logger.log(`Sending notification to platform=${platform} token=${tokenPreview}`);
+      this.logger.log(`Sending notification to token=${tokenPreview}`);
 
-      let message: admin.messaging.Message;
-
-      if (platform === 'android') {
-        message = {
-          token,
-          notification: { title: notification.title, body: notification.body, imageUrl: notification.imageUrl },
-          data,
-          android: { priority: 'high', notification: { sound: 'default', channelId: 'default' } },
-        };
-      } else if (platform === 'ios') {
-        message = {
-          token,
-          notification: { title: notification.title, body: notification.body, imageUrl: notification.imageUrl },
-          data,
-          apns: { payload: { aps: { sound: 'default', badge: 1 } } },
-        };
-      } else if (platform === 'web') {
-        message = {
-          token,
-          notification: { title: notification.title, body: notification.body, imageUrl: notification.imageUrl },
-          data,
-          webpush: {
-            notification: { icon: '/icon.png', badge: '/badge.png' },
-            fcmOptions: {
-              link: notification.clickAction || '/'
-            }
+      // Consistent payload for all platforms, Firebase handles the selection
+      const message: admin.messaging.Message = {
+        token,
+        notification: {
+          title: notification.title,
+          body: notification.body,
+          imageUrl: notification.imageUrl,
+        },
+        data,
+        android: {
+          priority: 'high',
+          notification: { sound: 'default', channelId: 'default' },
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: 'default',
+              badge: 1, // Added badge consistency
+            },
           },
-        };
-      } else {
-        this.logger.warn('Unknown token platform; sending data-only message as fallback');
-        message = {
-          token,
-          data: {
-            title: notification.title || '',
-            body: notification.body || '',
-            ...(data || {})
+        },
+        webpush: {
+          notification: {
+            icon: '/icon.png',
+            badge: '/badge.png',
           },
-        };
-      }
+          fcmOptions: {
+            link: notification.clickAction || '/',
+          },
+        },
+      };
 
       const messaging = await this.firebaseConfig.getMessaging();
       const response = await messaging.send(message);
       this.logger.log(`Message sent: ${response}`);
       return response;
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error('sendToDevice failed', err as any);
+
+      // Cleanup token if invalid
+      const errorMessage = err.message || '';
+      if (errorMessage.includes('not-registered') || errorMessage.includes('invalid-registration-token')) {
+        this.logger.warn(`Removing invalid token during single send: ${token.slice(0, 12)}...`);
+        await this.dbServices.deviceToken.updateMany({ token }, { isActive: false });
+      }
+
       throw err;
     }
   }
@@ -121,6 +98,7 @@ export class FirebaseService {
           payload: {
             aps: {
               sound: 'default',
+              badge: 1, // Added badge consistency
             },
           },
         },
@@ -140,15 +118,25 @@ export class FirebaseService {
       successCount += response.successCount;
       failureCount += response.failureCount;
 
+      // Automated Cleanup of invalid tokens
+      const invalidTokens = [];
       response.responses.forEach((res, index) => {
         if (!res.success) {
-          const failedToken = chunk[index];
-          this.logger.warn(
-            `Invalid token detected, should be removed: ${failedToken.slice(0, 12)}...`
-          );
-          // TODO: remove token from DB
+          const error = res.error as any;
+          if (error?.code === 'messaging/registration-token-not-registered' ||
+            error?.code === 'messaging/invalid-registration-token') {
+            invalidTokens.push(chunk[index]);
+          }
         }
       });
+
+      if (invalidTokens.length > 0) {
+        this.logger.warn(`Deactivating ${invalidTokens.length} invalid tokens found during bulk send.`);
+        await this.dbServices.deviceToken.updateMany(
+          { token: { $in: invalidTokens } },
+          { isActive: false }
+        );
+      }
     }
 
     this.logger.log(
