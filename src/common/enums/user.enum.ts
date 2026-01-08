@@ -36,11 +36,11 @@ export enum ReportType{
 
 export enum accountStatus
 {
-  PENDING = 'PENDING',
-  BLOCKED = 'BLOCKED',
-  APPROVED =  'APPROVED',
-  LEGITIMATE = 'LEGITIMATE',
-  COMPLETED = 'COMPLETED'
+  PENDING = 'pending',
+  BLOCKED = 'blocked',
+  APPROVED =  'approved',
+  LEGITIMATE = 'legitimate',
+  COMPLETED = 'completed'
 }
 
 export enum ReferrerMedium {
