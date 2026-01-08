@@ -6,7 +6,7 @@ import { BadRequestException } from "@nestjs/common";
 import { Platform } from "../../common/enums/device.enum";
 import { IDeviceRegistrationResponse } from "../../common/interfaces/notification.interface";
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
-import {UpdateDeviceTokenDto} from "./dto/device-registration.dto";
+import { UpdateDeviceTokenDto } from "./dto/device-registration.dto";
 import { NotFoundException } from "@nestjs/common";
 import { Logger } from "@nestjs/common";
 import { FirebaseConfig } from "src/common/config/firebase.config";
@@ -14,114 +14,121 @@ import { FirebaseService } from "../firebase/firebase.service";
 import { CreateNotificationHistoryDto } from "./dto/create-notification.dto";
 import { NotificationHistory } from "./entity/notification-management.entity"
 import { NotificationStatus } from "../../common/enums/notification.enum";
+import { CreateBulkNotificationDto } from "./dto/create-bulk-notification.dto";
 
 
 @Injectable()
-export class NotificationService{
-    constructor(
-        private readonly dbServices: IMongoDBServices,
-        private readonly paginationService: PaginationService,
-        private readonly firebaseService: FirebaseService
-    ){
-        this.Logger = new Logger(NotificationService.name);
-    }
-    
-    private readonly Logger: Logger;
+export class NotificationService {
+  constructor(
+    private readonly dbServices: IMongoDBServices,
+    private readonly paginationService: PaginationService,
+    private readonly firebaseService: FirebaseService
+  ) {
+    this.Logger = new Logger(NotificationService.name);
+  }
 
-    /* Generate full CloudFront URL from filename */
-    private generateImageUrl(filename: string): string | null {
-      if (!filename) {
-        return null;
-      }
+  private readonly Logger: Logger;
 
-      const cloudFrontUrl = process.env.CLOUD_FRONT_URL;
-      if (!cloudFrontUrl) {
-        this.Logger.warn('CLOUD_FRONT_URL environment variable not set');
-        return null;
-      }
-
-      let processedFilename = filename;
-      if (filename.includes('http://') || filename.includes('https://')) {
-        this.Logger.log(`Replacing URL pattern in filename: ${filename} with Ix.png`);
-        processedFilename = 'Ix.png';
-      }
-
-      const baseUrl = cloudFrontUrl.replace(/\/$/, '');
-      return `${baseUrl}/${processedFilename}`;
+  /* Generate full CloudFront URL from filename */
+  private generateImageUrl(filename: string): string | null {
+    if (!filename) {
+      return null;
     }
 
-    private transformNotificationWithImageUrl(notification: any): any {
-      if (!notification) return notification;
-
-      return {
-        ...notification,
-        imageUrl: notification.imageUrl ? this.generateImageUrl(notification.imageUrl) : notification.imageUrl
-      };
+    const cloudFrontUrl = process.env.CLOUD_FRONT_URL;
+    if (!cloudFrontUrl) {
+      this.Logger.warn('CLOUD_FRONT_URL environment variable not set');
+      return null;
     }
 
-    private transformNotificationsWithImageUrls(notifications: any[]): any[] {
-      if (!notifications || !Array.isArray(notifications)) return notifications;
-
-      return notifications.map(notification => this.transformNotificationWithImageUrl(notification));
+    let processedFilename = filename;
+    if (filename.includes('http://') || filename.includes('https://')) {
+      this.Logger.log(`Replacing URL pattern in filename: ${filename} with Ix.png`);
+      processedFilename = 'Ix.png';
     }
 
-    private validateDeviceRegistration(registerDto: RegisterDeviceTokenDto): void {
-        if (registerDto.deviceType === DeviceType.WEB && !registerDto.deviceId) {
-          throw new BadRequestException('Device ID is required for web devices');
-        }
-    
-        if (registerDto.deviceType === DeviceType.MOBILE && !registerDto.deviceId){
-          throw new BadRequestException('Device ID is required for mobile devices');
-        }
-    
-        if ((registerDto.platform === Platform.ANDROID || registerDto.platform === Platform.IOS)
-          && registerDto.deviceType !== DeviceType.MOBILE) {
-          throw new BadRequestException('Mobile platforms must be used with mobile device type');
-        }
-      }
-      
-    async registerDeviceToken(registerDto: RegisterDeviceTokenDto):Promise<IDeviceRegistrationResponse> {
-        try {
+    const baseUrl = cloudFrontUrl.replace(/\/$/, '');
+    return `${baseUrl}/${processedFilename}`;
+  }
 
-          this.validateDeviceRegistration(registerDto);
-    
-          const existingDeviceTypeToken = await this.dbServices.deviceToken.findOne({
-            userId: registerDto.userId,
-            deviceType: registerDto.deviceType,
-            isActive: true
-          });
-    
-          if (existingDeviceTypeToken) {
-            this.Logger.log(`User already has an active ${registerDto.deviceType} device token. Returning existing token.`);
-            return existingDeviceTypeToken as IDeviceRegistrationResponse;
-          }
-    
-          if (registerDto.deviceId) {
-            const existingDeviceIdToken = await this.dbServices.deviceToken.findOne({
-              deviceId: registerDto.deviceId,
-              isActive: true
-            });
-    
-            if (existingDeviceIdToken) {
-              this.Logger.log(`Device ID ${registerDto.deviceId} already has an active token. Returning existing token.`);
-              return existingDeviceIdToken as IDeviceRegistrationResponse;
-            }
-          }
-    
-          // Create new device token
-          const deviceToken = await this.dbServices.deviceToken.create({
+  private transformNotificationWithImageUrl(notification: any): any {
+    if (!notification) return notification;
+
+    return {
+      ...notification,
+      imageUrl: notification.imageUrl ? this.generateImageUrl(notification.imageUrl) : notification.imageUrl
+    };
+  }
+
+  private transformNotificationsWithImageUrls(notifications: any[]): any[] {
+    if (!notifications || !Array.isArray(notifications)) return notifications;
+
+    return notifications.map(notification => this.transformNotificationWithImageUrl(notification));
+  }
+
+  private validateDeviceRegistration(registerDto: RegisterDeviceTokenDto): void {
+    if (registerDto.deviceType === DeviceType.WEB && !registerDto.deviceId) {
+      throw new BadRequestException('Device ID is required for web devices');
+    }
+
+    if (registerDto.deviceType === DeviceType.MOBILE && !registerDto.deviceId) {
+      throw new BadRequestException('Device ID is required for mobile devices');
+    }
+
+    if ((registerDto.platform === Platform.ANDROID || registerDto.platform === Platform.IOS)
+      && registerDto.deviceType !== DeviceType.MOBILE) {
+      throw new BadRequestException('Mobile platforms must be used with mobile device type');
+    }
+  }
+
+  async registerDeviceToken(registerDto: RegisterDeviceTokenDto): Promise<IDeviceRegistrationResponse> {
+    try {
+      this.validateDeviceRegistration(registerDto);
+
+      // 1. Check if this exact token exists (regardless of user)
+      const existingTokenRecord = await this.dbServices.deviceToken.findOne({
+        token: registerDto.token
+      });
+
+      if (existingTokenRecord) {
+        this.Logger.log(`Token already exists. Updating ownership and status for userId: ${registerDto.userId}`);
+        const updated = await this.dbServices.deviceToken.findOneAndUpdate(
+          { token: registerDto.token },
+          {
             ...registerDto,
-          });
-    
-          this.Logger.log(`Registered device token for ${registerDto.deviceType} device`);
-          return deviceToken as IDeviceRegistrationResponse;
-        } catch (error) {
-          this.Logger.error('Error registering device token:', error);
-          throw error;
-        }
+            isActive: true
+          },
+          { new: true }
+        );
+        return updated as IDeviceRegistrationResponse;
       }
 
-        /* Update device token information */
+      // 2. If it's a NEW token, we follow the "One active token per deviceType" rule
+      // Deactivate any other active tokens for this user and deviceType
+      await this.dbServices.deviceToken.updateMany(
+        {
+          userId: registerDto.userId,
+          deviceType: registerDto.deviceType,
+          isActive: true
+        },
+        { isActive: false }
+      );
+
+      // 3. Create the new token
+      const deviceToken = await this.dbServices.deviceToken.create({
+        ...registerDto,
+        isActive: true
+      });
+
+      this.Logger.log(`Registered NEW device token for ${registerDto.deviceType} device`);
+      return deviceToken as IDeviceRegistrationResponse;
+    } catch (error) {
+      this.Logger.error('Error registering device token:', error);
+      throw error;
+    }
+  }
+
+  /* Update device token information */
   async updateDeviceToken(updateDto: UpdateDeviceTokenDto): Promise<IDeviceRegistrationResponse> {
     try {
       const existingToken = await this.dbServices.deviceToken.findOne({ token: updateDto.token });
@@ -196,24 +203,23 @@ export class NotificationService{
       throw new BadRequestException(`Error while getting device details: ${error.message} `);
     }
   }
-        
-      /* Deactivate device token */
-      async deactivateDeviceToken(userId: string, fcmToken: string): Promise<IDeviceRegistrationResponse> {
-        try {
-          const deviceToken = await this.dbServices.deviceToken.findOneAndUpdate({ token: fcmToken, userId }, { isActive: false });
-          if (!deviceToken) {
-            throw new NotFoundException('Device token not found');
-          }
-          return deviceToken as IDeviceRegistrationResponse;
-        } catch (error) {
-          this.Logger.error(`Error deactivating device token ${fcmToken}:`, error);
-          throw error;
-        }
+
+  /* Deactivate device token */
+  async deactivateDeviceToken(userId: string, fcmToken: string): Promise<IDeviceRegistrationResponse> {
+    try {
+      const deviceToken = await this.dbServices.deviceToken.findOneAndUpdate({ token: fcmToken, userId }, { isActive: false });
+      if (!deviceToken) {
+        throw new NotFoundException('Device token not found');
       }
+      return deviceToken as IDeviceRegistrationResponse;
+    } catch (error) {
+      this.Logger.error(`Error deactivating device token ${fcmToken}:`, error);
+      throw error;
+    }
+  }
 
-
-    //   notification service layer below
-     /* Create notification history record and send Firebase notification */
+  //   notification service layer below
+  /* Create notification history record and send Firebase notification */
   async createNotificationRecord(createNotificationHistoryDto: CreateNotificationHistoryDto) {
     try {
       // Log notification creation for the provided userId
@@ -247,7 +253,7 @@ export class NotificationService{
   }
 
   /* Send notification to user's devices */
-  private async sendNotificationToUser(notificationRecord:any) {
+  private async sendNotificationToUser(notificationRecord: any) {
     try {
       const userId = notificationRecord.userId;
       this.Logger.log(`Looking up device tokens for user: ${userId}`);
@@ -263,10 +269,10 @@ export class NotificationService{
         return;
       }
       this.Logger.log(`Found ${deviceTokens.length} active device tokens for user: ${userId}`);
-      
+
       // Generate full CloudFront URL for the image
       const fullImageUrl = this.generateImageUrl(notificationRecord.imageUrl);
-      
+
       // Prepare notification data
       const notificationData = {
         title: notificationRecord.title,
@@ -392,6 +398,57 @@ export class NotificationService{
       return { unReadCount: count };
     } catch (error) {
       this.Logger.error('Error getting count of notifications by userId:', error);
+      throw error;
+    }
+  }
+
+  /* Send bulk notifications to multiple tokens */
+  async sendBulkNotification(bulkDto: CreateBulkNotificationDto) {
+    try {
+      this.Logger.log(`Bulk notification request. userIds=${bulkDto.userIds?.length || 0}, tokens=${bulkDto.tokens?.length || 0}`);
+
+      let finalTokens: string[] = bulkDto.tokens || [];
+
+      // 1. If userIds are provided, fetch their active tokens
+      if (bulkDto.userIds && bulkDto.userIds.length > 0) {
+        const userTokens = await this.dbServices.deviceToken.find({
+          userId: { $in: bulkDto.userIds },
+          isActive: true
+        });
+
+        const extractedTokens = userTokens.map(t => t.token);
+        finalTokens = [...new Set([...finalTokens, ...extractedTokens])];
+      }
+
+      if (finalTokens.length === 0) {
+        this.Logger.warn('No tokens found for bulk notification');
+        return { successCount: 0, failureCount: 0 };
+      }
+
+      this.Logger.log(`Sending bulk notification to ${finalTokens.length} unique devices`);
+
+      // Generate full CloudFront URL for the image
+      const fullImageUrl = this.generateImageUrl(bulkDto.imageUrl);
+
+      // Prepare notification content
+      const notificationContent = {
+        title: bulkDto.title,
+        body: bulkDto.body,
+        imageUrl: fullImageUrl,
+        clickAction: bulkDto.clickAction,
+      };
+
+      // Send notifications via Firebase service
+      const result = await this.firebaseService.sendToDevices(
+        finalTokens,
+        notificationContent,
+        bulkDto.data
+      );
+
+      this.Logger.log(`Bulk notification sent. Success: ${result.successCount}, Failure: ${result.failureCount}`);
+      return result;
+    } catch (error) {
+      this.Logger.error('Error sending bulk notification:', error);
       throw error;
     }
   }

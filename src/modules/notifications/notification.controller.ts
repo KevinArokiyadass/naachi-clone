@@ -17,32 +17,33 @@ import { NotificationStatus } from "src/common/enums/notification.enum";
 import { CreateNotificationHistoryDto } from "./dto/create-notification.dto";
 import { FetchDto } from 'src/common/shared/pagination/dto/fetch.dto';
 import { toStringArray } from "src/common/utils/string-array.util";
-import {PaginationService } from "src/common/shared/pagination/pagination.service";
+import { PaginationService } from "src/common/shared/pagination/pagination.service";
+import { CreateBulkNotificationDto } from "./dto/create-bulk-notification.dto";
 
 
 @Controller("notifications")
 @ApiTags('user-notifications')
-export class NotificationController{
-    private readonly Logger: Logger;
+export class NotificationController {
+  private readonly Logger: Logger;
 
-    constructor(
-      private readonly notificationService: NotificationService,
-      private readonly paginationService: PaginationService
-    ) {
-      this.Logger = new Logger(NotificationController.name);
-    }
+  constructor(
+    private readonly notificationService: NotificationService,
+    private readonly paginationService: PaginationService
+  ) {
+    this.Logger = new Logger(NotificationController.name);
+  }
 
-    @Post('device-register')
-    async registerDeviceToken(@Body() registerDto: RegisterDeviceTokenDto): Promise<IDeviceRegistrationResponse>{
-      this.Logger.log(`Registering device token for ${registerDto.deviceType} device`);
-      return this.notificationService.registerDeviceToken(registerDto);
-    }
+  @Post('device-register')
+  async registerDeviceToken(@Body() registerDto: RegisterDeviceTokenDto): Promise<IDeviceRegistrationResponse> {
+    this.Logger.log(`Registering device token for ${registerDto.deviceType} device`);
+    return this.notificationService.registerDeviceToken(registerDto);
+  }
 
-    @Patch('device-update')
-    async updateDeviceToken(@Body() updateDto: UpdateDeviceTokenDto): Promise<IDeviceRegistrationResponse> {
-      this.Logger.log(`Updating device token: ${updateDto.token}`);
-      return this.notificationService.updateDeviceToken(updateDto);
-    }
+  @Patch('device-update')
+  async updateDeviceToken(@Body() updateDto: UpdateDeviceTokenDto): Promise<IDeviceRegistrationResponse> {
+    this.Logger.log(`Updating device token: ${updateDto.token}`);
+    return this.notificationService.updateDeviceToken(updateDto);
+  }
 
   @Get('device')
   async getAllDevices(@Query() query: FetchDto) {
@@ -79,62 +80,71 @@ export class NotificationController{
     return this.notificationService.getAllDevices(skip, limit, nonPaginated, filters);
   }
 
-   @Delete('device/token/:userId')
-   async deactivateDeviceToken(@Param('userId') userId: string, @Query('fcmToken') fcmToken: string): Promise<IDeviceRegistrationResponse> {
-     this.Logger.log(`Deactivating device token: ${fcmToken}`);
-     return this.notificationService.deactivateDeviceToken(userId, fcmToken);
-   }
+  @Delete('device/token/:userId')
+  async deactivateDeviceToken(@Param('userId') userId: string, @Query('fcmToken') fcmToken: string): Promise<IDeviceRegistrationResponse> {
+    this.Logger.log(`Deactivating device token: ${fcmToken}`);
+    return this.notificationService.deactivateDeviceToken(userId, fcmToken);
+  }
 
-   @Post()
-   async createNotification(@Body() createNotificationHistoryDto: CreateNotificationHistoryDto): Promise<any> {
-     this.Logger.log('Creating notification and sending to user devices');
-     return this.notificationService.createNotificationRecord(createNotificationHistoryDto);
-   }
- 
+  @Post()
+  async createNotification(@Body() createNotificationHistoryDto: CreateNotificationHistoryDto): Promise<any> {
+    this.Logger.log('Creating notification and sending to user devices');
+    return this.notificationService.createNotificationRecord(createNotificationHistoryDto);
+  }
 
-   @Get()
-   @HttpCode(HttpStatus.OK)
-   @ApiOperation({ summary: 'Get notification history with filters and pagination' })
-   @ApiQuery({ name: 'notificationId', required: false, description: 'Filter by notification ID' })
-   @ApiQuery({ name: 'userId', required: false, description: 'Filter by user ID' })
-   @ApiQuery({ name: 'status', required: false, description: 'Filter by notification status' })
-   @ApiQuery({ name: 'limit', required: false, description: 'Number of records to return', type: Number })
-   @ApiQuery({ name: 'skip', required: false, description: 'Number of records to skip', type: Number })
-   @ApiResponse({ status: 200, description: 'Notification history retrieved successfully' })
-   async getNotificationHistory(@Query() queryDto: FetchDto) {
-     this.Logger.log('Getting notification history');
- 
-     const { skip, limit, nonPaginated, status, userId } = queryDto;
- 
-     let filter: any = {};
- 
-     if (userId) {
-       const arrayuserIds = toStringArray(userId);
-       filter.userId = { $in: arrayuserIds };
-     }
- 
-     if (status) {
-       filter.status = status;
-     }
- 
-     return this.notificationService.getNotificationHistory(skip, limit, filter, nonPaginated);
-   }
- 
-   @Get(':notificationId')
-   async getNotificationHistoryWithId(@Param('notificationId') notificationId: string) {
-     this.Logger.log('Getting notification history with id');
-     return this.notificationService.getNotificationHistoryWithId(notificationId);
-   }
- 
-   @Put(':notificationId/status')
-   async updateNotificationStatus(@Param('notificationId') notificationId: string, @Body('status') status: NotificationStatus) {
-     this.Logger.log('Updating notification status');
-     return this.notificationService.updateNotificationStatus(notificationId, status);
-   }
- 
-   @Get('count/:userId')
-   async getCountOfNotificationsByUserId(@Param('userId') userId: string) {
-     this.Logger.log('Getting count of notifications by userId');
-     return this.notificationService.getCountOfNotificationsByUserId(userId);
-   }
+  @Post('bulk')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send bulk notifications to multiple device tokens' })
+  @ApiResponse({ status: 200, description: 'Bulk notifications processed' })
+  async sendBulkNotification(@Body() bulkDto: CreateBulkNotificationDto) {
+    this.Logger.log(`Sending bulk notification to ${bulkDto.tokens.length} tokens`);
+    return this.notificationService.sendBulkNotification(bulkDto);
+  }
+
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get notification history with filters and pagination' })
+  @ApiQuery({ name: 'notificationId', required: false, description: 'Filter by notification ID' })
+  @ApiQuery({ name: 'userId', required: false, description: 'Filter by user ID' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by notification status' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Number of records to return', type: Number })
+  @ApiQuery({ name: 'skip', required: false, description: 'Number of records to skip', type: Number })
+  @ApiResponse({ status: 200, description: 'Notification history retrieved successfully' })
+  async getNotificationHistory(@Query() queryDto: FetchDto) {
+    this.Logger.log('Getting notification history');
+
+    const { skip, limit, nonPaginated, status, userId } = queryDto;
+
+    let filter: any = {};
+
+    if (userId) {
+      const arrayuserIds = toStringArray(userId);
+      filter.userId = { $in: arrayuserIds };
+    }
+
+    if (status) {
+      filter.status = status;
+    }
+
+    return this.notificationService.getNotificationHistory(skip, limit, filter, nonPaginated);
+  }
+
+  @Get(':notificationId')
+  async getNotificationHistoryWithId(@Param('notificationId') notificationId: string) {
+    this.Logger.log('Getting notification history with id');
+    return this.notificationService.getNotificationHistoryWithId(notificationId);
+  }
+
+  @Put(':notificationId/status')
+  async updateNotificationStatus(@Param('notificationId') notificationId: string, @Body('status') status: NotificationStatus) {
+    this.Logger.log('Updating notification status');
+    return this.notificationService.updateNotificationStatus(notificationId, status);
+  }
+
+  @Get('count/:userId')
+  async getCountOfNotificationsByUserId(@Param('userId') userId: string) {
+    this.Logger.log('Getting count of notifications by userId');
+    return this.notificationService.getCountOfNotificationsByUserId(userId);
+  }
 }
