@@ -301,7 +301,8 @@ export class AdminUserService {
         const permissionGroupsResult = await this.recordService.findAll('permissiongroups', {
           filters: {
             permissionGroupsId: { $in: permissionGroupIds },
-            isDeleted: false
+            isDeleted: false,
+            status: 'active'
           },
           nonPaginated: true
         });
