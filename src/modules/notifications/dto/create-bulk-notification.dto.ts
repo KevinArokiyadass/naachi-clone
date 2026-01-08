@@ -11,6 +11,11 @@ export class CreateBulkNotificationDto {
     @IsString({ each: true })
     userIds?: string[];
 
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    deviceIds?: string[];
+
     @IsString()
     title: string;
 

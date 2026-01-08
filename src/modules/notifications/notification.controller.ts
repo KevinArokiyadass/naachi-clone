@@ -97,7 +97,7 @@ export class NotificationController {
   @ApiOperation({ summary: 'Send bulk notifications to multiple device tokens' })
   @ApiResponse({ status: 200, description: 'Bulk notifications processed' })
   async sendBulkNotification(@Body() bulkDto: CreateBulkNotificationDto) {
-    this.Logger.log(`Sending bulk notification to ${bulkDto.tokens.length} tokens`);
+    this.Logger.log(`Sending bulk notification. userIds=${bulkDto.userIds?.length || 0}, tokens=${bulkDto.tokens?.length || 0}`);
     return this.notificationService.sendBulkNotification(bulkDto);
   }
 
