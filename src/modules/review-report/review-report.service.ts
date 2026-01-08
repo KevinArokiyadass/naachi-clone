@@ -8,7 +8,7 @@ import { generateUniqueId } from 'src/common/utils/util';
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
 import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
 import { Users } from 'src/modules/users/entity/users.entity';
-
+import { accountStatus } from 'src/common/enums/user.enum';
 @Injectable()
 export class ReviewReportService {
 
@@ -231,8 +231,7 @@ export class ReviewReportService {
         .findOneAndUpdate(
           { userId: updated.reportedUserId },
           {
-            isActive: false,
-            status: 'inactive', 
+            status: accountStatus.BLOCKED,
           },
           { new: true }
         )
