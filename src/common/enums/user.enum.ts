@@ -39,7 +39,8 @@ export enum accountStatus
   PENDING = 'PENDING',
   BLOCKED = 'BLOCKED',
   APPROVED =  'APPROVED',
-  LEGITIMATE = 'LEGITIMATE'
+  LEGITIMATE = 'LEGITIMATE',
+  COMPLETED = 'COMPLETED'
 }
 
 export enum ReferrerMedium {

@@ -8,7 +8,7 @@ import { generateUniqueId } from 'src/common/utils/util';
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
 import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
 import { Users } from 'src/modules/users/entity/users.entity';
-
+import { accountStatus } from 'src/common/enums/user.enum';
 @Injectable()
 export class ReviewReportService {
 
@@ -105,7 +105,7 @@ export class ReviewReportService {
     return result;
   }
 
-  async findOne(reviewId: string): Promise<ReviewReport> {
+  async findOne(reviewId: string): Promise<any> {
     const report = await this.reportModel.aggregate([
       { $match: { reviewId } },
   
@@ -117,7 +117,7 @@ export class ReviewReportService {
           as: 'reporter',
         },
       },
-      { $unwind: '$reporter' },
+      { $unwind: { path: '$reporter', preserveNullAndEmptyArrays: true } },
   
       {
         $lookup: {
@@ -127,8 +127,7 @@ export class ReviewReportService {
           as: 'reportedUser',
         },
       },
-      { $unwind: '$reportedUser' },
-
+      { $unwind: { path: '$reportedUser', preserveNullAndEmptyArrays: true } }, 
       // Unwind evidenceMessages to lookup each message
       { $unwind: { path: '$evidenceMessages', preserveNullAndEmptyArrays: true } },
 
@@ -159,12 +158,8 @@ export class ReviewReportService {
           status: { $first: '$status' },
           createdAt: { $first: '$createdAt' },
           updatedAt: { $first: '$updatedAt' },
-          reporterId: { $first: '$reporter.userId' },
-          reporterUsername: { $first: '$reporter.userName' },
-          reporterName: { $first: '$reporter.Name' },
-          reportedUserId: { $first: '$reportedUser.userId' },
-          reportedUsername: { $first: '$reportedUser.userName' },
-          reportedName: { $first: '$reportedUser.Name' },
+          reporter: { $first: '$reporter' },
+          reportedUser: { $first: '$reportedUser' },
           evidenceMessages: {
             $push: {
               messageId: '$evidenceMessages.messageId',
@@ -185,12 +180,8 @@ export class ReviewReportService {
           evidenceMessages: 1,
           createdAt: 1,
           updatedAt: 1,
-          reporterId: 1,
-          reporterUsername: 1,
-          reporterName: 1,
-          reportedUserId: 1,
-          reportedUsername: 1,
-          reportedName: 1,
+          reporter: 1,
+          reportedUser: 1,      
         },
       },
       { $sort: { createdAt: -1 } },
@@ -230,6 +221,21 @@ export class ReviewReportService {
 
     if (!updated) {
       throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
+    }
+  
+    if (
+      status.toLowerCase() === 'resolved' &&
+      updated.reportedUserId
+    ) {
+      await this.usersModel
+        .findOneAndUpdate(
+          { userId: updated.reportedUserId },
+          {
+            status: accountStatus.BLOCKED,
+          },
+          { new: true }
+        )
+        .exec();
     }
 
     return updated;
