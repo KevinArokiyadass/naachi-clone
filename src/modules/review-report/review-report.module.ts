@@ -6,10 +6,12 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { UsersModule } from 'src/modules/users/users.module';
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
 import { Users, UsersSchema } from 'src/modules/users/entity/users.entity';
+import { HttpClientModule } from 'src/common/inter-service-communication/http-client.module';
 
 @Module({
   imports: [
     UsersModule,
+    HttpClientModule,
     MongooseModule.forFeature([
       {
         name: ReviewReport.name,
@@ -25,4 +27,4 @@ import { Users, UsersSchema } from 'src/modules/users/entity/users.entity';
   providers: [ReviewReportService, PaginationService],
   exports: [ReviewReportService, MongooseModule],
 })
-export class ReviewReportModule {}
+export class ReviewReportModule { }
