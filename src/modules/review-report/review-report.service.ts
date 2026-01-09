@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateReviewReportDto } from './dto/create-review-report.dto';
@@ -9,6 +9,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
 import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
 import { Users } from 'src/modules/users/entity/users.entity';
 import { accountStatus } from 'src/common/enums/user.enum';
+import { HttpClientService } from 'src/common/inter-service-communication/http-client.service';
 @Injectable()
 export class ReviewReportService {
 
@@ -18,9 +19,72 @@ export class ReviewReportService {
     @InjectModel(Users.name)
     private readonly usersModel: Model<Users>,
     private readonly paginationService: PaginationService,
-  ) {}
+    private readonly httpClientService: HttpClientService,
+  ) { }
+
+  private async validateConnection(reporterId: string, reportedUserId: string): Promise<string> {
+    try {
+      const response: any = await this.httpClientService.get(
+        'NAACHI_CHAT_URL',
+        '/connection',
+        { ownerId: reporterId, skip: 0, limit: 10 }
+      );
+
+      if (!response?.result?.items || response.result.items.length === 0) {
+        throw new BadRequestException(
+          `No connection found for reporter ${reporterId}`
+        );
+      }
+
+      const connection = response.result.items.find(
+        (conn: any) => conn.peerId === reportedUserId
+      );
+
+      if (!connection) {
+        throw new BadRequestException(
+          `No connection found between reporter ${reporterId} and reported user ${reportedUserId}`
+        );
+      }
+
+      return connection.connectionId;
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException(
+        `Failed to validate connection: ${error.message}`
+      );
+    }
+  }
+
+  private async blockUserConnection(connectionId: string, ownerId: string): Promise<any> {
+    try {
+      const response = await this.httpClientService.patch(
+        'NAACHI_CHAT_URL',
+        `/connection/${connectionId}`,
+        {
+          ownerId,
+          isBlocked: true,
+          blockReason: 'Spam'
+        }
+      );
+
+      return response;
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to block connection: ${error.message}`
+      );
+    }
+  }
 
   async create(dto: CreateReviewReportDto): Promise<ReviewReport> {
+    const connectionId = await this.validateConnection(
+      dto.reporterId,
+      dto.reportedUserId
+    );
+
+    await this.blockUserConnection(connectionId, dto.reporterId);
+
     const evidenceMessages =
       dto.evidenceMessages?.map((msg) => ({
         messageId: msg.messageId,
@@ -108,7 +172,7 @@ export class ReviewReportService {
   async findOne(reviewId: string): Promise<any> {
     const report = await this.reportModel.aggregate([
       { $match: { reviewId } },
-  
+
       {
         $lookup: {
           from: 'users',
@@ -118,7 +182,7 @@ export class ReviewReportService {
         },
       },
       { $unwind: { path: '$reporter', preserveNullAndEmptyArrays: true } },
-  
+
       {
         $lookup: {
           from: 'users',
@@ -127,7 +191,7 @@ export class ReviewReportService {
           as: 'reportedUser',
         },
       },
-      { $unwind: { path: '$reportedUser', preserveNullAndEmptyArrays: true } }, 
+      { $unwind: { path: '$reportedUser', preserveNullAndEmptyArrays: true } },
       // Unwind evidenceMessages to lookup each message
       { $unwind: { path: '$evidenceMessages', preserveNullAndEmptyArrays: true } },
 
@@ -181,19 +245,19 @@ export class ReviewReportService {
           createdAt: 1,
           updatedAt: 1,
           reporter: 1,
-          reportedUser: 1,      
+          reportedUser: 1,
         },
       },
       { $sort: { createdAt: -1 } },
     ]);
-  
+
     if (!report || report.length === 0) {
       throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
     }
-  
+
     return report[0];
   }
-  
+
   async update(reviewId: string, dto: UpdateReviewReportDto): Promise<ReviewReport> {
     if (dto.evidenceMessages) {
       dto.evidenceMessages = dto.evidenceMessages.map((msg) => ({
@@ -222,7 +286,7 @@ export class ReviewReportService {
     if (!updated) {
       throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
     }
-  
+
     if (
       status.toLowerCase() === 'resolved' &&
       updated.reportedUserId
