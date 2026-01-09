@@ -46,8 +46,7 @@ export class PermissionGroupService {
   ): Promise<IPaginatedResult<any> & { skip: number; limit: number }> {
     let filters: Record<string, any> = {
       institutionsId: institutionsId,
-      isDeleted: false,
-      isActive:true
+      isDeleted: false
     };
 
     if(!institutionsId) {
