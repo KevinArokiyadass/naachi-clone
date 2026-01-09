@@ -45,14 +45,6 @@ export class PermissionService {
     const incomingCode = data.code ?? existingPermission.code;
   
    
-    if (
-      incomingName === existingPermission.name &&
-      incomingCode === existingPermission.code
-    ) {
-      throw new BadRequestException(
-        'Permission already exists with same name and code',
-      );
-    }
     if (data?.name || data?.code) {
       await this.checkDuplicatePermission(
         {
@@ -189,7 +181,7 @@ export class PermissionService {
     }
   }
 
-  private async checkDuplicatePermission(
+  public async checkDuplicatePermission(
     data: { name: string; code: string },
     institutionsId?: string,
     excludeId?: string,
@@ -214,8 +206,8 @@ export class PermissionService {
       filters.institutionsId = institutionsId;
     }
   
-    if (excludeId) {
-      filters._id = { $ne: excludeId };
+    if (excludeId) { 
+    filters.permissionsId = { $ne: excludeId };
     }
   
     const existing = await this.recordService.findAll('permissions', {
@@ -225,14 +217,10 @@ export class PermissionService {
   
     if (existing?.items?.length > 0) {
       const duplicate = existing.items[0];
-      if (duplicate.name === data.name) {
-        throw new BadRequestException('Permission name already exists');
+      if (duplicate.name === data.name && duplicate.code === data.code){
+        throw new BadRequestException('Permission name and code already exists');
       }
-      if (duplicate.code === data.code) {
-        throw new BadRequestException('Permission code already exists');
-      }
-      throw new BadRequestException('Permission already exists');
-    }
+        }
   }
   
 }

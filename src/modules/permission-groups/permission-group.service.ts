@@ -47,6 +47,7 @@ export class PermissionGroupService {
     let filters: Record<string, any> = {
       institutionsId: institutionsId,
       isDeleted: false,
+      isActive:true
     };
 
     if(!institutionsId) {
