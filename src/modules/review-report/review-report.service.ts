@@ -39,8 +39,20 @@ export class ReviewReportService {
     skip: number = 0,
     limit: number = 10,
     filter: Record<string, any> = {},
-    nonPaginated: boolean = false
+    nonPaginated: boolean = false,
+    institutionsId?: string
   ): Promise<IPaginatedResult<any>> {
+    if (institutionsId) {
+      const userIdsInInstitution = await this.usersModel.find(
+        { institutionsId },
+        { userId: 1, _id: 0 }
+      ).lean().exec();
+
+      const userIds = userIdsInInstitution.map(u => u.userId);
+      filter.reporterId = { $in: userIds };
+      filter.reportedUserId = { $in: userIds };
+    }
+
     const result = await this.paginationService.findAndPaginate(
       this.reportModel,
       {
@@ -84,7 +96,7 @@ export class ReviewReportService {
           reasonText: report.reasonText,
           conversationId: report.conversationId,
           status: report.status,
-          evidenceMessages: report.evidenceMessages,
+          evidenceMessages: report.evidenceMessages?.slice(-5),
           createdAt: report.createdAt,
           updatedAt: report.updatedAt,
           reporterId: reporter?.userId || reporterId,
@@ -177,7 +189,7 @@ export class ReviewReportService {
           reasonText: 1,
           conversationId: 1,
           status: 1,
-          evidenceMessages: 1,
+          evidenceMessages: { $slice: ['$evidenceMessages', -5] },
           createdAt: 1,
           updatedAt: 1,
           reporter: 1,
