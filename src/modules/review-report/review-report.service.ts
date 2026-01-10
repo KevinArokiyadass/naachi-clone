@@ -25,18 +25,28 @@ export class ReviewReportService {
   private async validateConnection(reporterId: string, reportedUserId: string): Promise<string> {
     try {
       const response: any = await this.httpClientService.get(
-        'NAACHI_CHAT_URL',
+        'NAACHI_CHAT',
         '/connection',
         { ownerId: reporterId, skip: 0, limit: 10 }
       );
 
-      if (!response?.result?.items || response.result.items.length === 0) {
+      console.log('Chat service response:', JSON.stringify(response, null, 2));
+
+      // Handle different response structures
+      const items = response?.items || response?.result?.items;
+
+      if (!items || items.length === 0) {
+        console.log('No items found in response. Response structure:', {
+          hasItems: !!response?.items,
+          hasResultItems: !!response?.result?.items,
+          responseKeys: response ? Object.keys(response) : []
+        });
         throw new BadRequestException(
           `No connection found for reporter ${reporterId}`
         );
       }
 
-      const connection = response.result.items.find(
+      const connection = items.find(
         (conn: any) => conn.peerId === reportedUserId
       );
 
@@ -60,7 +70,7 @@ export class ReviewReportService {
   private async blockUserConnection(connectionId: string, ownerId: string): Promise<any> {
     try {
       const response = await this.httpClientService.patch(
-        'NAACHI_CHAT_URL',
+        'NAACHI_CHAT',
         `/connection/${connectionId}`,
         {
           ownerId,
