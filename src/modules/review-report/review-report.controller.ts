@@ -17,7 +17,7 @@ export class ReviewReportController {
 
   @Get()
   findAll(@Query() query: FetchDto): Promise<IPaginatedResult<any>> {
-    const { skip, limit, nonPaginated, search } = query;
+    const { skip, limit, nonPaginated, search, institutionsId } = query;
     const filter: Record<string, any> = {};
 
     if (search) {
@@ -29,7 +29,7 @@ export class ReviewReportController {
       ];
     }
 
-    return this.service.findAll(skip, limit, filter, nonPaginated);
+    return this.service.findAll(skip, limit, filter, nonPaginated, institutionsId);
   }
 
   @Get(':reviewId')
