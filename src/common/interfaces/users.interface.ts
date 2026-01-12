@@ -28,6 +28,7 @@ export interface IUsers {
     mutualfriendReferral?: boolean;
     profileImage?: string;
     profileImageUpdatedAt?: Date;
+    customLogin?: boolean;
     createdAt?: Date;
     updatedAt?: Date;
 }

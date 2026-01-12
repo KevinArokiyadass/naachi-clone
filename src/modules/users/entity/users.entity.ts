@@ -110,6 +110,9 @@ export class Users extends Document {
 
     @Prop({ type: Date, required: false })
     profileImageUpdatedAt?: Date;
+
+    @Prop({ type: Boolean, default: false })
+    customLogin: boolean;
 }
 
 export const UsersSchema = SchemaFactory.createForClass(Users);
