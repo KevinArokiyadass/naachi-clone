@@ -91,6 +91,32 @@ export class UsersAuthService {
     try {
       await this.signUpUserInCognito(dto.phoneNumber, userPayload.userId);
     } catch (error) {
+      if (error.name === 'UsernameExistsException') {
+        const syncUserPayload: IUsers = {
+          userId: generateUniqueId(),
+          phoneNumber: dto.phoneNumber,
+          customLogin: true,
+          status: accountStatus.COMPLETED,
+          isActive: true,
+          isVerified: true,
+          phoneVerified: true,
+          userNameSet: false,
+          emailVerified: false,
+          isDeleted: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        const otpResponse = await this.generateOtp(dto.phoneNumber);
+        await this.dbService.users.create(syncUserPayload);
+
+        return {
+          message: 'User synchronized and OTP sent to phone number',
+          challengeName: otpResponse.ChallengeName,
+          session: otpResponse.Session,
+          userId: syncUserPayload.userId,
+        };
+      }
       this.handleCognitoSignupError(error);
     }
 
