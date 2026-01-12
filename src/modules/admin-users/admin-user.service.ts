@@ -10,6 +10,7 @@ import { FilterQuery } from 'mongoose';
 import { RecordService } from '@noukha-technologies/mdm-core';
 import { AwsStoreService } from '../aws-store/aws-store.service';
 import { generateUniqueUserNameFromEmail } from 'src/common/utils/util';
+import { MetaTagDto } from './dto/create-admin-with-password.dto';
 
 
 @Injectable()
@@ -27,22 +28,31 @@ export class AdminUserService {
     if (existingAdmin) {
       throw new BadRequestException('Admin with this email already exists');
     }
-   // phone number duplicate check
+
+    let isVerifiedAdmin = false;
+    const institutionsId = createAdminDto.metaTags?.[0]?.institutionsId;
+    if (institutionsId) {
+      const institution = await this.recordService.findOne('institutions', institutionsId);
+      if (!institution) {
+        throw new BadRequestException('Institution not found');
+      }
+      isVerifiedAdmin = true;
+    }
+
     const phoneNumber = createAdminDto.phoneNumber?.trim();
     if (phoneNumber) {
       const existingPhone = await this.dbServices.adminUser.findOne({
         phoneNumber,
         isDeleted: { $ne: true },
       });
-  
+
       if (existingPhone) {
-        throw new BadRequestException(
-          'Admin with this phone number already exists'
-        );
+        throw new BadRequestException('Admin with this phone number already exists');
       }
     }
+
     if (!createAdminDto.role) {
-      throw new BadRequestException("Role is required");
+      throw new BadRequestException('Role is required');
     }
 
     const userName = createAdminDto.userName?.trim() || await generateUniqueUserNameFromEmail(createAdminDto.email, this.dbServices);
@@ -53,6 +63,7 @@ export class AdminUserService {
       userName: userName,
       password: password,
       status: createAdminDto.status ?? 'active',
+      isVerifiedAdmin,
     });
 
 
@@ -62,17 +73,19 @@ export class AdminUserService {
         createAdminDto.email,
         password,
         createAdminDto.name,
-        createAdminDto.phoneNumber
+        createAdminDto.phoneNumber,
       );
       return {
         adminUser: this.attachProfileImageUrl(created),
         message: 'Admin user created successfully and ready to login.',
-        requiresVerification: false
+        requiresVerification: false,
       };
     } catch (cognitoError) {
       try {
         await this.dbServices.adminUser.findOneAndDelete({ adminId: created.adminId });
-      } catch (_) { }
+      } catch (_) {
+        // Ignore deletion errors during rollback
+      }
       throw new BadRequestException(`Failed to create admin user in Cognito: ${cognitoError.message}`);
     }
   }
@@ -90,8 +103,8 @@ export class AdminUserService {
       filter,
       nonPaginated
     });
-    
-  
+
+
     if (users.items && users.items.length > 0) {
       const enrichedUsers = await Promise.all(
         users.items.map(async (user: IAdminUser) => {
@@ -108,7 +121,7 @@ export class AdminUserService {
         items: enrichedUsers
       };
     }
-    
+
     return users;
   }
 
@@ -117,7 +130,7 @@ export class AdminUserService {
     if (!adminUser) {
       throw new NotFoundException('Admin user not found');
     }
-    
+
     const permissions = await this.fetchPermissionsForUser(adminUser.permissionGroupsId);
     const userWithPermissions = {
       ...adminUser,
@@ -129,79 +142,76 @@ export class AdminUserService {
 
   async update(adminId: string, updateAdminUserDto: UpdateAdminUserDto) {
     try {
-      const adminUser = await this.dbServices.adminUser.findOne({ adminId, isDeleted: { $ne: true }});
+      const adminUser = await this.dbServices.adminUser.findOne({ adminId, isDeleted: { $ne: true } });
       if (!adminUser) {
         throw new NotFoundException(`AdminUser with adminId ${adminId} not found`);
       }
 
       const updatePayload: Record<string, any> = { ...updateAdminUserDto };
 
-   //EMAIL DUPLICATE VALIDATION
-     const incomingEmail = updateAdminUserDto.email?.trim().toLowerCase();
+      const incomingEmail = updateAdminUserDto.email?.trim().toLowerCase();
 
-    if ( incomingEmail && incomingEmail !== adminUser.email ) {
-    const duplicateEmail = await this.dbServices.adminUser.findOne({
-    email: incomingEmail,
-    adminId: { $ne: adminId },
-    isDeleted: { $ne: true },
-    });
+      if (incomingEmail && incomingEmail !== adminUser.email) {
+        const duplicateEmail = await this.dbServices.adminUser.findOne({
+          email: incomingEmail,
+          adminId: { $ne: adminId },
+          isDeleted: { $ne: true },
+        });
 
-    if (duplicateEmail) {
-    throw new BadRequestException(
-      'Email already exists. Please use another email address.'
-    );
-    }
+        if (duplicateEmail) {
+          throw new BadRequestException(
+            'Email already exists. Please use another email address.'
+          );
+        }
 
-    updatePayload.email = incomingEmail;
-  }
-
-  // USERNAME DUPLICATE VALIDATION
-
-    const incomingUserName = updateAdminUserDto.userName?.trim();
-  
-    if (
-      incomingUserName &&
-      incomingUserName !== adminUser.userName
-    ) {
-      const duplicateUserName = await this.dbServices.adminUser.findOne({
-        userName: incomingUserName,
-        adminId: { $ne: adminId }, // exclude current admin
-        isDeleted: { $ne: true },
-      });
-  
-      if (duplicateUserName) {
-        throw new BadRequestException(
-          'Username already exists. Please choose another username.'
-        );
+        updatePayload.email = incomingEmail;
       }
-  
-      updatePayload.userName = incomingUserName;
-    }
-  
-    
-    //   PHONE NUMBER DUPLICATE VALIDATION
-     
-    const incomingPhoneNumber = updateAdminUserDto.phoneNumber?.trim();
-  
-    if (
-      incomingPhoneNumber &&
-      incomingPhoneNumber !== adminUser.phoneNumber
-    ) {
-      const duplicatePhone = await this.dbServices.adminUser.findOne({
-        phoneNumber: incomingPhoneNumber,
-        adminId: { $ne: adminId }, // exclude current admin
-        isDeleted: { $ne: true },
-      });
-  
-      if (duplicatePhone) {
-        throw new BadRequestException(
-          'Phone number already exists. Please use another phone number.'
-        );
+
+      const incomingUserName = updateAdminUserDto.userName?.trim();
+
+      if (
+        incomingUserName &&
+        incomingUserName !== adminUser.userName
+      ) {
+        const duplicateUserName = await this.dbServices.adminUser.findOne({
+          userName: incomingUserName,
+          adminId: { $ne: adminId }, // exclude current admin
+          isDeleted: { $ne: true },
+        });
+
+        if (duplicateUserName) {
+          throw new BadRequestException(
+            'Username already exists. Please choose another username.'
+          );
+        }
+
+        updatePayload.userName = incomingUserName;
       }
-  
-      updatePayload.phoneNumber = incomingPhoneNumber;
-    }
-      
+
+
+      //   PHONE NUMBER DUPLICATE VALIDATION
+
+      const incomingPhoneNumber = updateAdminUserDto.phoneNumber?.trim();
+
+      if (
+        incomingPhoneNumber &&
+        incomingPhoneNumber !== adminUser.phoneNumber
+      ) {
+        const duplicatePhone = await this.dbServices.adminUser.findOne({
+          phoneNumber: incomingPhoneNumber,
+          adminId: { $ne: adminId }, // exclude current admin
+          isDeleted: { $ne: true },
+        });
+
+        if (duplicatePhone) {
+          throw new BadRequestException(
+            'Phone number already exists. Please use another phone number.'
+          );
+        }
+
+        updatePayload.phoneNumber = incomingPhoneNumber;
+      }
+
       // Transform s3FileName to s3ProfileImageName for storage
       if (updateAdminUserDto.s3FileName !== undefined) {
         updatePayload.s3ProfileImageName = updateAdminUserDto.s3FileName;
@@ -296,7 +306,7 @@ export class AdminUserService {
     try {
       // Fetch all permission groups in a single optimized query
       let permissionGroups: any[] = [];
-      
+
       try {
         const permissionGroupsResult = await this.recordService.findAll('permissiongroups', {
           filters: {
@@ -311,7 +321,7 @@ export class AdminUserService {
         console.error('Error fetching permission groups:', error);
         return [];
       }
-      
+
       const allPermissions: string[] = [];
       permissionGroups.forEach((group: any) => {
         if (group && group.permissionsId && Array.isArray(group.permissionsId)) {
@@ -322,7 +332,7 @@ export class AdminUserService {
       });
 
       const uniquePermissions = [...new Set(allPermissions)];
-      
+
       // If no permissions found, return empty array
       if (uniquePermissions.length === 0) {
         return [];
@@ -339,7 +349,7 @@ export class AdminUserService {
         });
 
         const permissions = permissionsResult?.items || [];
-        
+
         const permissionCodes: string[] = [];
         permissions.forEach((permission: any) => {
           if (permission && permission.code) {
@@ -362,15 +372,15 @@ export class AdminUserService {
 
   private attachProfileImageUrl(adminUser: any): any {
     if (!adminUser) return adminUser;
-    
+
     const userObj = adminUser.toObject ? adminUser.toObject() : { ...adminUser };
-    
+
     // Add s3ProfileImageUrl as a separate field with CloudFront URL
     // Keep s3ProfileImageName as the filename, add s3ProfileImageUrl with the full URL
     if (userObj.s3ProfileImageName) {
       userObj.s3ProfileImageUrl = this.awsStoreService.getCloudFrontUrl(userObj.s3ProfileImageName);
     }
-    
+
     return userObj;
   }
 
