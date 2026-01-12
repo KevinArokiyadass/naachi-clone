@@ -1,18 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import axios, { AxiosRequestConfig, AxiosError } from 'axios';
-
-interface IInterServiceRequestParams {
-  method?: 'get' | 'post' | 'put' | 'delete' | 'patch';
-  service: string;
-  requestPath: string;
-  headers?: Record<string, string>;
-  query?: Record<string, any>;
-  body?: any;
-  throwException?: boolean;
-  timeout?: number;
-  retries?: number;
-  retryDelay?: number;
-}
+import { IInterServiceRequestParams } from '../interfaces/interservice.request';
 
 function logRequest(config: AxiosRequestConfig): void {
   console.log('Starting Request', config);

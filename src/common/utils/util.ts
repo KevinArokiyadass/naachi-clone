@@ -65,30 +65,14 @@ export const generateRandomPassword = (length: number = 12): string => {
   return password.split('').sort(() => Math.random() - 0.5).join('');
 };
 
-/**
- * Hashes a password using bcrypt
- * @param password - Plain text password
- * @param saltRounds - Number of salt rounds (default: 10)
- * @returns Hashed password
- */
 export const hashPassword = async (password: string, saltRounds: number = 10): Promise<string> => {
   return bcrypt.hash(password, saltRounds);
 };
 
-/**
- * Compares a plain text password with a hashed password
- * @param password - Plain text password
- * @param hashedPassword - Hashed password
- * @returns True if passwords match, false otherwise
- */
 export const comparePassword = async (password: string, hashedPassword: string): Promise<boolean> => {
   return bcrypt.compare(password, hashedPassword);
 };
 
-/**
- * Generates a password reset token
- * @returns A secure reset token
- */
 export const generateResetToken = (): string => {
   return crypto.randomBytes(32).toString('hex');
 };
@@ -103,15 +87,14 @@ export const generateUniqueUserNameFromEmail = async (
   dbService: any,
   prefix: string = 'NA'
 ): Promise<string> => {
-  const baseName = email.split('@')[0]; // get name from email
+  const baseName = email.split('@')[0]; 
   let userName: string;
   let isUnique = false;
 
   while (!isUnique) {
-    const randomNumber = Math.floor(1000 + Math.random() * 9000); // 4-digit random number
+    const randomNumber = Math.floor(1000 + Math.random() * 9000);
     userName = `${prefix}_${baseName}${randomNumber}`;
 
-    // Check uniqueness in DB
     const existingUser = await dbService.adminUser.findOne({ userName });
     if (!existingUser) {
       isUnique = true;
