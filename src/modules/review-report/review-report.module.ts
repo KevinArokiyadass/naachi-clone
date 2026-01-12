@@ -7,11 +7,13 @@ import { UsersModule } from 'src/modules/users/users.module';
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
 import { Users, UsersSchema } from 'src/modules/users/entity/users.entity';
 import { HttpClientModule } from 'src/common/inter-service-communication/http-client.module';
+import { MongoDBServicesModule } from 'src/common/repository/mongodb-repository/repository.module';
 
 @Module({
   imports: [
     UsersModule,
     HttpClientModule,
+    MongoDBServicesModule,
     MongooseModule.forFeature([
       {
         name: ReviewReport.name,

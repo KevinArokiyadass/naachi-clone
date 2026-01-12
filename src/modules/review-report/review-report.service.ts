@@ -10,6 +10,7 @@ import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interfa
 import { Users } from 'src/modules/users/entity/users.entity';
 import { accountStatus } from 'src/common/enums/user.enum';
 import { HttpClientService } from 'src/common/inter-service-communication/http-client.service';
+import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
 @Injectable()
 export class ReviewReportService {
 
@@ -20,12 +21,13 @@ export class ReviewReportService {
     private readonly usersModel: Model<Users>,
     private readonly paginationService: PaginationService,
     private readonly httpClientService: HttpClientService,
+    private readonly dbService: IMongoDBServices,
   ) { }
 
   private async validateConnection(reporterId: string, reportedUserId: string): Promise<string> {
     try {
       const response: any = await this.httpClientService.get(
-        'NAACHI_CHAT',
+        'NAACHI_CHAT_SERVICE',
         '/connection',
         { ownerId: reporterId, skip: 0, limit: 10 }
       );
@@ -70,7 +72,7 @@ export class ReviewReportService {
   private async blockUserConnection(connectionId: string, ownerId: string): Promise<any> {
     try {
       const response = await this.httpClientService.patch(
-        'NAACHI_CHAT',
+        'NAACHI_CHAT_SERVICE',
         `/connection/${connectionId}`,
         {
           ownerId,
@@ -180,7 +182,7 @@ export class ReviewReportService {
   }
 
   async findOne(reviewId: string): Promise<any> {
-    const report = await this.reportModel.aggregate([
+    const reportArr = await this.reportModel.aggregate([
       { $match: { reviewId } },
 
       {
@@ -202,47 +204,6 @@ export class ReviewReportService {
         },
       },
       { $unwind: { path: '$reportedUser', preserveNullAndEmptyArrays: true } },
-      // Unwind evidenceMessages to lookup each message
-      { $unwind: { path: '$evidenceMessages', preserveNullAndEmptyArrays: true } },
-
-      // Lookup messages for each evidenceMessage
-      {
-        $lookup: {
-          from: 'messages',
-          localField: 'evidenceMessages.messageId',
-          foreignField: 'msgId',
-          as: 'evidenceMessages.message',
-        },
-      },
-      {
-        $unwind: {
-          path: '$evidenceMessages.message',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-
-      // Group back to reconstruct evidenceMessages array with populated messages
-      {
-        $group: {
-          _id: '$_id',
-          reviewId: { $first: '$reviewId' },
-          reasonCodeId: { $first: '$reasonCodeId' },
-          reasonText: { $first: '$reasonText' },
-          conversationId: { $first: '$conversationId' },
-          status: { $first: '$status' },
-          createdAt: { $first: '$createdAt' },
-          updatedAt: { $first: '$updatedAt' },
-          reporter: { $first: '$reporter' },
-          reportedUser: { $first: '$reportedUser' },
-          evidenceMessages: {
-            $push: {
-              messageId: '$evidenceMessages.messageId',
-              message: '$evidenceMessages.message',
-            },
-          },
-        },
-      },
-
       {
         $project: {
           _id: 0,
@@ -258,14 +219,47 @@ export class ReviewReportService {
           reportedUser: 1,
         },
       },
-      { $sort: { createdAt: -1 } },
     ]);
-
-    if (!report || report.length === 0) {
+    if (!reportArr || reportArr.length === 0) {
       throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
     }
-
-    return report[0];
+  
+    const report = reportArr[0];
+  
+    if (report.conversationId) {
+      try {
+        const messageResponse: any = await this.httpClientService.get(
+          'NAACHI_CHAT_SERVICE',
+          '/message',
+          { ticketId: report.conversationId }
+        );
+  
+        const messages =
+          messageResponse?.items ||
+          messageResponse?.result ||
+          messageResponse ||
+          [];
+  
+        if (Array.isArray(messages)) {
+          report.evidenceMessages = messages
+            .sort(
+              (a: any, b: any) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime()
+            )
+            .slice(0, 5);
+        } else {
+          report.evidenceMessages = [];
+        }
+      } catch (error) {
+        console.error(
+          `Failed to fetch evidence messages for reviewId ${reviewId}:`,
+          error.message,
+        );
+      }
+    }
+  
+    return report;
   }
 
   async update(reviewId: string, dto: UpdateReviewReportDto): Promise<ReviewReport> {
