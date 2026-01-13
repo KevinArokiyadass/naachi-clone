@@ -957,8 +957,6 @@ export class UsersAuthService {
 
     const userObj = user.toObject ? user.toObject() : { ...user };
 
-    // Transform profileImage to include CloudFront URL if filename exists
-    // Database stores only the filename, we append CloudFront URL when returning
     if (userObj.profileImage) {
       userObj.profileImage = this.awsStoreService.getCloudFrontUrl(userObj.profileImage);
     }

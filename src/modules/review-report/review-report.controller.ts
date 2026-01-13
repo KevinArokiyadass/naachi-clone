@@ -27,8 +27,7 @@ export class ReviewReportController {
       search,
     } = query;
 
-    // Use query param for superadmin (allows "all" if undefined), 
-    // but force session ID for normal institution admins.
+    
     const institutionsId = isSuperAdmin ? query.institutionsId : sessionInstitutionsId;
 
     const filter: Record<string, any> = {};
