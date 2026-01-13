@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ReviewReportService } from './review-report.service';
 import { ReviewReportController } from './review-report.controller';
 import { ReviewReport, ReviewReportSchema } from './entities/review-report.entity';
@@ -34,6 +34,7 @@ export class ReviewReportModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(ClientIdMiddleware)
+      .exclude({ path: 'review-report', method: RequestMethod.POST })
       .forRoutes(ReviewReportController);
   }
 }
