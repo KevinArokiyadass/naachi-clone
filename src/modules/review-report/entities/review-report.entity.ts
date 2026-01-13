@@ -8,12 +8,15 @@ export type Report = ReviewReport & Document;
 
 @Schema({ timestamps: true })
 
-export class ReviewReport extends Document{
+export class ReviewReport extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Users', required: true, index: true })
   reporterId: string;
 
   @Prop({ type: Types.ObjectId, ref: 'Users', required: true, index: true })
   reportedUserId: string;
+
+  @Prop({ type: String, index: true })
+  institutionsId?: string;
 
   @Prop({ type: String, ref: 'Conversation', index: true })
   conversationId?: string;
@@ -33,7 +36,7 @@ export class ReviewReport extends Document{
         content: { type: String, required: false },
         senderId: { type: String, required: false },
         createdAt: { type: String, required: false },
-        _id: false  
+        _id: false
       }
     ],
     default: []
