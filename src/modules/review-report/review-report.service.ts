@@ -147,12 +147,7 @@ export class ReviewReportService {
           error.message,
         );
       }
-    } else if (dto.evidenceMessages) {
-      evidenceMessages = dto.evidenceMessages.map((msg) => ({
-        messageId: msg.messageId || generateUniqueId(),
-      }));
-    }
-
+    } 
     const createdReport = new this.reportModel({
       ...dto,
       reviewId: generateUniqueId(),

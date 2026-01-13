@@ -29,6 +29,9 @@ export class ReviewReport extends Document {
   @Prop({ type: String, default: () => generateUniqueId(), required: true, trim: true, unique: true })
   reviewId: string;
   
+  @Prop({ type: Array, default: [] })
+  evidenceMessages?: any[];
+  
   @Prop({
     type: String,
     enum: Object.values(RecordStatus),
