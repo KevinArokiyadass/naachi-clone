@@ -139,15 +139,7 @@ export class ReviewReportService {
                 new Date(b.createdAt).getTime() -
                 new Date(a.createdAt).getTime()
             )
-            .slice(0, 5)
-            .map((msg) => ({
-              messageId: msg.msgId || msg.messageId || msg.id || generateUniqueId(),
-              content: msg.messageText || msg.content || msg.text || '',
-              senderId: msg.senderId || msg.from || '',
-              createdAt: (typeof msg.createdAt === 'object' && msg.createdAt?.['$date'])
-                ? msg.createdAt['$date']
-                : (msg.createdAt || new Date().toISOString()),
-            }));
+            .slice(0, 5);
         }
       } catch (error) {
         console.error(
