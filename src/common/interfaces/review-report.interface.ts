@@ -8,6 +8,9 @@ export interface IReviewReport {
     reviewId: string;
     evidenceMessages?: {
       messageId: string;
+      content: string;
+      senderId: string;
+      createdAt: string;
       _id?: string;
     }[];
     status: 'PENDING' | 'RESOLVED' | 'BLOCKED'; 

@@ -30,12 +30,20 @@ export class ReviewReport extends Document{
     type: [
       {
         messageId: { type: String, required: true },
+        content: { type: String, required: false },
+        senderId: { type: String, required: false },
+        createdAt: { type: String, required: false },
         _id: false  
       }
     ],
     default: []
   })
-  evidenceMessages?: { messageId: string }[];
+  evidenceMessages?: {
+    messageId: string;
+    content?: string;
+    senderId?: string;
+    createdAt?: string;
+  }[];
   @Prop({
     type: String,
     enum: Object.values(RecordStatus),

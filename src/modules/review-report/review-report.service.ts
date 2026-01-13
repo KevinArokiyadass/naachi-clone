@@ -97,10 +97,49 @@ export class ReviewReportService {
 
     await this.blockUserConnection(connectionId, dto.reporterId);
 
-    const evidenceMessages =
-      dto.evidenceMessages?.map((msg) => ({
-        messageId: msg.messageId,
-      })) || [];
+    let evidenceMessages = [];
+    if (dto.conversationId) {
+      try {
+        const messageResponse: any = await this.httpClientService.get(
+          'NAACHI_CHAT_SERVICE',
+          '/message',
+          { ticketId: dto.conversationId }
+        );
+
+        const messages =
+          messageResponse?.items ||
+          messageResponse?.result ||
+          messageResponse ||
+          [];
+
+        if (Array.isArray(messages)) {
+          evidenceMessages = messages
+            .sort(
+              (a: any, b: any) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime()
+            )
+            .slice(0, 5)
+            .map((msg) => ({
+              messageId: msg.msgId || msg.messageId || msg.id || generateUniqueId(),
+              content: msg.messageText || msg.content || msg.text || '',
+              senderId: msg.senderId || msg.from || '',
+              createdAt: (typeof msg.createdAt === 'object' && msg.createdAt?.['$date'])
+                ? msg.createdAt['$date']
+                : (msg.createdAt || new Date().toISOString()),
+            }));
+        }
+      } catch (error) {
+        console.error(
+          `Failed to fetch evidence messages for conversationId ${dto.conversationId}:`,
+          error.message,
+        );
+      }
+    } else if (dto.evidenceMessages) {
+      evidenceMessages = dto.evidenceMessages.map((msg) => ({
+        messageId: msg.messageId || generateUniqueId(),
+      }));
+    }
 
     const createdReport = new this.reportModel({
       ...dto,
@@ -237,40 +276,6 @@ export class ReviewReportService {
     }
   
     const report = reportArr[0];
-  
-    if (report.conversationId) {
-      try {
-        const messageResponse: any = await this.httpClientService.get(
-          'NAACHI_CHAT_SERVICE',
-          '/message',
-          { ticketId: report.conversationId }
-        );
-  
-        const messages =
-          messageResponse?.items ||
-          messageResponse?.result ||
-          messageResponse ||
-          [];
-  
-        if (Array.isArray(messages)) {
-          report.evidenceMessages = messages
-            .sort(
-              (a: any, b: any) =>
-                new Date(b.createdAt).getTime() -
-                new Date(a.createdAt).getTime()
-            )
-            .slice(0, 5);
-        } else {
-          report.evidenceMessages = [];
-        }
-      } catch (error) {
-        console.error(
-          `Failed to fetch evidence messages for reviewId ${reviewId}:`,
-          error.message,
-        );
-      }
-    }
-  
     return report;
   }
 
