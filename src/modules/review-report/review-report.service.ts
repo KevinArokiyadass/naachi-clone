@@ -11,6 +11,7 @@ import { Users } from 'src/modules/users/entity/users.entity';
 import { accountStatus } from 'src/common/enums/user.enum';
 import { HttpClientService } from 'src/common/inter-service-communication/http-client.service';
 import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
+import { RecordService } from '@noukha-technologies/mdm-core';
 @Injectable()
 export class ReviewReportService {
 
@@ -22,6 +23,7 @@ export class ReviewReportService {
     private readonly paginationService: PaginationService,
     private readonly httpClientService: HttpClientService,
     private readonly dbService: IMongoDBServices,
+    private readonly recordService: RecordService
   ) { }
 
   private async validateConnection(reporterId: string, reportedUserId: string): Promise<string> {
@@ -69,6 +71,15 @@ export class ReviewReportService {
     }
   }
 
+  private async validateInstitution(reporterId: string, reportedUserId: string): Promise<string | null> {
+    const reporter = await this.dbService.users.findOne({ userId: reporterId, isDeleted: false });
+    const reported = await this.dbService.users.findOne({ userId: reportedUserId, isDeleted: false });
+
+    if (reporter?.institutionsId && reported?.institutionsId && reporter.institutionsId === reported.institutionsId) {
+      return reporter.institutionsId;
+    }
+    return null;
+  }
   private async blockUserConnection(connectionId: string, ownerId: string): Promise<any> {
     try {
       const response = await this.httpClientService.patch(
@@ -89,11 +100,20 @@ export class ReviewReportService {
     }
   }
 
+
   async create(dto: CreateReviewReportDto): Promise<ReviewReport> {
     const connectionId = await this.validateConnection(
       dto.reporterId,
       dto.reportedUserId
     );
+
+    if (dto.reportedUserId === dto.reporterId) {
+      throw new BadRequestException(
+        `Reporter and reported user cannot be the same`
+      );
+    }
+
+    const institutionsId = await this.validateInstitution(dto.reporterId, dto.reportedUserId);
 
     await this.blockUserConnection(connectionId, dto.reporterId);
 
@@ -145,6 +165,7 @@ export class ReviewReportService {
       ...dto,
       reviewId: generateUniqueId(),
       evidenceMessages,
+      institutionsId,
     });
 
     return createdReport.save();
@@ -158,14 +179,7 @@ export class ReviewReportService {
     institutionsId?: string
   ): Promise<IPaginatedResult<any>> {
     if (institutionsId) {
-      const userIdsInInstitution = await this.usersModel.find(
-        { institutionsId },
-        { userId: 1, _id: 0 }
-      ).lean().exec();
-
-      const userIds = userIdsInInstitution.map(u => u.userId);
-      filter.reporterId = { $in: userIds };
-      filter.reportedUserId = { $in: userIds };
+      filter.institutionsId = institutionsId;
     }
 
     const result = await this.paginationService.findAndPaginate(
@@ -274,7 +288,7 @@ export class ReviewReportService {
     if (!reportArr || reportArr.length === 0) {
       throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
     }
-  
+
     const report = reportArr[0];
     return report;
   }

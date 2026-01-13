@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ReviewReportService } from './review-report.service';
 import { ReviewReportController } from './review-report.controller';
 import { ReviewReport, ReviewReportSchema } from './entities/review-report.entity';
@@ -8,6 +8,7 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
 import { Users, UsersSchema } from 'src/modules/users/entity/users.entity';
 import { HttpClientModule } from 'src/common/inter-service-communication/http-client.module';
 import { MongoDBServicesModule } from 'src/common/repository/mongodb-repository/repository.module';
+import { ClientIdMiddleware } from 'src/common/middleware/clientId.middlewere';
 
 @Module({
   imports: [
@@ -26,7 +27,13 @@ import { MongoDBServicesModule } from 'src/common/repository/mongodb-repository/
     ]),
   ],
   controllers: [ReviewReportController],
-  providers: [ReviewReportService, PaginationService],
+  providers: [ReviewReportService, PaginationService, ClientIdMiddleware],
   exports: [ReviewReportService, MongooseModule],
 })
-export class ReviewReportModule { }
+export class ReviewReportModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(ClientIdMiddleware)
+      .forRoutes(ReviewReportController);
+  }
+}
