@@ -249,10 +249,14 @@ export class UsersAuthService {
     }
 
     if (existingUser.phoneVerified) {
+
+      const reverifyPhone = await this.generateOtp(phoneNumber);
       return {
         authMode: 'signup',
-        message: 'Phone already verified. Continue signup',
-        userId: existingUser.userId
+        message: 'reverifying Phone continue signup',
+        userId: existingUser.userId,
+        challengeName: reverifyPhone.ChallengeName,
+        session: reverifyPhone.Session
       };
     }
 
@@ -292,14 +296,6 @@ export class UsersAuthService {
       };
     }
 
-    if (user.phoneVerified) {
-      return {
-        authMode: 'signUp',
-        nextStep: 'setUsername',
-        message: 'Phone verified continue to set Username',
-        userId: user.userId,
-      };
-    }
 
     const signupResult = await this.verifySignupOtp({
       phoneNumber,
@@ -334,10 +330,6 @@ export class UsersAuthService {
         authMode: 'login',
         ...loginResult,
       };
-    }
-
-    if (user.phoneVerified) {
-      throw new BadRequestException('Phone number already verified. Continue signup.');
     }
 
     await this.resendSignupOtp(phoneNumber);

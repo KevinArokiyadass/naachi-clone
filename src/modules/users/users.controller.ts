@@ -27,7 +27,7 @@ import {RecordService} from "@noukha-technologies/mdm-core"
 export class UsersController {
   constructor(private readonly usersService: UsersAuthService) {}
 
-// unified endpoint inorder to take care of both signUp and login
+  
   @Post('phn-otp/request')
   async requestPhnOtp(@Body() dto: UnifiedPhoneOtpRequestDto) {
     return this.usersService.requestUnifiedPhoneOtp(dto);
