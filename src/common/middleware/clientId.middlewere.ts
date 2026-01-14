@@ -12,7 +12,7 @@ export class ClientIdMiddleware implements NestMiddleware {
     const origin = req.headers.origin;
 
     if (!origin) {
-      return next();
+      throw new ForbiddenException('Origin header is required');
     }
 
     let naachiAdminUrl = process.env.NAACHI_ADMIN_URL;
