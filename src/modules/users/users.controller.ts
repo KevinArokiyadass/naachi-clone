@@ -1,4 +1,5 @@
-import { Body, Controller, Post, Get, Param, Query, Patch } from '@nestjs/common';
+import { Body, Controller, Post, Get, Param, Query, Patch, Req } from '@nestjs/common';
+import { Request } from 'express';
 import {
   ActivateByQrCodeDto,
   ConfirmEmailDto,
@@ -105,8 +106,27 @@ export class UsersController {
   }
 
   @Get()
-  getAllUsers(@Query() query: GetUsersQueryDto) {
+  getAllUsers(@Query() query: GetUsersQueryDto, @Req() req: Request) {
     const { skip, limit, nonPaginated, phoneNumber, userName, userId, institutionsId, search, status } = query;
+
+    // Context-based security restriction:
+    // If request is from an institutional domain, institutionsId must be present and match the domain.
+    const isSuperAdminRequest = req['isSuperAdminRequest'];
+    const contextInstitutionsId = req['institutionsId'];
+
+    if (!isSuperAdminRequest && contextInstitutionsId) {
+      // It's an institutional context
+      if (!institutionsId || String(institutionsId) !== String(contextInstitutionsId)) {
+        // Return empty paginated result if institutionsId is missing or mismatching
+        return {
+          totalItems: 0,
+          totalPages: 1,
+          skip: skip || 0,
+          limit: limit || 10,
+          items: [],
+        };
+      }
+    }
 
     const filter: Record<string, any> = {};
 
