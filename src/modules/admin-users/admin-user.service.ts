@@ -51,6 +51,20 @@ export class AdminUserService {
       }
     }
 
+    // Check if there's an existing user with the same email
+    const existingUser = await this.dbServices.users.findOne({
+      email: createAdminDto.email.toLowerCase().trim(),
+      isDeleted: false
+    });
+
+    // If emails match and both have phone numbers, they must match
+    if (existingUser && phoneNumber && existingUser.phoneNumber && 
+        existingUser.phoneNumber.trim() !== phoneNumber.trim()) {
+      throw new BadRequestException(
+        'Email already exists with a different phone number. Please use the same phone number associated with this email.'
+      );
+    }
+
     if (!createAdminDto.role) {
       throw new BadRequestException('Role is required');
     }
@@ -75,6 +89,25 @@ export class AdminUserService {
         createAdminDto.name,
         createAdminDto.phoneNumber,
       );
+
+      // Sync institutionId to existing user if email matches
+      if (existingUser && institutionsId) {
+        try {
+          await this.dbServices.users.findOneAndUpdate(
+            { userId: existingUser.userId, isDeleted: false },
+            {
+              $set: {
+                'metaData.institutionId': institutionsId,
+                updatedAt: new Date()
+              }
+            }
+          );
+        } catch (syncError) {
+          // Log error but don't fail admin creation
+          console.error('Failed to sync institutionId to existing user:', syncError);
+        }
+      }
+
       return {
         adminUser: this.attachProfileImageUrl(created),
         message: 'Admin user created successfully and ready to login.',

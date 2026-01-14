@@ -30,6 +30,9 @@ export interface IUsers {
     profileImage?: string;
     profileImageUpdatedAt?: Date;
     customLogin?: boolean;
+    metaData?: {
+        institutionId?: string;
+    };
     createdAt?: Date;
     updatedAt?: Date;
 }

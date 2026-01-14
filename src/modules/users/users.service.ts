@@ -448,6 +448,36 @@ export class UsersAuthService {
     }
   }
 
+  /**
+   * Syncs institutionId from admin user to regular user if emails match
+   * Validates that phone numbers match if emails match and both are provided
+   */
+  private async syncInstitutionIdFromAdminUser(email: string, userPhoneNumber: string): Promise<string | null> {
+    const adminUser = await this.dbService.adminUser.findOne({
+      email: email.toLowerCase().trim(),
+      isDeleted: { $ne: true }
+    });
+
+    if (!adminUser) {
+      return null;
+    }
+
+    // If emails match and both have phone numbers, they must match
+    if (adminUser.phoneNumber && userPhoneNumber && 
+        adminUser.phoneNumber.trim() !== userPhoneNumber.trim()) {
+      throw new BadRequestException(
+        'Email already exists with a different phone number. Please use the same phone number associated with this email.'
+      );
+    }
+
+    // Get institutionId from admin user's metaTags
+    if (adminUser.metaTags && adminUser.metaTags.length > 0 && adminUser.metaTags[0].institutionsId) {
+      return adminUser.metaTags[0].institutionsId;
+    }
+
+    return null;
+  }
+
   async verifyEmail(dto: VerifyEmailDto) {
     const user = await this.dbService.users.findOne({
       userId: dto.userId,
@@ -481,18 +511,38 @@ export class UsersAuthService {
       throw new BadRequestException('Email already registered');
     }
 
-    const institutionsId = await this.validateInstitute(dto.email);
+    // Check for matching admin user and sync institutionId
+    let institutionIdFromAdmin: string | null = null;
+    try {
+      institutionIdFromAdmin = await this.syncInstitutionIdFromAdminUser(dto.email, user.phoneNumber);
+    } catch (error) {
+      // Re-throw BadRequestException from phone validation
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+    }
+
+    const institutionsId = institutionIdFromAdmin || await this.validateInstitute(dto.email);
+
+    const updatePayload: Record<string, any> = {
+      email: dto.email,
+      institutionsId: institutionsId,
+      emailVerified: false,
+      referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
+      qrAuth: false,
+      updatedAt: new Date()
+    };
+
+    // Add metaData with institutionId if synced from admin user
+    if (institutionIdFromAdmin) {
+      updatePayload.metaData = {
+        institutionId: institutionIdFromAdmin
+      };
+    }
 
     await this.dbService.users.findOneAndUpdate(
       { userId: dto.userId, status: accountStatus.PENDING },
-      {
-        email: dto.email,
-        institutionsId: institutionsId,
-        emailVerified: false,
-        referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
-        qrAuth: false,
-        updatedAt: new Date()
-      }
+      updatePayload
     );
 
 
@@ -557,18 +607,26 @@ export class UsersAuthService {
 
     // Check if default OTP is used
     if (dto.confirmationCode === this.DEFAULT_EMAIL_OTP) {
+      // Preserve existing metaData if it exists
+      const updatePayload: Record<string, any> = {
+        emailVerified: true,
+        status: accountStatus.COMPLETED,
+        isActive: true,
+        isVerified: true,
+        referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
+        qrAuth: false,
+        updatedAt: new Date()
+      };
+
+      // Preserve metaData if it was set during verifyEmail
+      if (user.metaData) {
+        updatePayload.metaData = user.metaData;
+      }
+
       // Skip Cognito verification and directly mark as completed
       await this.dbService.users.findOneAndUpdate(
         { userId: dto.userId, status: accountStatus.PENDING },
-        {
-          emailVerified: true,
-          status: accountStatus.COMPLETED,
-          isActive: true,
-          isVerified: true,
-          referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
-          qrAuth: false,
-          updatedAt: new Date()
-        }
+        updatePayload
       );
 
       return {
@@ -596,17 +654,25 @@ export class UsersAuthService {
       throw new BadRequestException('Failed to verify email. Please try again.');
     }
 
+    // Preserve existing metaData if it exists
+    const updatePayload: Record<string, any> = {
+      emailVerified: true,
+      status: accountStatus.COMPLETED,
+      isActive: true,
+      isVerified: true,
+      referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
+      qrAuth: false,
+      updatedAt: new Date()
+    };
+
+    // Preserve metaData if it was set during verifyEmail
+    if (user.metaData) {
+      updatePayload.metaData = user.metaData;
+    }
+
     await this.dbService.users.findOneAndUpdate(
       { userId: dto.userId, status: accountStatus.PENDING },
-      {
-        emailVerified: true,
-        status: accountStatus.COMPLETED,
-        isActive: true,
-        isVerified: true,
-        referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
-        qrAuth: false,
-        updatedAt: new Date()
-      }
+      updatePayload
     );
 
     return {
