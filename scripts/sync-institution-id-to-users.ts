@@ -108,14 +108,14 @@ async function main() {
           continue;
         }
 
-        // Update user's institutionsId and mark as verified only if phone numbers match
+        // Update user's institutionsId and mark as verified only if institutionId exists AND phone numbers match
         const updateData: any = {
           institutionsId: institutionId,
           updatedAt: new Date()
         };
 
-        // Only set isVerified to true if phone numbers match
-        if (phoneMatch) {
+        // Only set isVerified to true if institutionId exists AND phone numbers match
+        if (institutionId && phoneMatch) {
           updateData.isVerified = true;
         }
 

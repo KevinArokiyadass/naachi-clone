@@ -92,13 +92,14 @@ export class UsersAuthService {
       await this.signUpUserInCognito(dto.phoneNumber, userPayload.userId);
     } catch (error) {
       if (error.name === 'UsernameExistsException') {
+        // For sync users, isVerified will be set later when institutionId is synced and phone matches
         const syncUserPayload: IUsers = {
           userId: generateUniqueId(),
           phoneNumber: dto.phoneNumber,
           customLogin: true,
           status: accountStatus.COMPLETED,
           isActive: true,
-          isVerified: true,
+          isVerified: false, // Will be set to true when institutionId is synced and phone matches
           phoneVerified: true,
           userNameSet: false,
           emailVerified: false,
@@ -543,8 +544,8 @@ export class UsersAuthService {
       updatedAt: new Date()
     };
 
-    // Only mark as verified if synced from admin user AND phone numbers match
-    if (adminSyncResult && adminSyncResult.phoneMatch) {
+    // Only set isVerified to true if institutionId exists AND phone numbers match
+    if (adminSyncResult && adminSyncResult.institutionId && adminSyncResult.phoneMatch) {
       updatePayload.isVerified = true;
     }
 
@@ -991,18 +992,25 @@ export class UsersAuthService {
     const referrerUserName = referrer.userName ?? referrerUserId;
 
     // Update user: activate, set referrer, and set activation medium
+    // Only set isVerified to true if institutionId exists (phone match not applicable for QR code activation)
+    const updateData: Record<string, any> = {
+      isActive: true,
+      status: accountStatus.COMPLETED,
+      referrerId: referrerUserId,
+      referredBy: referrerUserName,
+      referrerMedium: ReferrerMedium.QR_CODE,
+      qrAuth: true,
+      updatedAt: new Date(),
+    };
+
+    // Only set isVerified to true if institutionId exists
+    if (user.institutionsId) {
+      updateData.isVerified = true;
+    }
+
     const updatedUser = await this.dbService.users.findOneAndUpdate(
       { userId, isDeleted: false },
-      {
-        isActive: true,
-        isVerified: true,
-        status: accountStatus.COMPLETED,
-        referrerId: referrerUserId,
-        referredBy: referrerUserName,
-        referrerMedium: ReferrerMedium.QR_CODE,
-        qrAuth: true,
-        updatedAt: new Date(),
-      },
+      updateData,
       { new: true },
     );
 

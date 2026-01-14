@@ -91,16 +91,27 @@ export class AdminUserService {
       );
 
       // Sync institutionId to existing user if email matches and mark as verified
+      // Only set isVerified to true if institutionId exists AND phone numbers match
       if (existingUser && institutionsId) {
         try {
+          // Check if phone numbers match
+          const phoneMatch = phoneNumber && existingUser.phoneNumber &&
+            phoneNumber.trim() === existingUser.phoneNumber.trim();
+          
+          const updateData: Record<string, any> = {
+            institutionsId: institutionsId,
+            updatedAt: new Date()
+          };
+
+          // Only set isVerified to true if institutionId exists AND phone numbers match
+          if (phoneMatch) {
+            updateData.isVerified = true;
+          }
+
           await this.dbServices.users.findOneAndUpdate(
             { userId: existingUser.userId, isDeleted: false },
             {
-              $set: {
-                institutionsId: institutionsId,
-                isVerified: true,
-                updatedAt: new Date()
-              }
+              $set: updateData
             }
           );
         } catch (syncError) {
