@@ -451,8 +451,12 @@ export class UsersAuthService {
   /**
    * Syncs institutionId from admin user to regular user if emails match
    * Validates that phone numbers match if emails match and both are provided
+   * Returns object with institutionId and phoneMatch status
    */
-  private async syncInstitutionIdFromAdminUser(email: string, userPhoneNumber: string): Promise<string | null> {
+  private async syncInstitutionIdFromAdminUser(
+    email: string, 
+    userPhoneNumber: string
+  ): Promise<{ institutionId: string; phoneMatch: boolean } | null> {
     const adminUser = await this.dbService.adminUser.findOne({
       email: email.toLowerCase().trim(),
       isDeleted: { $ne: true }
@@ -462,9 +466,12 @@ export class UsersAuthService {
       return null;
     }
 
+    // Check if phone numbers match
+    const phoneMatch = adminUser.phoneNumber && userPhoneNumber && 
+      adminUser.phoneNumber.trim() === userPhoneNumber.trim();
+
     // If emails match and both have phone numbers, they must match
-    if (adminUser.phoneNumber && userPhoneNumber && 
-        adminUser.phoneNumber.trim() !== userPhoneNumber.trim()) {
+    if (adminUser.phoneNumber && userPhoneNumber && !phoneMatch) {
       throw new BadRequestException(
         'Email already exists with a different phone number. Please use the same phone number associated with this email.'
       );
@@ -472,7 +479,10 @@ export class UsersAuthService {
 
     // Get institutionId from admin user's metaTags
     if (adminUser.metaTags && adminUser.metaTags.length > 0 && adminUser.metaTags[0].institutionsId) {
-      return adminUser.metaTags[0].institutionsId;
+      return {
+        institutionId: adminUser.metaTags[0].institutionsId,
+        phoneMatch: phoneMatch || false // true only if both exist and match
+      };
     }
 
     return null;
@@ -512,9 +522,9 @@ export class UsersAuthService {
     }
 
     // Check for matching admin user and sync institutionId
-    let institutionIdFromAdmin: string | null = null;
+    let adminSyncResult: { institutionId: string; phoneMatch: boolean } | null = null;
     try {
-      institutionIdFromAdmin = await this.syncInstitutionIdFromAdminUser(dto.email, user.phoneNumber);
+      adminSyncResult = await this.syncInstitutionIdFromAdminUser(dto.email, user.phoneNumber);
     } catch (error) {
       // Re-throw BadRequestException from phone validation
       if (error instanceof BadRequestException) {
@@ -522,7 +532,7 @@ export class UsersAuthService {
       }
     }
 
-    const institutionsId = institutionIdFromAdmin || await this.validateInstitute(dto.email);
+    const institutionsId = adminSyncResult?.institutionId || await this.validateInstitute(dto.email);
 
     const updatePayload: Record<string, any> = {
       email: dto.email,
@@ -533,8 +543,8 @@ export class UsersAuthService {
       updatedAt: new Date()
     };
 
-    // If synced from admin user, mark user as verified
-    if (institutionIdFromAdmin) {
+    // Only mark as verified if synced from admin user AND phone numbers match
+    if (adminSyncResult && adminSyncResult.phoneMatch) {
       updatePayload.isVerified = true;
     }
 
@@ -610,7 +620,7 @@ export class UsersAuthService {
         emailVerified: true,
         status: accountStatus.COMPLETED,
         isActive: true,
-        isVerified: user.isVerified || true, // Preserve if already verified from admin sync
+        isVerified: user.isVerified ?? false, // Preserve existing value, default to false
         referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
         qrAuth: false,
         updatedAt: new Date()
@@ -652,7 +662,7 @@ export class UsersAuthService {
       emailVerified: true,
       status: accountStatus.COMPLETED,
       isActive: true,
-      isVerified: user.isVerified || true, // Preserve if already verified from admin sync
+      isVerified: user.isVerified ?? false, // Preserve existing value, default to false
       referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
       qrAuth: false,
       updatedAt: new Date()

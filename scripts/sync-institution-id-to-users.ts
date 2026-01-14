@@ -7,7 +7,7 @@
  * 3. If admin user exists and has institutionId in metaTags:
  *    - Validates phone numbers match (logs warning if they don't)
  *    - Syncs institutionId from admin's metaTags[0].institutionsId to user's institutionsId field
- *    - Marks user as isVerified: true
+ *    - Marks user as isVerified: true only if phone numbers match
  * 
  * Usage:
  *   npx ts-node scripts/sync-institution-id-to-users.ts
@@ -108,15 +108,21 @@ async function main() {
           continue;
         }
 
-        // Update user's institutionsId and mark as verified
+        // Update user's institutionsId and mark as verified only if phone numbers match
+        const updateData: any = {
+          institutionsId: institutionId,
+          updatedAt: new Date()
+        };
+
+        // Only set isVerified to true if phone numbers match
+        if (phoneMatch) {
+          updateData.isVerified = true;
+        }
+
         await dbService.users.findOneAndUpdate(
           { userId: user.userId, isDeleted: false },
           {
-            $set: {
-              institutionsId: institutionId,
-              isVerified: true,
-              updatedAt: new Date()
-            }
+            $set: updateData
           }
         );
 
@@ -130,7 +136,7 @@ async function main() {
 
         console.log(
           `✅ [${syncedCount}/${users.length}] Synced institutionId for user ${user.userId} ` +
-          `(${user.email}): ${institutionId} ${!phoneMatch ? '⚠️ Phone mismatch' : ''}`
+          `(${user.email}): ${institutionId} ${phoneMatch ? '(verified)' : '(not verified - phone mismatch)'}`
         );
       } catch (error) {
         failedCount++;
