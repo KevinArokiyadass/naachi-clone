@@ -101,22 +101,31 @@ async function main() {
           );
         }
 
-        // Check if institutionsId already has the same value
-        if (user.institutionsId === institutionId) {
-          skippedCount++;
-          console.log(`⏭️  Skipping user ${user.userId} (${user.email}): institutionId already synced`);
-          continue;
-        }
-
-        // Update user's institutionsId and mark as verified only if institutionId exists AND phone numbers match
+        // Prepare update data
         const updateData: any = {
-          institutionsId: institutionId,
           updatedAt: new Date()
         };
 
+        // Update institutionsId only if it's different
+        if (user.institutionsId !== institutionId) {
+          updateData.institutionsId = institutionId;
+        }
+
         // Only set isVerified to true if institutionId exists AND phone numbers match
+        // This should be updated even if institutionsId was already synced
         if (institutionId && phoneMatch) {
           updateData.isVerified = true;
+        }
+
+        // Skip if there's nothing to update
+        // Check if institutionsId needs updating OR isVerified needs updating
+        const needsInstitutionUpdate = user.institutionsId !== institutionId;
+        const needsVerificationUpdate = institutionId && phoneMatch && !user.isVerified;
+        
+        if (!needsInstitutionUpdate && !needsVerificationUpdate) {
+          skippedCount++;
+          console.log(`⏭️  Skipping user ${user.userId} (${user.email}): No updates needed`);
+          continue;
         }
 
         await dbService.users.findOneAndUpdate(
