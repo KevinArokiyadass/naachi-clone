@@ -34,7 +34,11 @@ async function main() {
     console.log('📋 Fetching all users with email addresses...');
     const users = await dbService.users.find(
       {
-        email: { $exists: true, $ne: null, $ne: '' },
+        $and: [
+          { email: { $exists: true } },
+          { email: { $ne: null } },
+          { email: { $ne: '' } }
+        ],
         isDeleted: false
       }
     );
