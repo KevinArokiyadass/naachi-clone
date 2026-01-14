@@ -6,7 +6,8 @@
  * 2. For each user, checks if there's an admin user with the same email
  * 3. If admin user exists and has institutionId in metaTags:
  *    - Validates phone numbers match (logs warning if they don't)
- *    - Syncs institutionId from admin's metaTags[0].institutionsId to user's metaData.institutionId
+ *    - Syncs institutionId from admin's metaTags[0].institutionsId to user's institutionsId field
+ *    - Marks user as isVerified: true
  * 
  * Usage:
  *   npx ts-node scripts/sync-institution-id-to-users.ts
@@ -96,19 +97,20 @@ async function main() {
           );
         }
 
-        // Check if metaData already has the same institutionId
-        if (user.metaData?.institutionId === institutionId) {
+        // Check if institutionsId already has the same value
+        if (user.institutionsId === institutionId) {
           skippedCount++;
           console.log(`⏭️  Skipping user ${user.userId} (${user.email}): institutionId already synced`);
           continue;
         }
 
-        // Update user's metaData with institutionId
+        // Update user's institutionsId and mark as verified
         await dbService.users.findOneAndUpdate(
           { userId: user.userId, isDeleted: false },
           {
             $set: {
-              'metaData.institutionId': institutionId,
+              institutionsId: institutionId,
+              isVerified: true,
               updatedAt: new Date()
             }
           }

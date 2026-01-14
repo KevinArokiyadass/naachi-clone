@@ -533,11 +533,9 @@ export class UsersAuthService {
       updatedAt: new Date()
     };
 
-    // Add metaData with institutionId if synced from admin user
+    // If synced from admin user, mark user as verified
     if (institutionIdFromAdmin) {
-      updatePayload.metaData = {
-        institutionId: institutionIdFromAdmin
-      };
+      updatePayload.isVerified = true;
     }
 
     await this.dbService.users.findOneAndUpdate(
@@ -607,21 +605,16 @@ export class UsersAuthService {
 
     // Check if default OTP is used
     if (dto.confirmationCode === this.DEFAULT_EMAIL_OTP) {
-      // Preserve existing metaData if it exists
+      // Preserve isVerified if it was set during verifyEmail (from admin sync)
       const updatePayload: Record<string, any> = {
         emailVerified: true,
         status: accountStatus.COMPLETED,
         isActive: true,
-        isVerified: true,
+        isVerified: user.isVerified || true, // Preserve if already verified from admin sync
         referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
         qrAuth: false,
         updatedAt: new Date()
       };
-
-      // Preserve metaData if it was set during verifyEmail
-      if (user.metaData) {
-        updatePayload.metaData = user.metaData;
-      }
 
       // Skip Cognito verification and directly mark as completed
       await this.dbService.users.findOneAndUpdate(
@@ -654,21 +647,16 @@ export class UsersAuthService {
       throw new BadRequestException('Failed to verify email. Please try again.');
     }
 
-    // Preserve existing metaData if it exists
+    // Preserve isVerified if it was set during verifyEmail (from admin sync)
     const updatePayload: Record<string, any> = {
       emailVerified: true,
       status: accountStatus.COMPLETED,
       isActive: true,
-      isVerified: true,
+      isVerified: user.isVerified || true, // Preserve if already verified from admin sync
       referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
       qrAuth: false,
       updatedAt: new Date()
     };
-
-    // Preserve metaData if it was set during verifyEmail
-    if (user.metaData) {
-      updatePayload.metaData = user.metaData;
-    }
 
     await this.dbService.users.findOneAndUpdate(
       { userId: dto.userId, status: accountStatus.PENDING },

@@ -90,14 +90,15 @@ export class AdminUserService {
         createAdminDto.phoneNumber,
       );
 
-      // Sync institutionId to existing user if email matches
+      // Sync institutionId to existing user if email matches and mark as verified
       if (existingUser && institutionsId) {
         try {
           await this.dbServices.users.findOneAndUpdate(
             { userId: existingUser.userId, isDeleted: false },
             {
               $set: {
-                'metaData.institutionId': institutionsId,
+                institutionsId: institutionsId,
+                isVerified: true,
                 updatedAt: new Date()
               }
             }
