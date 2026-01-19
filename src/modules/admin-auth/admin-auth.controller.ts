@@ -27,7 +27,7 @@ export class AdminAuthController {
     try {
       const institutionsId = req['institutionsId'];
       const isSuperAdminRequest = req['isSuperAdminRequest'];
-      
+
       if (!isSuperAdminRequest && !institutionsId) {
         throw new UnauthorizedException('Institution ID is required. Please provide Origin header.');
       }
@@ -77,14 +77,14 @@ export class AdminAuthController {
       const cognitoUsername = admin.userName || admin.email;
       const tokens = await this.cognito.signIn(cognitoUsername, loginDto.password);
 
-      return {  
-        message: 'Login successful', 
+      return {
+        message: 'Login successful',
         adminUser: {
           adminId: admin.adminId,
           name: admin.name,
           email: admin.email,
           role: admin.role,
-        }, 
+        },
         tokens: {
           accessToken: tokens.accessToken,
           idToken: tokens.idToken,
@@ -159,11 +159,24 @@ export class AdminAuthController {
   @ApiResponse({ status: 200, description: 'Password reset successful' })
   async confirmForgotPassword(@Body() body: { email: string; code: string; newPassword: string }) {
     try {
+      // Verify admin exists and check if new password is same as current
+      const admin = await this.adminUsers.getOneAdminUser({ email: body.email });
+      if (!admin) {
+        throw new BadRequestException('Admin not found');
+      }
+
+      if (admin.password === body.newPassword) {
+        throw new BadRequestException('New password cannot be the same as the current password');
+      }
+
       const result = await this.cognito.confirmForgotPassword(body.email, body.code, body.newPassword);
-  
+
       await this.adminUsers.setPasswordByEmail(body.email, body.newPassword);
       return { message: 'Password reset successful', cognito: result };
     } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       throw new BadRequestException(`Password reset failed: ${error.message}`);
     }
   }

@@ -58,8 +58,8 @@ export class AdminUserService {
     });
 
     // If emails match and both have phone numbers, they must match
-    if (existingUser && phoneNumber && existingUser.phoneNumber && 
-        existingUser.phoneNumber.trim() !== phoneNumber.trim()) {
+    if (existingUser && phoneNumber && existingUser.phoneNumber &&
+      existingUser.phoneNumber.trim() !== phoneNumber.trim()) {
       throw new BadRequestException(
         'Email already exists with a different phone number. Please use the same phone number associated with this email.'
       );
@@ -97,7 +97,7 @@ export class AdminUserService {
           // Check if phone numbers match
           const phoneMatch = phoneNumber && existingUser.phoneNumber &&
             phoneNumber.trim() === existingUser.phoneNumber.trim();
-          
+
           const updateData: Record<string, any> = {
             institutionsId: institutionsId,
             updatedAt: new Date()
@@ -285,14 +285,40 @@ export class AdminUserService {
       throw new NotFoundException('Admin user not found');
     }
 
-
-    try {
-      if (forgotPassword) {
+    if (forgotPassword) {
+      try {
         await this.cognitoService.forgotPassword(adminUser.email);
         return { message: 'Password reset code sent to email' };
-      } else {
-        throw new BadRequestException('Password updates should be handled through Cognito directly');
+      } catch (error) {
+        throw new BadRequestException(`Failed to initiate forgot password: ${error.message}`);
       }
+    }
+
+    const { currentPassword, newPassword } = updatePasswordDto;
+
+    if (!currentPassword) {
+      throw new BadRequestException('Current password is required for password update');
+    }
+
+    if (currentPassword === newPassword) {
+      throw new BadRequestException('New password cannot be the same as the current password');
+    }
+
+
+    if (adminUser.password !== currentPassword) {
+      throw new BadRequestException('Invalid current password');
+    }
+
+    try {
+      await this.cognitoService.updatePasswordAfterVerification(adminUser.email, newPassword);
+
+      await this.dbServices.adminUser.findOneAndUpdate(
+        { adminId },
+        { password: newPassword },
+        { new: true }
+      );
+
+      return { message: 'Password updated successfully' };
     } catch (error) {
       throw new BadRequestException(`Failed to update password: ${error.message}`);
     }
@@ -332,6 +358,11 @@ export class AdminUserService {
     if (!admin) {
       throw new NotFoundException('Admin user not found');
     }
+
+    if (admin.password === newPassword) {
+      throw new BadRequestException('New password cannot be the same as the current password');
+    }
+
     return await this.dbServices.adminUser.findOneAndUpdate(
       { email },
       { password: newPassword },
