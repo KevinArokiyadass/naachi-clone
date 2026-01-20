@@ -1012,6 +1012,9 @@ export class UsersAuthService {
       userObj.profileImage = this.awsStoreService.getCloudFrontUrl(userObj.profileImage);
     }
 
+    // Delete password if present to ensure it's not leaked in responses
+    delete userObj.password;
+
     return userObj;
   }
 

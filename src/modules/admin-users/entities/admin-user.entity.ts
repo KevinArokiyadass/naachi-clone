@@ -23,7 +23,7 @@ export class AdminUser extends Document {
   @Prop({  })
   phoneNumber: string;
 
-  @Prop({ type: String })
+  @Prop({ type: String, select: false })
   password: string;
 
   @Prop({ type: String })
