@@ -1018,6 +1018,69 @@ export class UsersAuthService {
     return userObj;
   }
 
+  async getUserByUserId(userId: string) {
+    const user = await this.dbService.users.findOne({
+      userId,
+      isDeleted: false,
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const userWithImage = this.attachProfileImageUrl(user);
+    
+    // Populate institution details if institutionsId exists
+    if (userWithImage.institutionsId) {
+      try {
+        const institution = await this.recordService.findOne('institutions', userWithImage.institutionsId);
+        if (institution) {
+          userWithImage.institutionDetails = institution;
+        }
+      } catch (error) {
+        // If institution not found or error occurs, continue without institution details
+        console.error('Error fetching institution details:', error);
+      }
+    }
+
+    // Populate department details if user email matches admin user email
+    if (userWithImage.email && userWithImage.institutionsId) {
+      try {
+        const adminUser = await this.dbService.adminUser.findOne({
+          email: userWithImage.email.toLowerCase().trim(),
+          isDeleted: { $ne: true }
+        });
+
+        if (adminUser && adminUser.metaTags && adminUser.metaTags.length > 0) {
+          // Find the metaTag that matches the user's institutionsId
+          const matchingMetaTag = adminUser.metaTags.find(
+            (tag: any) => tag && tag.institutionsId && String(tag.institutionsId).trim() === String(userWithImage.institutionsId).trim()
+          );
+
+          if (matchingMetaTag && matchingMetaTag.departmentsId && Array.isArray(matchingMetaTag.departmentsId) && matchingMetaTag.departmentsId.length > 0) {
+            // Fetch department details using departmentsId array
+            // Query by matching any of the departmentsId values
+            const departmentsResult = await this.recordService.findAll('departments', {
+              filters: {
+                departmentsId: { $in: matchingMetaTag.departmentsId }
+              },
+              nonPaginated: true,
+            });
+
+            if (departmentsResult?.items && departmentsResult.items.length > 0) {
+              userWithImage.departmentDetails = departmentsResult.items;
+            }
+          }
+        }
+      } catch (error) {
+        // If admin user not found or error occurs, continue without department details
+        console.error('Error fetching department details:', error);
+      }
+    }
+
+    return userWithImage;
+  }
+
   async updateUserProfile(userId: string, dto: UpdateUserProfileDto) {
     const user = await this.dbService.users.findOne({
       userId,

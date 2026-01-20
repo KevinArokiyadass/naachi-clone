@@ -20,14 +20,14 @@ import {
 } from './dto/users-auth.dto';
 import { UpdateUserProfileDto } from './dto/user-profile.dto';
 import { UsersAuthService } from './users.service';
-import {RecordService} from "@noukha-technologies/mdm-core"
+import { RecordService } from "@noukha-technologies/mdm-core"
 
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersAuthService) {}
+  constructor(private readonly usersService: UsersAuthService) { }
 
-  
+
   @Post('phn-otp/request')
   async requestPhnOtp(@Body() dto: UnifiedPhoneOtpRequestDto) {
     return this.usersService.requestUnifiedPhoneOtp(dto);
@@ -74,7 +74,7 @@ export class UsersController {
   }
 
   @Post('confirm-email')
-  async confirmEmail(@Body() dto: ConfirmEmailDto) {  
+  async confirmEmail(@Body() dto: ConfirmEmailDto) {
     return this.usersService.confirmEmail(dto);
   }
 
@@ -157,6 +157,11 @@ export class UsersController {
   @Post('activate-by-qr-code')
   async activateByQrCode(@Body() dto: ActivateByQrCodeDto) {
     return this.usersService.activateByQrCode(dto.userId, dto.referrerUserId);
+  }
+
+  @Get(':userId')
+  async getUserByUserId(@Param('userId') userId: string) {
+    return this.usersService.getUserByUserId(userId);
   }
 
   @Patch(':userId')
