@@ -1074,14 +1074,6 @@ export class UsersAuthService {
       updatePayload.profileImageUpdatedAt = new Date();
     }
 
-    if (dto.mutualfriendReferral !== undefined) {
-      updatePayload.mutualfriendReferral = dto.mutualfriendReferral;
-
-      if (dto.mutualfriendReferral === true) {
-        updatePayload.status = accountStatus.COMPLETED;
-        updatePayload.referrerMedium = ReferrerMedium.MUTUAL_FRIEND;
-      }
-    }
 
     const updatedUser = await this.dbService.users.findOneAndUpdate(
       { userId, isDeleted: false },

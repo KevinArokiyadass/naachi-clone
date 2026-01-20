@@ -13,8 +13,5 @@ export class UpdateUserProfileDto {
   @IsString()
   s3FileName?: string;
 
-  @IsOptional()
-  @IsBoolean()
-  mutualfriendReferral?: boolean;
 }
 
