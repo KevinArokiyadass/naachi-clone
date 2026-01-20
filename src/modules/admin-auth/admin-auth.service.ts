@@ -18,7 +18,7 @@ export class AdminAuthService {
             if (!user) {
                 return null;
             }
-            
+
             // Validate with Cognito
             const tokens = await this.cognito.signIn(email, password);
             if (tokens) {
@@ -32,15 +32,19 @@ export class AdminAuthService {
 
     async generateTokens(user: IAdminUser) {
         const adminUser = await this.adminUsersService.getAdminUserById(user.adminId);
-        
+
         return { adminUser };
     }
 
-    async refreshAccessToken(userName: string, refreshToken: string) {
+    async refreshAccessToken(userName: string, refresh_token: string) {
         try {
-            const tokens = await this.cognito.refreshToken(userName, refreshToken);
+            const admin = await this.adminUsersService.getOneAdminUser({ email: userName });
+            const cognitoUsername = admin?.userName || userName;
+
+            const tokens = await this.cognito.refreshToken(cognitoUsername, refresh_token);
             return tokens;
         } catch (error) {
+            console.log('Error in refreshAccessToken:', error.message);
             throw new UnauthorizedException('Invalid refresh token');
         }
     }
