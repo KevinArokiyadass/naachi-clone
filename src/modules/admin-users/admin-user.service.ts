@@ -295,7 +295,8 @@ export class AdminUserService {
   }
 
   async updateRefreshToken(adminId: string, refreshToken: string) {
-    return await this.dbServices.adminUser.findOneAndUpdate({ adminId }, { refreshToken: refreshToken }, { new: true });
+    const updated = await this.dbServices.adminUser.findOneAndUpdate({ adminId }, { refreshToken: refreshToken }, { new: true });
+    return this.attachProfileImageUrl(updated);
   }
 
   private async fetchPermissionsForUser(permissionGroupIds: string[]): Promise<string[]> {
@@ -380,6 +381,9 @@ export class AdminUserService {
     if (userObj.s3ProfileImageName) {
       userObj.s3ProfileImageUrl = this.awsStoreService.getCloudFrontUrl(userObj.s3ProfileImageName);
     }
+
+    // Delete password if present to ensure it's not leaked in responses
+    delete userObj.password;
 
     return userObj;
   }

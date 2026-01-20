@@ -16,7 +16,7 @@ export class Users extends Document {
     @Prop({ type: String, required: false, trim: true, sparse: true })
     email?: string;
 
-    @Prop({ type: String, required: false })
+    @Prop({ type: String, required: false, select: false })
     password?: string;
 
     @Prop({
