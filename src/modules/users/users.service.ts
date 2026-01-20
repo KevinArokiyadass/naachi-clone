@@ -1035,6 +1035,10 @@ export class UsersAuthService {
       try {
         const institution = await this.recordService.findOne('institutions', userWithImage.institutionsId);
         if (institution) {
+          // Convert s3ProfileImageName to CloudFront URL if present
+          if (institution.s3ProfileImageName) {
+            institution.institutionImageUrl = this.awsStoreService.getCloudFrontUrl(institution.s3ProfileImageName);
+          }
           userWithImage.institutionDetails = institution;
         }
       } catch (error) {
