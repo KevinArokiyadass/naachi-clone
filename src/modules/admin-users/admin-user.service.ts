@@ -57,14 +57,6 @@ export class AdminUserService {
       isDeleted: false
     });
 
-    // If emails match and both have phone numbers, they must match
-    if (existingUser && phoneNumber && existingUser.phoneNumber &&
-      existingUser.phoneNumber.trim() !== phoneNumber.trim()) {
-      throw new BadRequestException(
-        'Email already exists with a different phone number. Please use the same phone number associated with this email.'
-      );
-    }
-
     if (!createAdminDto.role) {
       throw new BadRequestException('Role is required');
     }
@@ -91,22 +83,14 @@ export class AdminUserService {
       );
 
       // Sync institutionId to existing user if email matches and mark as verified
-      // Only set isVerified to true if institutionId exists AND phone numbers match
+      // Set isVerified to true if institutionId exists (phone number check removed - phone numbers can differ)
       if (existingUser && institutionsId) {
         try {
-          // Check if phone numbers match
-          const phoneMatch = phoneNumber && existingUser.phoneNumber &&
-            phoneNumber.trim() === existingUser.phoneNumber.trim();
-
           const updateData: Record<string, any> = {
             institutionsId: institutionsId,
+            isVerified: true, // Set isVerified based on email match only, phone numbers can differ
             updatedAt: new Date()
           };
-
-          // Only set isVerified to true if institutionId exists AND phone numbers match
-          if (phoneMatch) {
-            updateData.isVerified = true;
-          }
 
           await this.dbServices.users.findOneAndUpdate(
             { userId: existingUser.userId, isDeleted: false },

@@ -92,14 +92,14 @@ export class UsersAuthService {
       await this.signUpUserInCognito(dto.phoneNumber, userPayload.userId);
     } catch (error) {
       if (error.name === 'UsernameExistsException') {
-        // For sync users, isVerified will be set later when institutionId is synced and phone matches
+        // For sync users, isVerified will be set later when institutionId is synced (email match only)
         const syncUserPayload: IUsers = {
           userId: generateUniqueId(),
           phoneNumber: dto.phoneNumber,
           customLogin: true,
           status: accountStatus.COMPLETED,
           isActive: true,
-          isVerified: false, // Will be set to true when institutionId is synced and phone matches
+          isVerified: false, // Will be set to true when institutionId is synced (email match only)
           phoneVerified: true,
           userNameSet: false,
           emailVerified: false,
@@ -451,13 +451,12 @@ export class UsersAuthService {
 
   /**
    * Syncs institutionId from admin user to regular user if emails match
-   * Validates that phone numbers match if emails match and both are provided
-   * Returns object with institutionId and phoneMatch status
+   * Returns object with institutionId (phone number check removed - phone numbers can differ)
    */
   private async syncInstitutionIdFromAdminUser(
     email: string, 
     userPhoneNumber: string
-  ): Promise<{ institutionId: string; phoneMatch: boolean } | null> {
+  ): Promise<{ institutionId: string } | null> {
     const adminUser = await this.dbService.adminUser.findOne({
       email: email.toLowerCase().trim(),
       isDeleted: { $ne: true }
@@ -467,22 +466,10 @@ export class UsersAuthService {
       return null;
     }
 
-    // Check if phone numbers match
-    const phoneMatch = adminUser.phoneNumber && userPhoneNumber && 
-      adminUser.phoneNumber.trim() === userPhoneNumber.trim();
-
-    // If emails match and both have phone numbers, they must match
-    if (adminUser.phoneNumber && userPhoneNumber && !phoneMatch) {
-      throw new BadRequestException(
-        'Email already exists with a different phone number. Please use the same phone number associated with this email.'
-      );
-    }
-
     // Get institutionId from admin user's metaTags
     if (adminUser.metaTags && adminUser.metaTags.length > 0 && adminUser.metaTags[0].institutionsId) {
       return {
-        institutionId: adminUser.metaTags[0].institutionsId,
-        phoneMatch: phoneMatch || false // true only if both exist and match
+        institutionId: adminUser.metaTags[0].institutionsId
       };
     }
 
@@ -523,15 +510,7 @@ export class UsersAuthService {
     }
 
     // Check for matching admin user and sync institutionId
-    let adminSyncResult: { institutionId: string; phoneMatch: boolean } | null = null;
-    try {
-      adminSyncResult = await this.syncInstitutionIdFromAdminUser(dto.email, user.phoneNumber);
-    } catch (error) {
-      // Re-throw BadRequestException from phone validation
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-    }
+    const adminSyncResult = await this.syncInstitutionIdFromAdminUser(dto.email, user.phoneNumber);
 
     const institutionsId = adminSyncResult?.institutionId || await this.validateInstitute(dto.email);
 
@@ -544,8 +523,8 @@ export class UsersAuthService {
       updatedAt: new Date()
     };
 
-    // Only set isVerified to true if institutionId exists AND phone numbers match
-    if (adminSyncResult && adminSyncResult.institutionId && adminSyncResult.phoneMatch) {
+    // Set isVerified to true if institutionId exists from admin user (email match only, phone numbers can differ)
+    if (adminSyncResult && adminSyncResult.institutionId) {
       updatePayload.isVerified = true;
     }
 
@@ -992,7 +971,7 @@ export class UsersAuthService {
     const referrerUserName = referrer.userName ?? referrerUserId;
 
     // Update user: activate, set referrer, and set activation medium
-    // Only set isVerified to true if institutionId exists (phone match not applicable for QR code activation)
+    // Only set isVerified to true if institutionId exists
     const updateData: Record<string, any> = {
       isActive: true,
       status: accountStatus.COMPLETED,
