@@ -30,9 +30,27 @@ export class AdminUserService {
     }
 
     let isVerifiedAdmin = false;
-    const institutionsId = createAdminDto.metaTags?.[0]?.institutionsId;
-    if (institutionsId) {
-      const institution = await this.recordService.findOne('institutions', institutionsId);
+
+    // Validate email domain and get institution ID
+    const validatedInstitutionsId = await this.validateInstitute(createAdminDto.email);
+
+    const providedInstitutionsId = createAdminDto.metaTags?.[0]?.institutionsId;
+
+    if (createAdminDto.role === 'INSTITUTION_ADMIN') {
+      if (!providedInstitutionsId) {
+        throw new BadRequestException('Institution ID is required in metaTags for INSTITUTION_ADMIN role');
+      }
+
+      if (providedInstitutionsId !== validatedInstitutionsId) {
+        throw new BadRequestException({
+          message: `Email domain does not match with the provided institution ID.`,
+          errorCode: 'INSTITUTION_MISMATCH',
+        });
+      }
+    }
+
+    if (providedInstitutionsId) {
+      const institution = await this.recordService.findOne('institutions', providedInstitutionsId);
       if (!institution) {
         throw new BadRequestException('Institution not found');
       }
@@ -446,6 +464,65 @@ export class AdminUserService {
     delete userObj.password;
 
     return userObj;
+  }
+
+  async validateInstitute(email: string): Promise<string> {
+    const atIndex = email?.lastIndexOf('@') ?? -1;
+    if (atIndex === -1 || atIndex === email.length - 1) {
+      throw new BadRequestException('Invalid email format');
+    }
+
+    // Ensure email starts with an alphabet
+    if (!/^[a-zA-Z]/.test(email)) {
+      throw new BadRequestException({
+        message: 'Email must start with an alphabet character.',
+        errorCode: 'INVALID_EMAIL_START',
+      });
+    }
+
+    const domain = email.substring(atIndex + 1).trim().replace(/^@/, '').toLowerCase();
+
+    try {
+      // Search for domain with or without @ prefix to handle both cases in database
+      const response = await this.recordService.findAll('institutions', {
+        filters: {
+          $or: [
+            { institutionDomain: domain },
+            { institutionDomain: `@${domain}` }
+          ],
+        },
+        fields: ['institutionDomain', 'institutionsId'],
+        nonPaginated: true,
+      });
+
+      const hasMatch = Array.isArray(response?.items) && response.items.length > 0;
+
+      if (!hasMatch) {
+        throw new BadRequestException({
+          message: `Email domain "${domain}" is not a registered domain.`,
+          errorCode: 'INVALID_EMAIL_DOMAIN',
+        });
+      }
+
+      const matchingInstitution = response.items[0];
+      if (!matchingInstitution?.institutionsId) {
+        throw new BadRequestException({
+          message: 'Institution ID not found for the matching domain.',
+          errorCode: 'INSTITUTION_ID_MISSING',
+        });
+      }
+
+      return matchingInstitution.institutionsId;
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException({
+        message: 'Failed to validate email domain. Please try again.',
+        errorCode: 'DOMAIN_VALIDATION_ERROR',
+      });
+    }
   }
 
 }

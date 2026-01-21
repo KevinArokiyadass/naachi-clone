@@ -296,7 +296,7 @@ export class ReviewReportService {
     return updatedReport;
   }
 
-  async updateStatus(reviewId: string, status: string): Promise<ReviewReport> {
+  async updateStatus(reviewId: string, status: string, isBlocked?: boolean): Promise<ReviewReport> {
     const updated = await this.reportModel
       .findOneAndUpdate(
         { reviewId },
@@ -311,6 +311,7 @@ export class ReviewReportService {
 
     if (
       status.toLowerCase() === 'resolved' &&
+      isBlocked &&
       updated.reportedUserId
     ) {
       await this.usersModel
@@ -318,6 +319,8 @@ export class ReviewReportService {
           { userId: updated.reportedUserId },
           {
             status: accountStatus.BLOCKED,
+            isActive: false,
+            isBlocked: true,
           },
           { new: true }
         )
