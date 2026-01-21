@@ -50,8 +50,8 @@ export class ReviewReportController {
   }
 
   @Patch(':reviewId/status')
-  update(@Param('reviewId') reviewId: string, @Body() body: { status: string; isblocked?: boolean }): Promise<ReviewReport> {
-    return this.service.updateStatus(reviewId, body.status, body.isblocked);
+  update(@Param('reviewId') reviewId: string, @Body() body: UpdateReviewReportDto): Promise<ReviewReport> {
+    return this.service.updateStatus(reviewId, body.status, body.isBlocked);
   }
 
   @Delete(':reviewId')

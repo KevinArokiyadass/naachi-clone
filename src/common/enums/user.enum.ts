@@ -8,10 +8,10 @@ export interface IMetaTag {
 }
 
 export enum RecordStatus {
-  PENDING = 'PENDING',
-  IN_REVIEW = 'IN_REVIEW',
-  RESOLVED = 'RESOLVED',
-  REJECTED = 'REJECTED',
+  PENDING = 'pending',
+  IN_REVIEW = 'in_review',
+  RESOLVED = 'resolved',
+  REJECTED = 'rejected',
 }
 
 export enum RecordUserRole {
