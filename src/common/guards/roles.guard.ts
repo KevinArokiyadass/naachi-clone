@@ -98,11 +98,7 @@ export class RolesGuard implements CanActivate {
     const institutionsId = request['institutionsId'];
 
     if (userRole === AdminRoles.SUPER_ADMIN) {
-      if (!isSuperAdminRequest) {
-        throw new ForbiddenException(
-          'SUPER_ADMIN can only access from super admin domain. Please use the correct origin header.',
-        );
-      }
+      
     } else if (userRole === AdminRoles.INSTITUTIONADMIN) {
       if (!institutionsId) {
         throw new ForbiddenException(
