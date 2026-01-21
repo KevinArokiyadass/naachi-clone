@@ -102,10 +102,10 @@ export class AdminUserService {
 
       // Sync institutionId to existing user if email matches and mark as verified
       // Set isVerified to true if institutionId exists (phone number check removed - phone numbers can differ)
-      if (existingUser && institutionsId) {
+      if (existingUser && providedInstitutionsId) {
         try {
           const updateData: Record<string, any> = {
-            institutionsId: institutionsId,
+            institutionsId: providedInstitutionsId,
             isVerified: true, // Set isVerified based on email match only, phone numbers can differ
             updatedAt: new Date()
           };
