@@ -1040,7 +1040,7 @@ export class UsersAuthService {
           
           // Convert s3ProfileImageName to CloudFront URL if present
           if (institutionObj.s3ProfileImageName) {
-            institutionObj.institutionImageUrl = this.awsStoreService.getCloudFrontUrl(institutionObj.s3ProfileImageName);
+            institutionObj.s3ProfileImageUrl = this.awsStoreService.getCloudFrontUrl(institutionObj.s3ProfileImageName);
           }
           
           userWithImage.institutionDetails = institutionObj;
