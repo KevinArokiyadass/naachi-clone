@@ -1127,6 +1127,17 @@ export class UsersAuthService {
       updatePayload.profileImageUpdatedAt = new Date();
     }
 
+    if (dto.showPhoneNumber !== undefined) {
+      updatePayload.showPhoneNumber = dto.showPhoneNumber;
+    }
+
+    if (dto.muteNotifications !== undefined) {
+      updatePayload.muteNotifications = dto.muteNotifications;
+    }
+
+    if (dto.disableReadReceipt !== undefined) {
+      updatePayload.disableReadReceipt = dto.disableReadReceipt;
+    }
 
     const updatedUser = await this.dbService.users.findOneAndUpdate(
       { userId, isDeleted: false },

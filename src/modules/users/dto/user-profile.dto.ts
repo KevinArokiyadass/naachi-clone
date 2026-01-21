@@ -13,5 +13,16 @@ export class UpdateUserProfileDto {
   @IsString()
   s3FileName?: string;
 
+  @IsOptional()
+  @IsBoolean()
+  showPhoneNumber?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  muteNotifications?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  disableReadReceipt?: boolean;
 }
 
