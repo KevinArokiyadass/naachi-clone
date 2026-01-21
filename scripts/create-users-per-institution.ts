@@ -237,6 +237,16 @@ async function createSingleUser(
       // Use the institution ID from the institution parameter
       const institutionsId = institution.institutionsId;
       
+      // Check if there's a matching admin user with same email and phone number
+      const adminUser = await dbService.adminUser.findOne({
+        email: email.toLowerCase().trim(),
+        isDeleted: { $ne: true }
+      });
+      
+      // Only set isVerified to true if admin user exists and phone numbers match
+      const phoneMatch = adminUser && adminUser.phoneNumber && phoneNumber &&
+        adminUser.phoneNumber.trim() === phoneNumber.trim();
+      
       // Directly update user to completed status in database
       await dbService.users.findOneAndUpdate(
         { userId, status: 'pending' },
@@ -246,7 +256,7 @@ async function createSingleUser(
           emailVerified: true,
           status: 'completed',
           isActive: true,
-          isVerified: true,
+          isVerified: phoneMatch || false, // Only true if phone numbers match
           referrerId: referrerUserId,
           referredBy: referrerUserName,
           referrerMedium: ReferrerMedium.INSTITUTION_MAIL,

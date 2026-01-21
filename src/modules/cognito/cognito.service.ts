@@ -15,6 +15,7 @@ import {
   AdminCreateUserCommand,
   DeliveryMediumType,
   MessageActionType,
+  RefreshTokenReuseException,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { Injectable, BadRequestException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { generateSecretHash } from 'src/common/utils/util';
@@ -126,7 +127,7 @@ export class CognitoService {
     }
   }
 
-  async refreshToken(userName: string, refreshToken: string) {
+  async refreshToken(userName: string, refresh_token: string) {
     try {
       const secretHash = generateSecretHash(userName, this.clientId, this.clientSecret);
       const response = await this.client.send(
@@ -134,9 +135,9 @@ export class CognitoService {
           AuthFlow: AuthFlowType.REFRESH_TOKEN_AUTH,
           ClientId: this.clientId,
           AuthParameters: {
-            REFRESH_TOKEN: refreshToken,
+            REFRESH_TOKEN: refresh_token,
             SECRET_HASH: secretHash,
-            USERNAME: userName,
+            USERNAME: userName
           },
         }),
       );
@@ -148,9 +149,11 @@ export class CognitoService {
       return {
         accessToken: response.AuthenticationResult.AccessToken,
         idToken: response.AuthenticationResult.IdToken,
-        refreshToken: response.AuthenticationResult.RefreshToken,
+        refreshToken: response.AuthenticationResult.RefreshToken || refresh_token,
       };
     } catch (error) {
+      console.log('<<<<<<< refreshToken error >>>>>>>>> ')
+      console.error(error);
       error.name = error.name || 'UnknownError';
       throw new UnauthorizedException('Invalid refresh token');
     }
@@ -161,7 +164,7 @@ export class CognitoService {
       // First, check if user exists in Cognito using admin operations
       let userExists = false;
       let userStatus = null;
-      
+
       try {
         const getUserResponse = await this.client.send(
           new AdminGetUserCommand({
@@ -169,7 +172,7 @@ export class CognitoService {
             Username: email,
           })
         );
-        
+
         userExists = true;
         userStatus = getUserResponse.UserStatus;
         console.log(`User ${email} exists in Cognito with status: ${userStatus}`);
@@ -177,7 +180,7 @@ export class CognitoService {
         // If user is unconfirmed, we can delete and recreate
         if (userStatus === 'UNCONFIRMED') {
           console.log(`Deleting unconfirmed user ${email} to recreate with new password`);
-          
+
           // Delete the existing unconfirmed user
           await this.client.send(
             new AdminDeleteUserCommand({
@@ -185,7 +188,7 @@ export class CognitoService {
               Username: email,
             })
           );
-          
+
           console.log(`Successfully deleted unconfirmed user ${email}`);
         } else {
           // User is confirmed, we shouldn't delete them
@@ -201,10 +204,10 @@ export class CognitoService {
           throw getUserErr;
         }
       }
-      
+
       // Now create the user with new password
       const secretHash = generateSecretHash(email, this.clientId, this.clientSecret);
-      
+
       await this.client.send(
         new SignUpCommand({
           ClientId: this.clientId,
@@ -214,28 +217,27 @@ export class CognitoService {
           UserAttributes: [{ Name: 'email', Value: email }],
         }),
       );
-      
+
       console.log(`Successfully created user ${email} with new password`);
-      
-      return { 
+
+      return {
         message: 'Password updated and verification code sent successfully',
         action: 'password_updated_and_verification_sent',
         userWasRecreated: userExists
       };
     } catch (err) {
       console.log('Error in updateUserPassword:', err.message);
-      
+
       // If we still get UsernameExistsException, something went wrong with deletion
       if (err.name === 'UsernameExistsException') {
         console.log(`User ${email} still exists after deletion attempt, trying resend code`);
         await this.resendVerificationCode(email);
-        return { 
+        return {
           message: 'Unable to update password, but verification code has been resent. Use your previous password for verification.',
           action: 'verification_code_resent_with_old_password',
           note: 'Password update failed, use previous password for verification'
         };
       }
-      
       throw err;
     }
   }
@@ -292,7 +294,6 @@ export class CognitoService {
 
       // We'll use a temporary password to verify the code, then immediately reset it
       const tempPassword = 'TempPass123!';
-      
       await this.client.send(
         new ConfirmForgotPasswordCommand({
           ClientId: this.clientId,
@@ -334,7 +335,7 @@ export class CognitoService {
       throw new BadRequestException(err.message);
     }
   }
-  
+
   async logout(options: { accessToken?: string; refreshToken?: string }) {
     const { accessToken, refreshToken } = options || {};
     try {

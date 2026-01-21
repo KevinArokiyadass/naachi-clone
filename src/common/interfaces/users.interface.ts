@@ -24,11 +24,14 @@ export interface IUsers {
     referredBy?: string;
     referrerId?: string;
     referrerMedium?: ReferrerMedium;
+    institutionsId?: string;
     qrAuth?: boolean;
-    mutualfriendReferral?: boolean;
     profileImage?: string;
     profileImageUpdatedAt?: Date;
     customLogin?: boolean;
+    metaData?: {
+        institutionId?: string;
+    };
     createdAt?: Date;
     updatedAt?: Date;
 }

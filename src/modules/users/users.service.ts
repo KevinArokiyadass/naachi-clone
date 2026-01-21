@@ -92,13 +92,14 @@ export class UsersAuthService {
       await this.signUpUserInCognito(dto.phoneNumber, userPayload.userId);
     } catch (error) {
       if (error.name === 'UsernameExistsException') {
+        // For sync users, isVerified will be set later when institutionId is synced (email match only)
         const syncUserPayload: IUsers = {
           userId: generateUniqueId(),
           phoneNumber: dto.phoneNumber,
           customLogin: true,
           status: accountStatus.COMPLETED,
           isActive: true,
-          isVerified: true,
+          isVerified: false, // Will be set to true when institutionId is synced (email match only)
           phoneVerified: true,
           userNameSet: false,
           emailVerified: false,
@@ -249,10 +250,14 @@ export class UsersAuthService {
     }
 
     if (existingUser.phoneVerified) {
+
+      const reverifyPhone = await this.generateOtp(phoneNumber);
       return {
         authMode: 'signup',
-        message: 'Phone already verified. Continue signup',
-        userId: existingUser.userId
+        message: 'reverifying Phone continue signup',
+        userId: existingUser.userId,
+        challengeName: reverifyPhone.ChallengeName,
+        session: reverifyPhone.Session
       };
     }
 
@@ -292,14 +297,6 @@ export class UsersAuthService {
       };
     }
 
-    if (user.phoneVerified) {
-      return {
-        authMode: 'signUp',
-        nextStep: 'setUsername',
-        message: 'Phone verified continue to set Username',
-        userId: user.userId,
-      };
-    }
 
     const signupResult = await this.verifySignupOtp({
       phoneNumber,
@@ -334,10 +331,6 @@ export class UsersAuthService {
         authMode: 'login',
         ...loginResult,
       };
-    }
-
-    if (user.phoneVerified) {
-      throw new BadRequestException('Phone number already verified. Continue signup.');
     }
 
     await this.resendSignupOtp(phoneNumber);
@@ -456,6 +449,33 @@ export class UsersAuthService {
     }
   }
 
+  /**
+   * Syncs institutionId from admin user to regular user if emails match
+   * Returns object with institutionId (phone number check removed - phone numbers can differ)
+   */
+  private async syncInstitutionIdFromAdminUser(
+    email: string, 
+    userPhoneNumber: string
+  ): Promise<{ institutionId: string } | null> {
+    const adminUser = await this.dbService.adminUser.findOne({
+      email: email.toLowerCase().trim(),
+      isDeleted: { $ne: true }
+    });
+
+    if (!adminUser) {
+      return null;
+    }
+
+    // Get institutionId from admin user's metaTags
+    if (adminUser.metaTags && adminUser.metaTags.length > 0 && adminUser.metaTags[0].institutionsId) {
+      return {
+        institutionId: adminUser.metaTags[0].institutionsId
+      };
+    }
+
+    return null;
+  }
+
   async verifyEmail(dto: VerifyEmailDto) {
     const user = await this.dbService.users.findOne({
       userId: dto.userId,
@@ -489,18 +509,28 @@ export class UsersAuthService {
       throw new BadRequestException('Email already registered');
     }
 
-    const institutionsId = await this.validateInstitute(dto.email);
+    // Check for matching admin user and sync institutionId
+    const adminSyncResult = await this.syncInstitutionIdFromAdminUser(dto.email, user.phoneNumber);
+
+    const institutionsId = adminSyncResult?.institutionId || await this.validateInstitute(dto.email);
+
+    const updatePayload: Record<string, any> = {
+      email: dto.email,
+      institutionsId: institutionsId,
+      emailVerified: false,
+      referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
+      qrAuth: false,
+      updatedAt: new Date()
+    };
+
+    // Set isVerified to true if institutionId exists from admin user (email match only, phone numbers can differ)
+    if (adminSyncResult && adminSyncResult.institutionId) {
+      updatePayload.isVerified = true;
+    }
 
     await this.dbService.users.findOneAndUpdate(
       { userId: dto.userId, status: accountStatus.PENDING },
-      {
-        email: dto.email,
-        institutionsId: institutionsId,
-        emailVerified: false,
-        referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
-        qrAuth: false,
-        updatedAt: new Date()
-      }
+      updatePayload
     );
 
 
@@ -565,18 +595,21 @@ export class UsersAuthService {
 
     // Check if default OTP is used
     if (dto.confirmationCode === this.DEFAULT_EMAIL_OTP) {
+      // Preserve isVerified if it was set during verifyEmail (from admin sync)
+      const updatePayload: Record<string, any> = {
+        emailVerified: true,
+        status: accountStatus.COMPLETED,
+        isActive: true,
+        isVerified: user.isVerified ?? false, // Preserve existing value, default to false
+        referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
+        qrAuth: false,
+        updatedAt: new Date()
+      };
+
       // Skip Cognito verification and directly mark as completed
       await this.dbService.users.findOneAndUpdate(
         { userId: dto.userId, status: accountStatus.PENDING },
-        {
-          emailVerified: true,
-          status: accountStatus.COMPLETED,
-          isActive: true,
-          isVerified: true,
-          referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
-          qrAuth: false,
-          updatedAt: new Date()
-        }
+        updatePayload
       );
 
       return {
@@ -604,17 +637,20 @@ export class UsersAuthService {
       throw new BadRequestException('Failed to verify email. Please try again.');
     }
 
+    // Preserve isVerified if it was set during verifyEmail (from admin sync)
+    const updatePayload: Record<string, any> = {
+      emailVerified: true,
+      status: accountStatus.COMPLETED,
+      isActive: true,
+      isVerified: user.isVerified ?? false, // Preserve existing value, default to false
+      referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
+      qrAuth: false,
+      updatedAt: new Date()
+    };
+
     await this.dbService.users.findOneAndUpdate(
       { userId: dto.userId, status: accountStatus.PENDING },
-      {
-        emailVerified: true,
-        status: accountStatus.COMPLETED,
-        isActive: true,
-        isVerified: true,
-        referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
-        qrAuth: false,
-        updatedAt: new Date()
-      }
+      updatePayload
     );
 
     return {
@@ -935,18 +971,25 @@ export class UsersAuthService {
     const referrerUserName = referrer.userName ?? referrerUserId;
 
     // Update user: activate, set referrer, and set activation medium
+    // Only set isVerified to true if institutionId exists
+    const updateData: Record<string, any> = {
+      isActive: true,
+      status: accountStatus.COMPLETED,
+      referrerId: referrerUserId,
+      referredBy: referrerUserName,
+      referrerMedium: ReferrerMedium.QR_CODE,
+      qrAuth: true,
+      updatedAt: new Date(),
+    };
+
+    // Only set isVerified to true if institutionId exists
+    if (user.institutionsId) {
+      updateData.isVerified = true;
+    }
+
     const updatedUser = await this.dbService.users.findOneAndUpdate(
       { userId, isDeleted: false },
-      {
-        isActive: true,
-        isVerified: true,
-        status: accountStatus.COMPLETED,
-        referrerId: referrerUserId,
-        referredBy: referrerUserName,
-        referrerMedium: ReferrerMedium.QR_CODE,
-        qrAuth: true,
-        updatedAt: new Date(),
-      },
+      updateData,
       { new: true },
     );
 
@@ -965,8 +1008,6 @@ export class UsersAuthService {
 
     const userObj = user.toObject ? user.toObject() : { ...user };
 
-    // Transform profileImage to include CloudFront URL if filename exists
-    // Database stores only the filename, we append CloudFront URL when returning
     if (userObj.profileImage) {
       userObj.profileImage = this.awsStoreService.getCloudFrontUrl(userObj.profileImage);
     }
@@ -975,6 +1016,77 @@ export class UsersAuthService {
     delete userObj.password;
 
     return userObj;
+  }
+
+  async getUserByUserId(userId: string) {
+    const user = await this.dbService.users.findOne({
+      userId,
+      isDeleted: false,
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const userWithImage = this.attachProfileImageUrl(user);
+    
+    // Populate institution details if institutionsId exists
+    if (userWithImage.institutionsId) {
+      try {
+        const institution = await this.recordService.findOne('institutions', userWithImage.institutionsId);
+        if (institution) {
+          // Convert institution to plain object to ensure we can add fields
+          const institutionObj = institution.toObject ? institution.toObject() : { ...institution };
+          
+          // Convert s3ProfileImageName to CloudFront URL if present
+          if (institutionObj.s3ProfileImageName) {
+            institutionObj.institutionImageUrl = this.awsStoreService.getCloudFrontUrl(institutionObj.s3ProfileImageName);
+          }
+          
+          userWithImage.institutionDetails = institutionObj;
+        }
+      } catch (error) {
+        // If institution not found or error occurs, continue without institution details
+        console.error('Error fetching institution details:', error);
+      }
+    }
+
+    // Populate department details if user email matches admin user email
+    if (userWithImage.email && userWithImage.institutionsId) {
+      try {
+        const adminUser = await this.dbService.adminUser.findOne({
+          email: userWithImage.email.toLowerCase().trim(),
+          isDeleted: { $ne: true }
+        });
+
+        if (adminUser && adminUser.metaTags && adminUser.metaTags.length > 0) {
+          // Find the metaTag that matches the user's institutionsId
+          const matchingMetaTag = adminUser.metaTags.find(
+            (tag: any) => tag && tag.institutionsId && String(tag.institutionsId).trim() === String(userWithImage.institutionsId).trim()
+          );
+
+          if (matchingMetaTag && matchingMetaTag.departmentsId && Array.isArray(matchingMetaTag.departmentsId) && matchingMetaTag.departmentsId.length > 0) {
+            // Fetch department details using departmentsId array
+            // Query by matching any of the departmentsId values
+            const departmentsResult = await this.recordService.findAll('departments', {
+              filters: {
+                departmentsId: { $in: matchingMetaTag.departmentsId }
+              },
+              nonPaginated: true,
+            });
+
+            if (departmentsResult?.items && departmentsResult.items.length > 0) {
+              userWithImage.departmentDetails = departmentsResult.items;
+            }
+          }
+        }
+      } catch (error) {
+        // If admin user not found or error occurs, continue without department details
+        console.error('Error fetching department details:', error);
+      }
+    }
+
+    return userWithImage;
   }
 
   async updateUserProfile(userId: string, dto: UpdateUserProfileDto) {
@@ -1015,14 +1127,6 @@ export class UsersAuthService {
       updatePayload.profileImageUpdatedAt = new Date();
     }
 
-    if (dto.mutualfriendReferral !== undefined) {
-      updatePayload.mutualfriendReferral = dto.mutualfriendReferral;
-
-      if (dto.mutualfriendReferral === true) {
-        updatePayload.status = accountStatus.COMPLETED;
-        updatePayload.referrerMedium = ReferrerMedium.MUTUAL_FRIEND;
-      }
-    }
 
     const updatedUser = await this.dbService.users.findOneAndUpdate(
       { userId, isDeleted: false },

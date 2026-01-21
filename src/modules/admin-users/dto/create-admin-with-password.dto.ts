@@ -56,7 +56,7 @@ export class CreateAdminWithPasswordDto {
   status?: string = 'active';
 
   @IsArray({ message: 'Permission groups ID must be an array' })
-  @ArrayMinSize(1, { message: 'At least one permission group ID is required' })
+  @ArrayMinSize(1, { message: 'At least one permission group is required' })
   @IsString({ each: true, message: 'Each permission group ID must be a string' })
   @IsNotEmpty({ message: 'Permission groups ID is required' })
   permissionGroupsId: string[];

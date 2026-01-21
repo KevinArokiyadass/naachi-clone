@@ -69,6 +69,12 @@ export class AdminUserService {
       }
     }
 
+    // Check if there's an existing user with the same email
+    const existingUser = await this.dbServices.users.findOne({
+      email: createAdminDto.email.toLowerCase().trim(),
+      isDeleted: false
+    });
+
     if (!createAdminDto.role) {
       throw new BadRequestException('Role is required');
     }
@@ -93,6 +99,29 @@ export class AdminUserService {
         createAdminDto.name,
         createAdminDto.phoneNumber,
       );
+
+      // Sync institutionId to existing user if email matches and mark as verified
+      // Set isVerified to true if institutionId exists (phone number check removed - phone numbers can differ)
+      if (existingUser && institutionsId) {
+        try {
+          const updateData: Record<string, any> = {
+            institutionsId: institutionsId,
+            isVerified: true, // Set isVerified based on email match only, phone numbers can differ
+            updatedAt: new Date()
+          };
+
+          await this.dbServices.users.findOneAndUpdate(
+            { userId: existingUser.userId, isDeleted: false },
+            {
+              $set: updateData
+            }
+          );
+        } catch (syncError) {
+          // Log error but don't fail admin creation
+          console.error('Failed to sync institutionId to existing user:', syncError);
+        }
+      }
+
       return {
         adminUser: this.attachProfileImageUrl(created),
         message: 'Admin user created successfully and ready to login.',
@@ -258,14 +287,40 @@ export class AdminUserService {
       throw new NotFoundException('Admin user not found');
     }
 
-
-    try {
-      if (forgotPassword) {
+    if (forgotPassword) {
+      try {
         await this.cognitoService.forgotPassword(adminUser.email);
         return { message: 'Password reset code sent to email' };
-      } else {
-        throw new BadRequestException('Password updates should be handled through Cognito directly');
+      } catch (error) {
+        throw new BadRequestException(`Failed to initiate forgot password: ${error.message}`);
       }
+    }
+
+    const { currentPassword, newPassword } = updatePasswordDto;
+
+    if (!currentPassword) {
+      throw new BadRequestException('Current password is required for password update');
+    }
+
+    if (currentPassword === newPassword) {
+      throw new BadRequestException('New password cannot be the same as the current password');
+    }
+
+
+    if (adminUser.password !== currentPassword) {
+      throw new BadRequestException('Invalid current password');
+    }
+
+    try {
+      await this.cognitoService.updatePasswordAfterVerification(adminUser.email, newPassword);
+
+      await this.dbServices.adminUser.findOneAndUpdate(
+        { adminId },
+        { password: newPassword },
+        { new: true }
+      );
+
+      return { message: 'Password updated successfully' };
     } catch (error) {
       throw new BadRequestException(`Failed to update password: ${error.message}`);
     }
@@ -305,6 +360,11 @@ export class AdminUserService {
     if (!admin) {
       throw new NotFoundException('Admin user not found');
     }
+
+    if (admin.password === newPassword) {
+      throw new BadRequestException('New password cannot be the same as the current password');
+    }
+
     return await this.dbServices.adminUser.findOneAndUpdate(
       { email },
       { password: newPassword },

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Req } from '@nestjs/common';
 import { ReviewReportService } from './review-report.service';
 import { CreateReviewReportDto } from './dto/create-review-report.dto';
 import { UpdateReviewReportDto } from './dto/update-review-report.dto';
@@ -16,8 +16,20 @@ export class ReviewReportController {
   }
 
   @Get()
-  findAll(@Query() query: FetchDto): Promise<IPaginatedResult<any>> {
-    const { skip, limit, nonPaginated, search, institutionsId } = query;
+  findAll(@Query() query: FetchDto, @Req() req: Request): Promise<IPaginatedResult<any>> {
+    const isSuperAdmin = req['isSuperAdminRequest'];
+    const sessionInstitutionsId = req['institutionsId'];
+
+    const {
+      skip,
+      limit,
+      nonPaginated,
+      search,
+    } = query;
+
+    
+    const institutionsId = isSuperAdmin ? query.institutionsId : sessionInstitutionsId;
+
     const filter: Record<string, any> = {};
 
     if (search) {
