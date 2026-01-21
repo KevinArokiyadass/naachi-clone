@@ -29,6 +29,9 @@ export interface IUsers {
     profileImage?: string;
     profileImageUpdatedAt?: Date;
     customLogin?: boolean;
+    showPhoneNumber?: boolean;
+    muteNotifications?: boolean;
+    disableReadReceipt?: boolean;
     metaData?: {
         institutionId?: string;
     };

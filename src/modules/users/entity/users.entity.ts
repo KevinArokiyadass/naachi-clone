@@ -112,6 +112,16 @@ export class Users extends Document {
 
     @Prop({ type: Boolean, default: false })
     isBlocked: boolean;
+
+    @Prop({ type: Boolean, default: false })
+    showPhoneNumber: boolean;
+
+    @Prop({ type: Boolean, default: false })
+    muteNotifications: boolean;
+
+    @Prop({ type: Boolean, default: false })
+    disableReadReceipt: boolean;
+
     @Prop({
         type: {
             institutionId: { type: String, required: false }
