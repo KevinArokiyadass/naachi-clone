@@ -8,7 +8,7 @@ import { generateUniqueId } from 'src/common/utils/util';
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
 import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
 import { Users } from 'src/modules/users/entity/users.entity';
-import { accountStatus } from 'src/common/enums/user.enum';
+import { USER_STATUS } from 'src/common/enums/user.enum';
 import { HttpClientService } from 'src/common/inter-service-communication/http-client.service';
 import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
 import { RecordService } from '@noukha-technologies/mdm-core';
@@ -318,8 +318,7 @@ export class ReviewReportService {
         .findOneAndUpdate(
           { userId: updated.reportedUserId },
           {
-            status: accountStatus.BLOCKED,
-            isActive: false,
+            status: USER_STATUS.BLOCKED,
             isBlocked: true,
           },
           { new: true }

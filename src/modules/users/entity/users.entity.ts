@@ -1,4 +1,4 @@
-import { accountStatus } from "src/common/enums/user.enum";
+import { UserStatus, userStatus, USER_STATUS } from "src/common/enums/user.enum";
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Document } from "mongoose";
 import { generateUniqueId } from "src/common/utils/util";
@@ -33,9 +33,6 @@ export class Users extends Document {
     name?: string;
 
     @Prop({ type: Boolean, default: false })
-    isActive: boolean;
-
-    @Prop({ type: Boolean, default: false })
     isVerified: boolean;
 
     @Prop({ type: Boolean, default: false })
@@ -52,10 +49,10 @@ export class Users extends Document {
 
     @Prop({
         type: String,
-        enum: Object.values(accountStatus),
-        default: accountStatus.PENDING
+        enum: userStatus,
+        default: USER_STATUS.PENDING
     })
-    status: accountStatus;
+    status: UserStatus;
 
     @Prop({ type: Boolean, default: false })
     phoneVerified: boolean;

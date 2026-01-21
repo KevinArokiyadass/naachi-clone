@@ -34,13 +34,38 @@ export enum ReportType{
   OTHER = 'OTHER',
 }
 
-export enum accountStatus
-{
-  PENDING = 'pending',
-  BLOCKED = 'blocked',
-  APPROVED =  'approved',
-  LEGITIMATE = 'legitimate',
-  COMPLETED = 'completed'
+export const USER_STATUS = {
+  PENDING: 'pending',
+  BLOCKED: 'blocked',
+  ACTIVE: 'active',
+} as const;
+
+export const userStatus = [
+  USER_STATUS.PENDING,
+  USER_STATUS.BLOCKED,
+  USER_STATUS.ACTIVE,
+] as const;
+
+export type UserStatus = (typeof userStatus)[number];
+
+// Helper to normalize legacy/other statuses to the new canonical ones
+// - 'completed', 'approved', 'legitimate', 'active' -> 'active'
+// - 'pending' -> 'pending'
+// - 'blocked' -> 'blocked'
+// - any unknown status -> 'pending' (safe default)
+export function mapToUserStatus(status: string): UserStatus {
+  const normalized = status?.toLowerCase?.();
+
+  const legacyToUserStatusMap: Record<string, UserStatus> = {
+    pending: USER_STATUS.PENDING,
+    blocked: USER_STATUS.BLOCKED,
+    active: USER_STATUS.ACTIVE,
+    completed: USER_STATUS.ACTIVE,
+    approved: USER_STATUS.ACTIVE,
+    legitimate: USER_STATUS.ACTIVE,
+  };
+
+  return legacyToUserStatusMap[normalized] ?? USER_STATUS.PENDING;
 }
 
 export enum ReferrerMedium {

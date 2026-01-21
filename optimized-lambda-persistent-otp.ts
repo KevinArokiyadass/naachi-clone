@@ -18,7 +18,7 @@ import { IUsers } from 'src/common/interfaces/users.interface';
 import { nanoid } from 'nanoid';
 import { generateRandomPassword } from 'src/common/utils/util';
 import { JwtService } from '@nestjs/jwt';
-import { accountStatus } from 'src/common/enums/user.enum';
+import { USER_STATUS } from 'src/common/enums/user.enum';
 
 // DTOs for OTP verification and token refresh
 export class VerifyOtpDto {
@@ -64,13 +64,12 @@ export class AuthService {
           phoneNumber,
           email: emailId,
           userName: businessName,
-          isActive: true,
           isVerified: false,
           isDeleted: false,
           otp: generateRandomPassword(6),
           otpExpiry: new Date(Date.now() + 5 * 60 * 1000),
           lastLoginAt: null,
-          status: accountStatus.PENDING,
+          status: USER_STATUS.PENDING,
           phoneVerified: false,
           userNameSet: true,
           emailVerified: false,

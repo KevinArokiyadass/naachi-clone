@@ -43,7 +43,7 @@ import { UsersAuthService } from '../src/modules/users/users.service';
 import { getConnectionToken } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { IMongoDBServices } from '../src/common/repository/mongodb-repository/abstract.repository';
-import { ReferrerMedium } from '../src/common/enums/user.enum';
+import { ReferrerMedium, USER_STATUS } from '../src/common/enums/user.enum';
 
 // UK student names
 const UK_STUDENT_NAMES = [
@@ -247,15 +247,14 @@ async function createSingleUser(
       const phoneMatch = adminUser && adminUser.phoneNumber && phoneNumber &&
         adminUser.phoneNumber.trim() === phoneNumber.trim();
       
-      // Directly update user to completed status in database
+      // Directly update user to completed/active status in database
       await dbService.users.findOneAndUpdate(
-        { userId, status: 'pending' },
+        { userId, status: USER_STATUS.PENDING },
         {
           email: email,
           institutionsId: institutionsId,
           emailVerified: true,
-          status: 'completed',
-          isActive: true,
+          status: USER_STATUS.ACTIVE,
           isVerified: phoneMatch || false, // Only true if phone numbers match
           referrerId: referrerUserId,
           referredBy: referrerUserName,
@@ -275,7 +274,7 @@ async function createSingleUser(
       
       // Update referrer info after email confirmation
       await dbService.users.findOneAndUpdate(
-        { userId, status: 'completed' },
+        { userId, status: USER_STATUS.ACTIVE },
         {
           referrerId: referrerUserId,
           referredBy: referrerUserName,
@@ -306,7 +305,7 @@ async function getOrCreateReferrerUser(
   // First, try to find an existing user without institution
   const existingReferrer = await dbService.users.findOne({
     isDeleted: false,
-    status: 'completed',
+    status: USER_STATUS.ACTIVE,
     $or: [
       { institutionsId: { $exists: false } },
       { institutionsId: null }
@@ -342,13 +341,12 @@ async function getOrCreateReferrerUser(
     name: 'Referrer User'
   });
 
-  // Mark as completed without institution (no email needed for referrer)
+      // Mark as completed/active without institution (no email needed for referrer)
   await dbService.users.findOneAndUpdate(
-    { userId, status: 'pending' },
+    { userId, status: USER_STATUS.PENDING },
     {
       emailVerified: true,
-      status: 'completed',
-      isActive: true,
+      status: USER_STATUS.ACTIVE,
       isVerified: true,
       updatedAt: new Date()
     }

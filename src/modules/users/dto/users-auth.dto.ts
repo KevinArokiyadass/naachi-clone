@@ -1,5 +1,6 @@
 import { IsEmail, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { FetchDto } from 'src/common/shared/pagination/dto/fetch.dto';
+import { USER_STATUS, UserStatus } from 'src/common/enums/user.enum';
 
 export class UsersSignupDto {
   @IsNotEmpty({ message: 'Phone number is required' })
@@ -133,8 +134,8 @@ export class GetUsersQueryDto extends FetchDto {
   institutionsId?: string;
 
   @IsOptional()
-  @IsIn(['pending', 'completed'], { message: 'Status must be pending or completed' })
-  status?: 'pending' | 'completed';
+  @IsIn([USER_STATUS.PENDING, USER_STATUS.ACTIVE], { message: 'Status must be pending or active' })
+  status?: UserStatus;
 }
 
 export class GetPermissionsQueryDto extends FetchDto {

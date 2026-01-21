@@ -22,7 +22,7 @@ import { JwtService } from '@nestjs/jwt';
 import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
 import { IUsers } from 'src/common/interfaces/users.interface';
 import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
-import { accountStatus, ReferrerMedium } from 'src/common/enums/user.enum';
+import { ReferrerMedium, USER_STATUS } from 'src/common/enums/user.enum';
 import { generateRandomPassword, generateUniqueId } from 'src/common/utils/util';
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
 import {
@@ -77,10 +77,9 @@ export class UsersAuthService {
     const userPayload: IUsers = {
       userId: generateUniqueId(),
       phoneNumber: dto.phoneNumber,
-      isActive: false,
       isVerified: false,
       isDeleted: false,
-      status: accountStatus.PENDING,
+      status: USER_STATUS.PENDING,
       phoneVerified: false,
       userNameSet: false,
       emailVerified: false,
@@ -97,8 +96,7 @@ export class UsersAuthService {
           userId: generateUniqueId(),
           phoneNumber: dto.phoneNumber,
           customLogin: true,
-          status: accountStatus.COMPLETED,
-          isActive: true,
+          status: USER_STATUS.ACTIVE,
           isVerified: false, // Will be set to true when institutionId is synced (email match only)
           phoneVerified: true,
           userNameSet: false,
@@ -153,7 +151,6 @@ export class UsersAuthService {
       { phoneNumber: dto.phoneNumber, isDeleted: false },
       {
         phoneVerified: true,
-        isActive: true,
         lastLoginAt: new Date(),
         updatedAt: new Date(),
       },
@@ -171,7 +168,7 @@ export class UsersAuthService {
   async requestLoginOtp(dto: UsersLoginDto) {
     const user = await this.getUserOrThrow(dto.phoneNumber);
 
-    if (user.status !== accountStatus.COMPLETED) {
+    if (user.status !== USER_STATUS.ACTIVE) {
       throw new BadRequestException(
         'Complete email verification before logging in.',
       );
@@ -189,7 +186,7 @@ export class UsersAuthService {
   async verifyLoginOtp(dto: UsersVerifyLoginDto) {
     const user = await this.getUserOrThrow(dto.phoneNumber);
 
-    if (user.status !== accountStatus.COMPLETED) {
+    if (user.status !== USER_STATUS.ACTIVE) {
       throw new BadRequestException(
         'Complete email verification before logging in.',
       );
@@ -240,7 +237,7 @@ export class UsersAuthService {
         ...signupResult,
       };
     }
-    if (existingUser.status === accountStatus.COMPLETED) {
+    if (existingUser.status === USER_STATUS.ACTIVE) {
       const loginResult = await this.requestLoginOtp({ phoneNumber } as UsersLoginDto);
 
       return {
@@ -284,7 +281,7 @@ export class UsersAuthService {
       throw new NotFoundException('User not found');
     }
 
-    if (user.status === accountStatus.COMPLETED) {
+    if (user.status === USER_STATUS.ACTIVE) {
       const loginResult = await this.verifyLoginOtp({
         phoneNumber,
         otp,
@@ -325,7 +322,7 @@ export class UsersAuthService {
       throw new NotFoundException('User not found');
     }
 
-    if (user.status === accountStatus.COMPLETED) {
+    if (user.status === USER_STATUS.ACTIVE) {
       const loginResult = await this.requestLoginOtp({ phoneNumber } as UsersLoginDto);
       return {
         authMode: 'login',
@@ -368,7 +365,7 @@ export class UsersAuthService {
       throw new BadRequestException('Phone number must be verified first');
     }
 
-    if (user.status !== accountStatus.PENDING) {
+    if (user.status !== USER_STATUS.PENDING) {
       throw new BadRequestException('User signup is already completed');
     }
 
@@ -384,7 +381,7 @@ export class UsersAuthService {
 
 
     await this.dbService.users.findOneAndUpdate(
-      { userId: dto.userId, status: accountStatus.PENDING },
+      { userId: dto.userId, status: USER_STATUS.PENDING },
       {
         userName: dto.userName,
         name: dto.name,
@@ -494,7 +491,7 @@ export class UsersAuthService {
       throw new BadRequestException('Username must be set first');
     }
 
-    if (user.status !== accountStatus.PENDING) {
+    if (user.status !== USER_STATUS.PENDING) {
       throw new BadRequestException('User signup is already completed');
     }
 
@@ -502,7 +499,7 @@ export class UsersAuthService {
     const existingUser = await this.dbService.users.findOne({
       email: dto.email,
       isDeleted: false,
-      status: accountStatus.COMPLETED
+      status: USER_STATUS.ACTIVE
     });
 
     if (existingUser && existingUser.userId !== dto.userId) {
@@ -529,7 +526,7 @@ export class UsersAuthService {
     }
 
     await this.dbService.users.findOneAndUpdate(
-      { userId: dto.userId, status: accountStatus.PENDING },
+      { userId: dto.userId, status: USER_STATUS.PENDING },
       updatePayload
     );
 
@@ -589,7 +586,7 @@ export class UsersAuthService {
       throw new BadRequestException('Email does not match the one provided during verification');
     }
 
-    if (user.status !== accountStatus.PENDING) {
+    if (user.status !== USER_STATUS.PENDING) {
       throw new BadRequestException('User signup is already completed');
     }
 
@@ -598,8 +595,7 @@ export class UsersAuthService {
       // Preserve isVerified if it was set during verifyEmail (from admin sync)
       const updatePayload: Record<string, any> = {
         emailVerified: true,
-        status: accountStatus.COMPLETED,
-        isActive: true,
+        status: USER_STATUS.ACTIVE,
         isVerified: user.isVerified ?? false, // Preserve existing value, default to false
         referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
         qrAuth: false,
@@ -608,7 +604,7 @@ export class UsersAuthService {
 
       // Skip Cognito verification and directly mark as completed
       await this.dbService.users.findOneAndUpdate(
-        { userId: dto.userId, status: accountStatus.PENDING },
+        { userId: dto.userId, status: USER_STATUS.PENDING },
         updatePayload
       );
 
@@ -640,8 +636,7 @@ export class UsersAuthService {
     // Preserve isVerified if it was set during verifyEmail (from admin sync)
     const updatePayload: Record<string, any> = {
       emailVerified: true,
-      status: accountStatus.COMPLETED,
-      isActive: true,
+      status: USER_STATUS.ACTIVE,
       isVerified: user.isVerified ?? false, // Preserve existing value, default to false
       referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
       qrAuth: false,
@@ -649,7 +644,7 @@ export class UsersAuthService {
     };
 
     await this.dbService.users.findOneAndUpdate(
-      { userId: dto.userId, status: accountStatus.PENDING },
+      { userId: dto.userId, status: USER_STATUS.PENDING },
       updatePayload
     );
 
@@ -898,7 +893,7 @@ export class UsersAuthService {
       {
         phoneNumber: { $in: phoneNumbers },
         isDeleted: false,
-        status: accountStatus.COMPLETED,
+        status: USER_STATUS.ACTIVE,
       },
       {
         phoneNumber: 1,
@@ -949,7 +944,7 @@ export class UsersAuthService {
     }
 
     // Check if user has already completed signup
-    if (user.status === accountStatus.COMPLETED) {
+    if (user.status === USER_STATUS.ACTIVE) {
       throw new BadRequestException('User signup is already completed. Cannot activate via QR code.');
     }
 
@@ -973,8 +968,7 @@ export class UsersAuthService {
     // Update user: activate, set referrer, and set activation medium
     // Only set isVerified to true if institutionId exists
     const updateData: Record<string, any> = {
-      isActive: true,
-      status: accountStatus.COMPLETED,
+      status: USER_STATUS.ACTIVE,
       referrerId: referrerUserId,
       referredBy: referrerUserName,
       referrerMedium: ReferrerMedium.QR_CODE,

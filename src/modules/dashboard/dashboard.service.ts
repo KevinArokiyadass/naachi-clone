@@ -4,6 +4,7 @@ import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstr
 import { RecordService } from '@noukha-technologies/mdm-core';
 import { AwsStoreService } from '../aws-store/aws-store.service';
 import { HttpClientService } from 'src/common/inter-service-communication/http-client.service';
+import { USER_STATUS } from 'src/common/enums/user.enum';
 
 @Injectable()
 export class DashboardService {
@@ -132,7 +133,7 @@ export class DashboardService {
         const institutionId = institution.institutionsId;
         const activeUsersCount = await this.dbService.users.countDocuments({
           institutionsId: institutionId,
-          status: 'completed',
+          status: USER_STATUS.ACTIVE,
           isDeleted: false,
         });
 
@@ -220,8 +221,8 @@ export class DashboardService {
       departments,
       departmentGroupCount,
     ] = await Promise.all([
-      this.dbService.users.countDocuments({ ...baseUserFilter, status: 'completed' }),
-      this.dbService.users.countDocuments({ ...baseUserFilter, status: 'pending' }),
+      this.dbService.users.countDocuments({ ...baseUserFilter, status: USER_STATUS.ACTIVE }),
+      this.dbService.users.countDocuments({ ...baseUserFilter, status: USER_STATUS.PENDING }),
       this.dbService.users.countDocuments(baseUserFilter),
       this.dbService.reviewReports.countDocuments(baseReportFilter),
       this.dbService.reviewReports.countDocuments({
