@@ -21,6 +21,7 @@ import {
 import { UpdateUserProfileDto } from './dto/user-profile.dto';
 import { UsersAuthService } from './users.service';
 import { RecordService } from "@noukha-technologies/mdm-core"
+import { USER_STATUS } from 'src/common/enums/user.enum';
 
 
 @Controller('users')
@@ -114,7 +115,7 @@ export class UsersController {
     if (status) {
       filter.status = status;
     } else {
-      filter.status = 'completed';
+      filter.status = USER_STATUS.ACTIVE;  
     }
 
     if (search) {

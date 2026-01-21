@@ -74,8 +74,8 @@ export class DashboardService {
         const baseReportFilter = { institutionsId: institutionId }; 
         const [activeUsers, inactiveUsers, totalUsers, departments, reviewReportsCount, pendingReportsCount, resolvedReportsCount, departmentGroupCount] =
           await Promise.all([
-            this.dbService.users.countDocuments({ ...baseUserFilter, status:"completed" }),
-            this.dbService.users.countDocuments({ ...baseUserFilter, status:"pending" }),
+            this.dbService.users.countDocuments({ ...baseUserFilter, status: USER_STATUS.ACTIVE }),
+            this.dbService.users.countDocuments({ ...baseUserFilter, status: { $in: [USER_STATUS.PENDING, USER_STATUS.BLOCKED] } }),
             this.dbService.users.countDocuments(baseUserFilter),
             this.recordService.findAll('departments', {
               page: 1,

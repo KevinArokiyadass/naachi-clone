@@ -491,11 +491,6 @@ export class UsersAuthService {
       throw new BadRequestException('Username must be set first');
     }
 
-    if (user.status !== USER_STATUS.PENDING) {
-      throw new BadRequestException('User signup is already completed');
-    }
-
-
     const existingUser = await this.dbService.users.findOne({
       email: dto.email,
       isDeleted: false,
@@ -515,10 +510,14 @@ export class UsersAuthService {
       email: dto.email,
       institutionsId: institutionsId,
       emailVerified: false,
-      referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
       qrAuth: false,
       updatedAt: new Date()
     };
+
+    // Only set referrerMedium during initial signup flow when it is not already set
+    if (!user.referrerMedium && user.status === USER_STATUS.PENDING) {
+      updatePayload.referrerMedium = ReferrerMedium.INSTITUTION_MAIL;
+    }
 
     // Set isVerified to true if institutionId exists from admin user (email match only, phone numbers can differ)
     if (adminSyncResult && adminSyncResult.institutionId) {
@@ -526,7 +525,7 @@ export class UsersAuthService {
     }
 
     await this.dbService.users.findOneAndUpdate(
-      { userId: dto.userId, status: USER_STATUS.PENDING },
+      { userId: dto.userId, isDeleted: false },
       updatePayload
     );
 
@@ -586,25 +585,31 @@ export class UsersAuthService {
       throw new BadRequestException('Email does not match the one provided during verification');
     }
 
-    if (user.status !== USER_STATUS.PENDING) {
-      throw new BadRequestException('User signup is already completed');
-    }
-
     // Check if default OTP is used
     if (dto.confirmationCode === this.DEFAULT_EMAIL_OTP) {
+      const isPendingSignup = user.status === USER_STATUS.PENDING;
+
       // Preserve isVerified if it was set during verifyEmail (from admin sync)
       const updatePayload: Record<string, any> = {
         emailVerified: true,
-        status: USER_STATUS.ACTIVE,
-        isVerified: user.isVerified ?? false, // Preserve existing value, default to false
-        referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
-        qrAuth: false,
         updatedAt: new Date()
       };
 
-      // Skip Cognito verification and directly mark as completed
+      if (isPendingSignup) {
+        updatePayload.status = USER_STATUS.ACTIVE;
+        updatePayload.isVerified = user.isVerified ?? false; // Preserve existing value, default to false
+
+        // Only set referrerMedium during initial signup flow when it is not already set
+        if (!user.referrerMedium) {
+          updatePayload.referrerMedium = ReferrerMedium.INSTITUTION_MAIL;
+        }
+
+        updatePayload.qrAuth = false;
+      }
+
+      // Skip Cognito verification and directly mark as completed (or just mark emailVerified for existing users)
       await this.dbService.users.findOneAndUpdate(
-        { userId: dto.userId, status: USER_STATUS.PENDING },
+        { userId: dto.userId, isDeleted: false },
         updatePayload
       );
 
@@ -633,18 +638,28 @@ export class UsersAuthService {
       throw new BadRequestException('Failed to verify email. Please try again.');
     }
 
+    const isPendingSignup = user.status === USER_STATUS.PENDING;
+
     // Preserve isVerified if it was set during verifyEmail (from admin sync)
     const updatePayload: Record<string, any> = {
       emailVerified: true,
-      status: USER_STATUS.ACTIVE,
-      isVerified: user.isVerified ?? false, // Preserve existing value, default to false
-      referrerMedium: user.referrerMedium ?? ReferrerMedium.INSTITUTION_MAIL,
-      qrAuth: false,
       updatedAt: new Date()
     };
 
+    if (isPendingSignup) {
+      updatePayload.status = USER_STATUS.ACTIVE;
+      updatePayload.isVerified = user.isVerified ?? false; // Preserve existing value, default to false
+
+      // Only set referrerMedium during initial signup flow when it is not already set
+      if (!user.referrerMedium) {
+        updatePayload.referrerMedium = ReferrerMedium.INSTITUTION_MAIL;
+      }
+
+      updatePayload.qrAuth = false;
+    }
+
     await this.dbService.users.findOneAndUpdate(
-      { userId: dto.userId, status: USER_STATUS.PENDING },
+      { userId: dto.userId, isDeleted: false },
       updatePayload
     );
 
