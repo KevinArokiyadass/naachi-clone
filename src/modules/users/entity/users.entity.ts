@@ -113,6 +113,9 @@ export class Users extends Document {
 
     @Prop({ type: Boolean, default: false })
     customLogin: boolean;
+
+    @Prop({ type: Boolean, default: false })
+    isBlocked: boolean;
 }
 
 export const UsersSchema = SchemaFactory.createForClass(Users);
