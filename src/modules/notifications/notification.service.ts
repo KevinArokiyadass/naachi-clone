@@ -240,9 +240,17 @@ export class NotificationService {
       const createdRecord = await this.dbServices.notificationHistory.create(historyRecord);
       this.Logger.log(`Created notification history record: ${createdRecord.notificationId}`);
 
-      // If userId is provided, find device tokens and send notifications
+      // If userId is provided, check muteNotifications and send only when not muted
       if (createNotificationHistoryDto.userId) {
-        await this.sendNotificationToUser(createdRecord);
+        const userProfile = await this.dbServices.users.findOne(
+          { userId: createNotificationHistoryDto.userId },
+          { muteNotifications: 1 }
+        );
+        if (userProfile?.muteNotifications === true) {
+          this.Logger.log(`Skipping notification send for userId ${createNotificationHistoryDto.userId}: muteNotifications is enabled`);
+        } else {
+          await this.sendNotificationToUser(createdRecord);
+        }
       }
 
       return createdRecord;
@@ -409,10 +417,19 @@ export class NotificationService {
 
       let finalTokens: string[] = bulkDto.tokens || [];
 
-      // 1. If userIds are provided, fetch their active tokens
+      // 1. If userIds are provided, filter out users with muteNotifications and fetch their active tokens
       if (bulkDto.userIds && bulkDto.userIds.length > 0) {
+        const nonMutedUsers = await this.dbServices.users.find(
+          { userId: { $in: bulkDto.userIds }, muteNotifications: { $ne: true } },
+          { userId: 1 }
+        );
+        const nonMutedUserIds = nonMutedUsers.map((u: any) => u.userId);
+        if (nonMutedUserIds.length < bulkDto.userIds.length) {
+          this.Logger.log(`Excluding ${bulkDto.userIds.length - nonMutedUserIds.length} user(s) with muteNotifications from bulk notification`);
+        }
+
         const userTokens = await this.dbServices.deviceToken.find({
-          userId: { $in: bulkDto.userIds },
+          userId: { $in: nonMutedUserIds },
           isActive: true
         });
 
