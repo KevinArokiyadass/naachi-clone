@@ -134,7 +134,7 @@ export class GetUsersQueryDto extends FetchDto {
   institutionsId?: string;
 
   @IsOptional()
-  @IsIn([USER_STATUS.PENDING, USER_STATUS.ACTIVE], { message: 'Status must be pending or active' })
+  @IsIn([USER_STATUS.PENDING, USER_STATUS.ACTIVE, USER_STATUS.BLOCKED], { message: 'Status must be pending or active' })
   status?: UserStatus;
 }
 
