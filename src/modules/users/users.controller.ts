@@ -111,7 +111,7 @@ export class UsersController {
 
     const filter: Record<string, any> = {};
 
-    // Filter by status if provided, otherwise default to 'completed' for backward compatibility
+    // Filter by status if provided, otherwise default to 'active' for backward compatibility
     if (status) {
       filter.status = status;
     } else {

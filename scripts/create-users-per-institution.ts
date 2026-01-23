@@ -221,19 +221,13 @@ async function createSingleUser(
         accessToken
       });
     } catch (error) {
-      // If email limit exceeded, bypass and directly mark as completed
-      if (error.message && (error.message.includes('LimitExceededException') || 
-          (error.response && error.response['$metadata'] && error.response['$metadata'].httpStatusCode === 400))) {
-        emailLimitExceeded = true;
-        console.log(`   ⚠️  Email limit exceeded for ${email}, bypassing verification`);
-      } else {
         throw error;
-      }
+      
     }
 
     // Step 5: Confirm Email or Bypass
     if (emailLimitExceeded) {
-      // Directly update user to completed status, bypassing email verification
+      // Directly update user to acitve status, bypassing email verification 
       // Use the institution ID from the institution parameter
       const institutionsId = institution.institutionsId;
       
@@ -247,7 +241,7 @@ async function createSingleUser(
       const phoneMatch = adminUser && adminUser.phoneNumber && phoneNumber &&
         adminUser.phoneNumber.trim() === phoneNumber.trim();
       
-      // Directly update user to completed/active status in database
+      // Directly update user to active status in database
       await dbService.users.findOneAndUpdate(
         { userId, status: USER_STATUS.PENDING },
         {
@@ -341,7 +335,7 @@ async function getOrCreateReferrerUser(
     name: 'Referrer User'
   });
 
-      // Mark as completed/active without institution (no email needed for referrer)
+      // Mark as active without institution (no email needed for referrer)
   await dbService.users.findOneAndUpdate(
     { userId, status: USER_STATUS.PENDING },
     {

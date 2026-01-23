@@ -4,7 +4,7 @@ import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstr
 import { RecordService } from '@noukha-technologies/mdm-core';
 import { AwsStoreService } from '../aws-store/aws-store.service';
 import { HttpClientService } from 'src/common/inter-service-communication/http-client.service';
-import { USER_STATUS } from 'src/common/enums/user.enum';
+import { USER_STATUS, userStatus } from 'src/common/enums/user.enum';
 
 @Injectable()
 export class DashboardService {
@@ -111,8 +111,8 @@ export class DashboardService {
       departments,
       departmentGroupCount,
     ] = await Promise.all([
-      this.dbService.users.countDocuments({ status:"completed", isDeleted: false }),
-      this.dbService.users.countDocuments({ status:"pending", isDeleted: false }),
+      this.dbService.users.countDocuments({ status: USER_STATUS.ACTIVE, isDeleted: false }),  
+      this.dbService.users.countDocuments({ status: USER_STATUS.PENDING, isDeleted: false }),
       this.dbService.users.countDocuments({ isDeleted: false }),
       this.dbService.reviewReports.countDocuments({}),
       this.dbService.reviewReports.countDocuments({status:'PENDING'}),
