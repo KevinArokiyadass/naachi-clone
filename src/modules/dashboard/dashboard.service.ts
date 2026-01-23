@@ -4,7 +4,7 @@ import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstr
 import { RecordService } from '@noukha-technologies/mdm-core';
 import { AwsStoreService } from '../aws-store/aws-store.service';
 import { HttpClientService } from 'src/common/inter-service-communication/http-client.service';
-import { USER_STATUS, userStatus } from 'src/common/enums/user.enum';
+import { USER_STATUS, userStatus, RecordStatus } from 'src/common/enums/user.enum';
 
 @Injectable()
 export class DashboardService {
@@ -72,7 +72,7 @@ export class DashboardService {
 
         const baseUserFilter = { isDeleted: false, institutionsId: institutionId };
         const baseReportFilter = { institutionsId: institutionId }; 
-        const [activeUsers, inactiveUsers, totalUsers, departments, reviewReportsCount, pendingReportsCount, resolvedReportsCount, departmentGroupCount] =
+        const [activeUsers, inactiveUsers, totalUsers, departments, reviewReportsCount, pendingReportsCount, resolvedReportsCount, rejectedReportsCount, departmentGroupCount] =
           await Promise.all([
             this.dbService.users.countDocuments({ ...baseUserFilter, status: USER_STATUS.ACTIVE }),
             this.dbService.users.countDocuments({ ...baseUserFilter, status: { $in: [USER_STATUS.PENDING, USER_STATUS.BLOCKED] } }),
@@ -83,8 +83,9 @@ export class DashboardService {
               filters: { institutionsId: institutionId },
             }),
             this.dbService.reviewReports.countDocuments(baseReportFilter),
-            this.dbService.reviewReports.countDocuments({ ...baseReportFilter, status: 'PENDING' }),
-            this.dbService.reviewReports.countDocuments({ ...baseReportFilter, status: 'RESOLVED' }),
+            this.dbService.reviewReports.countDocuments({ ...baseReportFilter, status: RecordStatus.PENDING }),
+            this.dbService.reviewReports.countDocuments({ ...baseReportFilter, status: RecordStatus.RESOLVED }),
+            this.dbService.reviewReports.countDocuments({ ...baseReportFilter, status: RecordStatus.REJECTED }),
             this.fetchDeptGroupCount(institutionId),
           ]);
 
@@ -97,6 +98,7 @@ export class DashboardService {
           reviewReportsCount,
           pendingReportsCount,
           resolvedReportsCount,
+          rejectedReportsCount,
         };
       }
 
@@ -107,6 +109,7 @@ export class DashboardService {
       reviewReportsCount,
       pendingReportsCount,
       resolvedReportsCount,
+      rejectedReportsCount,
       institutions,
       departments,
       departmentGroupCount,
@@ -115,8 +118,9 @@ export class DashboardService {
       this.dbService.users.countDocuments({ status: USER_STATUS.PENDING, isDeleted: false }),
       this.dbService.users.countDocuments({ isDeleted: false }),
       this.dbService.reviewReports.countDocuments({}),
-      this.dbService.reviewReports.countDocuments({status:'PENDING'}),
-      this.dbService.reviewReports.countDocuments({status:'RESOLVED'}),
+      this.dbService.reviewReports.countDocuments({status: RecordStatus.PENDING}),
+      this.dbService.reviewReports.countDocuments({status: RecordStatus.RESOLVED}),
+      this.dbService.reviewReports.countDocuments({status: RecordStatus.REJECTED}),
       this.recordService.findAll('institutions', { page: 1, limit: 1 }),
       this.recordService.findAll('departments', { page: 1, limit: 1 }),
       this.fetchDeptGroupCount(),
@@ -173,6 +177,7 @@ export class DashboardService {
       reviewReportsCount,
       pendingReportsCount,
       resolvedReportsCount,
+      rejectedReportsCount,
       institutionCount: institutions.totalItems,
       departmentCount: departments.totalItems,
       departmentGroupCount,
@@ -218,6 +223,7 @@ export class DashboardService {
       reviewReportsCount,
       pendingReportsCount,
       resolvedReportsCount,
+      rejectedReportsCount,
       departments,
       departmentGroupCount,
     ] = await Promise.all([
@@ -227,11 +233,15 @@ export class DashboardService {
       this.dbService.reviewReports.countDocuments(baseReportFilter),
       this.dbService.reviewReports.countDocuments({
         ...baseReportFilter,
-        status: 'PENDING',
+        status: RecordStatus.PENDING,
       }),
       this.dbService.reviewReports.countDocuments({
         ...baseReportFilter,
-        status: 'RESOLVED',
+        status: RecordStatus.RESOLVED,
+      }),
+      this.dbService.reviewReports.countDocuments({
+        ...baseReportFilter,
+        status: RecordStatus.REJECTED,
       }),
       this.recordService.findAll('departments', {
         page: 1,
@@ -259,6 +269,7 @@ export class DashboardService {
       reviewReportsCount,
       pendingReportsCount,
       resolvedReportsCount,
+      rejectedReportsCount,
       institutionCount: 1,
       departmentCount: departments.totalItems,
       departmentGroupCount,

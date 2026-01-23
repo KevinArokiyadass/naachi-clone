@@ -22,6 +22,10 @@ export class DashboardMetricsResponseDto {
 
   @IsOptional()
   @IsNumber()
+  rejectedReportsCount?: number;
+
+  @IsOptional()
+  @IsNumber()
   institutionCount?: number;
 
   @IsOptional()
