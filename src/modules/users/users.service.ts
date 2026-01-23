@@ -1148,6 +1148,14 @@ export class UsersAuthService {
       updatePayload.disableReadReceipt = dto.disableReadReceipt;
     }
 
+    if (dto.status !== undefined) {
+      updatePayload.status = dto.status;
+    }
+
+    if (dto.referrerMedium !== undefined) {
+      updatePayload.referrerMedium = dto.referrerMedium;
+    }
+
     const updatedUser = await this.dbService.users.findOneAndUpdate(
       { userId, isDeleted: false },
       updatePayload,
