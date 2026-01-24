@@ -45,7 +45,13 @@ export class RolesGuard implements CanActivate {
 
     let adminUser;
     if (username) {
-      adminUser = await this.adminUserService.getOneAdminUser({ userName: username });
+      // Use case-insensitive regex for username lookup to handle case mismatches
+      // e.g., JWT token has "na_sai6829" but DB has "NA_sai6829"
+      // Escape special regex characters to prevent regex injection
+      const escapedUsername = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      adminUser = await this.adminUserService.getOneAdminUser({ 
+        userName: { $regex: `^${escapedUsername}$`, $options: 'i' } 
+      });
       
       if (!adminUser && email) {
         adminUser = await this.adminUserService.getOneAdminUser({ email });
