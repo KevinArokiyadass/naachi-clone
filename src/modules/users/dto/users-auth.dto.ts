@@ -156,6 +156,10 @@ export class GetUsersByPhoneDto {
   @IsNotEmpty({ message: 'Phone numbers are required' })
   @IsString({ each: true })
   phoneNumbers: string[];
+
+  @IsOptional()
+  @IsString()
+  ownerId?: string;
 }
 
 export class ActivateByQrCodeDto {

@@ -899,35 +899,139 @@ export class UsersAuthService {
 
   async getUsersByPhoneNumbers(
     phoneNumbers: string[],
-  ): Promise<{ phoneNumber: string; name?: string; userName?: string }[]> {
+    ownerId?: string,
+  ): Promise<
+    {
+      phoneNumber: string;
+      name?: string;
+      userName?: string;
+      userId?: string;
+      connection?: any;
+      request?: any;
+    }[]
+  > {
     if (!phoneNumbers || phoneNumbers.length === 0) {
       return [];
     }
 
-    const users = await this.dbService.users.find(
+    const matchStage: any = {
+      phoneNumber: { $in: phoneNumbers },
+      isDeleted: false,
+      status: USER_STATUS.ACTIVE,
+    };
+
+    const pipeline: any[] = [
+      { $match: matchStage },
       {
-        phoneNumber: { $in: phoneNumbers },
-        isDeleted: false,
-        status: USER_STATUS.ACTIVE,
+        $project: {
+          _id: 0,
+          userId: 1,
+          phoneNumber: 1,
+          name: 1,
+          userName: 1,
+        },
       },
-      {
-        phoneNumber: 1,
-        name: 1,
-        userName: 1,
-        userId: 1,
-        _id: 0,
-      },
+    ];
+
+    if (ownerId) {
+      pipeline.push(
+        // 1) Look for existing connection between owner and this user
+        {
+          $lookup: {
+            from: 'connections',
+            let: { peerUserId: '$userId' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$ownerId', ownerId] },
+                      { $eq: ['$peerId', '$$peerUserId'] },
+                      { $eq: ['$isDeleted', false] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+            ],
+            as: 'connection',
+          },
+        },
+        // 2) If no connection, look for pending friend request from owner to this user
+        {
+          $lookup: {
+            from: 'requests',
+            let: {
+              peerUserId: '$userId',
+              hasConnectionCount: { $size: '$connection' },
+            },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      // Only when there is no connection
+                      { $eq: ['$$hasConnectionCount', 0] },
+                      { $eq: ['$actorId', ownerId] },
+                      {
+                        $or: [
+                          { $eq: ['$targetId', '$$peerUserId'] },
+                          {
+                            // fallback: match via metadata.targetUserId when present
+                            $eq: ['$metadata.targetUserId', '$$peerUserId'],
+                          },
+                        ],
+                      },
+                      { $eq: ['$targetType', 'user'] },
+                      { $eq: ['$status', 'pending'] },
+                      { $eq: ['$isDeleted', false] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+              {
+                $project: {
+                  _id: 0,
+                  requestId: 1,
+                  type: 1,
+                  actorId: 1,
+                  targetId: 1,
+                  targetType: 1,
+                  status: 1,
+                  reqType: 1,
+                  expiresAt: 1,
+                  attempt: 1,
+                  previousRequestId: 1,
+                  idempotencyKey: 1,
+                  blockedUntil: 1,
+                  isDeleted: 1,
+                  metadata: 1,
+                  createdAt: 1,
+                  updatedAt: 1,
+                },
+              },
+            ],
+            as: 'request',
+          },
+        },
+        {
+          $addFields: {
+            connection: { $arrayElemAt: ['$connection', 0] },
+            request: { $arrayElemAt: ['$request', 0] },
+          },
+        },
+      );
+    }
+
+    const usersWithConnections = await this.dbService.users.aggregate<any>(
+      pipeline,
     );
 
-    return users.map((u: any) => {
-      const userObj = {
-        phoneNumber: u.phoneNumber,
-        name: u.name,
-        userName: u.userName,
-        userId: u.userId,
-      };
-      return this.attachProfileImageUrl(userObj);
-    });
+    return usersWithConnections.map((u: any) =>
+      this.attachProfileImageUrl(u),
+    );
   }
 
   async findAllUsers(

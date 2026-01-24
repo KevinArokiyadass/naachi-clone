@@ -150,9 +150,12 @@ export class UsersController {
   }
 
 
-  @Post('Users-by-phone')
+  @Post('users-by-phone')
   getUsersByPhone(@Body() dto: GetUsersByPhoneDto) {
-    return this.usersService.getUsersByPhoneNumbers(dto.phoneNumbers);
+    return this.usersService.getUsersByPhoneNumbers(
+      dto.phoneNumbers,
+      dto.ownerId,
+    );
   }
 
   @Post('activate-by-qr-code')
