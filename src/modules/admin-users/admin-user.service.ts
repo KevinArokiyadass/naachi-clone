@@ -24,22 +24,27 @@ export class AdminUserService {
   ) { }
 
   async createAdminUser(createAdminDto: any) {
+    // Validate role is provided
+    if (!createAdminDto.role) {
+      throw new BadRequestException('Role is required');
+    }
+
     const existingAdmin = await this.dbServices.adminUser.findOne({ email: createAdminDto.email });
     if (existingAdmin) {
       throw new BadRequestException('Admin with this email already exists');
     }
 
     let isVerifiedAdmin = false;
-
-    // Validate email domain and get institution ID
-    const validatedInstitutionsId = await this.validateInstitute(createAdminDto.email);
-
     const providedInstitutionsId = createAdminDto.metaTags?.[0]?.institutionsId;
 
+    // Only validate email domain for INSTITUTION_ADMIN role
     if (createAdminDto.role === 'INSTITUTION_ADMIN') {
       if (!providedInstitutionsId) {
         throw new BadRequestException('Institution ID is required in metaTags for INSTITUTION_ADMIN role');
       }
+
+      // Validate email domain and get institution ID
+      const validatedInstitutionsId = await this.validateInstitute(createAdminDto.email);
 
       if (providedInstitutionsId !== validatedInstitutionsId) {
         throw new BadRequestException({
@@ -74,10 +79,6 @@ export class AdminUserService {
       email: createAdminDto.email.toLowerCase().trim(),
       isDeleted: false
     });
-
-    if (!createAdminDto.role) {
-      throw new BadRequestException('Role is required');
-    }
 
     const userName = createAdminDto.userName?.trim() || await generateUniqueUserNameFromEmail(createAdminDto.email, this.dbServices);
 
