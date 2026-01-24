@@ -1156,6 +1156,10 @@ export class UsersAuthService {
       updatePayload.referrerMedium = dto.referrerMedium;
     }
 
+    if (dto.referredBy !== undefined) {
+      updatePayload.referredBy = dto.referredBy;
+    }
+
     const updatedUser = await this.dbService.users.findOneAndUpdate(
       { userId, isDeleted: false },
       updatePayload,
