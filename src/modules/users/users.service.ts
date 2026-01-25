@@ -74,6 +74,9 @@ export class UsersAuthService {
   }
 
   async signup(dto: UsersSignupDto) {
+    // Check signup restrictions before proceeding
+    await this.checkSignupRestrictions();
+    
     await this.ensurePhoneAvailable(dto.phoneNumber);
 
     const userPayload: IUsers = {
@@ -242,7 +245,10 @@ export class UsersAuthService {
         ...signupResult,
       };
     }
+    
+    // Existing user - check if they can continue signup or should login
     if (existingUser.status === USER_STATUS.ACTIVE) {
+      // Active users can always login
       const loginResult = await this.requestLoginOtp({ phoneNumber } as UsersLoginDto);
 
       return {
@@ -251,8 +257,10 @@ export class UsersAuthService {
       };
     }
 
-    if (existingUser.phoneVerified) {
+    // Existing user but not active - check restrictions before allowing them to continue signup
+    await this.checkSignupRestrictions();
 
+    if (existingUser.phoneVerified) {
       const reverifyPhone = await this.generateOtp(phoneNumber);
       return {
         authMode: 'signup',
@@ -911,14 +919,17 @@ export class UsersAuthService {
       return;
     }
 
-    // Count active users
-    const activeUserCount = await this.dbService.users.countDocuments({
-      status: USER_STATUS.ACTIVE,
+    // Count all users regardless of status (excluding deleted)
+    const totalUserCount = await this.dbService.users.countDocuments({
       isDeleted: false,
     });
 
+    // Debug logging
+    console.log(`[Signup Restriction Check] Total users: ${totalUserCount}, Allowed: ${config.allowedUserCount}, ForceRestrict: ${config.forceRestrictOnboarding}`);
+
     // If user count exceeds or equals allowed count, block signup
-    if (activeUserCount >= config.allowedUserCount) {
+    if (totalUserCount >= config.allowedUserCount) {
+      console.log(`[Signup Restriction] Blocking signup - Total users (${totalUserCount}) >= Allowed (${config.allowedUserCount})`);
       throw new BadRequestException({
         message: 'Signup being temporarily unavailable kindly contact admin',
         errorCode: 'SIGNUP_RESTRICTED',
