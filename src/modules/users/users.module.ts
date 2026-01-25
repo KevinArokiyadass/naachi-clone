@@ -7,12 +7,14 @@ import { PaginationService } from 'src/common/shared/pagination/pagination.servi
 import { MongooseModule } from '@nestjs/mongoose';
 import { Users, UsersSchema } from './entity/users.entity';
 import { AwsStoreModule } from '../aws-store/aws-store.module';
+import { ConfigurationModule } from '../configuration/configuration.module';
 
 @Module({
     imports: [
         DBServicesModule,
         CommonAuthModule,
         AwsStoreModule,
+        ConfigurationModule,
     MongooseModule.forFeature([
       { name: Users.name, schema: UsersSchema }
     ])

@@ -12,6 +12,8 @@ import { DeviceToken, DeviceTokenDocument } from 'src/modules/notifications/enti
 import { INotificationManagement } from 'src/common/interfaces/notification.interface';
 import { NotificationHistory, NotificationHistoryDocument } from 'src/modules/notifications/entity/notification-management.entity';
 import { IDeviceToken } from 'src/common/interfaces/device.token.interface';
+import { Configuration, ConfigurationDocument } from 'src/modules/configuration/entity/configuration.entity';
+import { IConfiguration } from 'src/common/interfaces/configuration.interface';
 
 export abstract class IMongoDBServices {
     abstract users: IMongoRepository<Users, IUsers, UsersDocument>;
@@ -19,4 +21,5 @@ export abstract class IMongoDBServices {
     abstract reviewReports: IMongoRepository<Report, IReviewReport, ReviewReport>;
     abstract deviceToken: IMongoRepository<DeviceToken, IDeviceToken, DeviceTokenDocument>;
     abstract notificationHistory: IMongoRepository<NotificationHistory, INotificationManagement, NotificationHistoryDocument>;
+    abstract configuration: IMongoRepository<Configuration, IConfiguration, ConfigurationDocument>;
 }

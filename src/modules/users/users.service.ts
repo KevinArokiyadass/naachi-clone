@@ -40,6 +40,7 @@ import { RecordService } from '@noukha-technologies/mdm-core';
 import { response } from 'express';
 import { UpdateUserProfileDto } from './dto/user-profile.dto';
 import { AwsStoreService } from '../aws-store/aws-store.service';
+import { ConfigurationService } from '../configuration/configuration.service';
 
 
 @Injectable()
@@ -55,6 +56,7 @@ export class UsersAuthService {
     private readonly paginationService: PaginationService,
     private readonly recordService: RecordService,
     private readonly awsStoreService: AwsStoreService,
+    private readonly configurationService: ConfigurationService,
   ) {
     if (!this.clientId) {
       throw new Error('COGNITO_CUSTOMER_APP_CLIENT_ID is not configured');
@@ -230,6 +232,9 @@ export class UsersAuthService {
     });
 
     if (!existingUser) {
+      // Check signup restrictions before allowing new signup
+      await this.checkSignupRestrictions();
+
       const signupResult = await this.signup({ phoneNumber } as UsersSignupDto);
 
       return {
@@ -895,6 +900,30 @@ export class UsersAuthService {
     }
 
     return user;
+  }
+
+  private async checkSignupRestrictions() {
+    // Get configuration from ConfigurationService
+    const config = await this.configurationService.getConfiguration();
+
+    // If forceRestrictOnboarding is false, allow signup
+    if (!config.forceRestrictOnboarding) {
+      return;
+    }
+
+    // Count active users
+    const activeUserCount = await this.dbService.users.countDocuments({
+      status: USER_STATUS.ACTIVE,
+      isDeleted: false,
+    });
+
+    // If user count exceeds or equals allowed count, block signup
+    if (activeUserCount >= config.allowedUserCount) {
+      throw new BadRequestException({
+        message: 'Signup being temporarily unavailable kindly contact admin',
+        errorCode: 'SIGNUP_RESTRICTED',
+      });
+    }
   }
 
   async getUsersByPhoneNumbers(

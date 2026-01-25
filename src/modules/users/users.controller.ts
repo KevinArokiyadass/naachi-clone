@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Get, Param, Query, Patch } from '@nestjs/common';
+import { Body, Controller, Post, Get, Param, Query, Patch, Put } from '@nestjs/common';
 import {
   ActivateByQrCodeDto,
   ConfirmEmailDto,

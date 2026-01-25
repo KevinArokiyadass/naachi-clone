@@ -16,6 +16,8 @@ import { DeviceToken, DeviceTokenDocument } from 'src/modules/notifications/enti
 import { IDeviceToken } from 'src/common/interfaces/device.token.interface';
 import { NotificationHistory, NotificationHistoryDocument } from 'src/modules/notifications/entity/notification-management.entity';
 import { INotificationManagement } from 'src/common/interfaces/notification.interface';
+import { Configuration, ConfigurationDocument } from 'src/modules/configuration/entity/configuration.entity';
+import { IConfiguration } from 'src/common/interfaces/configuration.interface';
 
 @Injectable()
 export class MongoDBServices implements IMongoDBServices, OnApplicationBootstrap {
@@ -24,6 +26,7 @@ export class MongoDBServices implements IMongoDBServices, OnApplicationBootstrap
   reviewReports: IMongoRepository<Report, IReviewReport, ReviewReport>;
   deviceToken: IMongoRepository<DeviceToken, IDeviceToken, DeviceTokenDocument>;
   notificationHistory: IMongoRepository<NotificationHistory, INotificationManagement, NotificationHistoryDocument>;
+  configuration: IMongoRepository<Configuration, IConfiguration, ConfigurationDocument>;
 
   constructor(
     @InjectModel(Users.name)
@@ -36,6 +39,8 @@ export class MongoDBServices implements IMongoDBServices, OnApplicationBootstrap
     private deviceTokenRepository: Model<DeviceToken>,
     @InjectModel(NotificationHistory.name)
     private notificationHistoryRepository: Model<NotificationHistory>,
+    @InjectModel(Configuration.name)
+    private configurationRepository: Model<Configuration>,
   ) {
     console.log('MongoDBServices loaded');
   }
@@ -55,6 +60,9 @@ export class MongoDBServices implements IMongoDBServices, OnApplicationBootstrap
     );
     this.notificationHistory = new MongoRepository<NotificationHistory, INotificationManagement, NotificationHistoryDocument>(
       this.notificationHistoryRepository
+    );
+    this.configuration = new MongoRepository<Configuration, IConfiguration, ConfigurationDocument>(
+      this.configurationRepository
     );
     console.log('<== Mongo DB repositories got initialised ==>');
   }
