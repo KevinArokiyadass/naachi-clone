@@ -166,14 +166,14 @@ export class UsersController {
 
   @Get('find-friends')
   async findFriends(@Query() query: FindFriendsDto) {
-    const { skip, limit, nonPaginated, ownerId, userId } = query;
+    const { skip, limit, nonPaginated, ownerId, userId, search } = query;
     const requesterId = ownerId || userId;
     
     if (!requesterId) {
       throw new BadRequestException('Either ownerId or userId is required');
     }
 
-    return this.usersService.findFriends(requesterId, skip, limit, nonPaginated);
+    return this.usersService.findFriends(requesterId, skip, limit, nonPaginated, search);
   }
 
   @Get(':userId')

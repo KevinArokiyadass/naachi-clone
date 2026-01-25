@@ -1474,16 +1474,31 @@ export class UsersAuthService {
     skip: number = 0,
     limit: number = 10,
     nonPaginated: boolean = false,
+    search?: string,
   ): Promise<IPaginatedResult<IUsers[]>> {
+    // Build the base match filter
+    const baseMatch: Record<string, any> = {
+      userId: { $ne: requesterId },
+      isDeleted: false,
+      status: USER_STATUS.ACTIVE,
+    };
+
+    // Add search filter if provided
+    if (search) {
+      baseMatch.$or = [
+        { phoneNumber: { $regex: search, $options: 'i' } },
+        { userName: { $regex: search, $options: 'i' } },
+        { userId: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } },
+      ];
+    }
+
     // Build the aggregation pipeline
     const pipeline: any[] = [
       // Match active users excluding the requester
       {
-        $match: {
-          userId: { $ne: requesterId },
-          isDeleted: false,
-          status: USER_STATUS.ACTIVE,
-        },
+        $match: baseMatch,
       },
       // Lookup friend requests where requester is actor or target
       {
