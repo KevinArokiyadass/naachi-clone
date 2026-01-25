@@ -451,7 +451,7 @@ export class UsersAuthService {
    * Returns object with institutionId (phone number check removed - phone numbers can differ)
    */
   private async syncInstitutionIdFromAdminUser(
-    email: string, 
+    email: string,
     userPhoneNumber: string
   ): Promise<{ institutionId: string } | null> {
     const adminUser = await this.dbService.adminUser.findOne({
@@ -1142,7 +1142,7 @@ export class UsersAuthService {
     }
 
     const userWithImage = this.attachProfileImageUrl(user);
-    
+
     // Populate institution details if institutionsId exists
     if (userWithImage.institutionsId) {
       try {
@@ -1150,12 +1150,12 @@ export class UsersAuthService {
         if (institution) {
           // Convert institution to plain object to ensure we can add fields
           const institutionObj = institution.toObject ? institution.toObject() : { ...institution };
-          
+
           // Convert s3ProfileImageName to CloudFront URL if present
           if (institutionObj.s3ProfileImageName) {
             institutionObj.s3ProfileImageUrl = this.awsStoreService.getCloudFrontUrl(institutionObj.s3ProfileImageName);
           }
-          
+
           userWithImage.institutionDetails = institutionObj;
         }
       } catch (error) {
@@ -1197,6 +1197,34 @@ export class UsersAuthService {
         // If admin user not found or error occurs, continue without department details
         console.error('Error fetching department details:', error);
       }
+    }
+
+    // Populate referrer details if referrerId exists
+    if (userWithImage.referrerId) {
+      try {
+        const referrer = await this.dbService.users.findOne({
+          userId: userWithImage.referrerId,
+          isDeleted: false,
+        });
+        if (referrer) {
+          userWithImage.referrerDetails = this.attachProfileImageUrl(referrer);
+        }
+      } catch (error) {
+        console.error('Error fetching referrer details:', error);
+      }
+    }
+
+    // For institution referral: ensure referredBy is institution name when we have it
+    const isInstitutionReferral =
+      userWithImage.referrerMedium === ReferrerMedium.INSTITUTION_MAIL ||
+      userWithImage.referrerMedium === 'institutionMail';
+    if (
+      isInstitutionReferral &&
+      userWithImage.institutionDetails?.institutionName &&
+      !userWithImage.referredBy
+    ) {
+      userWithImage.referredBy =
+        userWithImage.institutionDetails.institutionName;
     }
 
     return userWithImage;
@@ -1258,6 +1286,81 @@ export class UsersAuthService {
 
     if (dto.referrerMedium !== undefined) {
       updatePayload.referrerMedium = dto.referrerMedium;
+    }
+
+    // When referrerMedium is set to institution referral and user has referrerId, set referredBy to institution name
+    if (
+      dto.referrerMedium === ReferrerMedium.INSTITUTION_MAIL &&
+      user.referrerId &&
+      dto.referrerId !== null &&
+      dto.referrerId !== ''
+    ) {
+      try {
+        const referrer = await this.dbService.users.findOne({
+          userId: user.referrerId,
+          isDeleted: false,
+        });
+        if (referrer?.institutionsId) {
+          const institution = await this.recordService.findOne(
+            'institutions',
+            referrer.institutionsId,
+          );
+          const institutionObj = institution?.toObject
+            ? institution.toObject()
+            : institution;
+          updatePayload.referredBy =
+            institutionObj?.institutionName ??
+            referrer.userName ??
+            user.referrerId;
+        }
+      } catch {
+        // Keep existing referredBy on error
+      }
+    }
+
+    if (dto.referrerId !== undefined) {
+      if (dto.referrerId) {
+        const referrer = await this.dbService.users.findOne({
+          userId: dto.referrerId,
+          isDeleted: false,
+        });
+        if (!referrer) {
+          throw new BadRequestException('Referrer user not found');
+        }
+        if (dto.referrerId === userId) {
+          throw new BadRequestException('Cannot set yourself as referrer');
+        }
+        updatePayload.referrerId = dto.referrerId;
+
+        const effectiveReferrerMedium =
+          dto.referrerMedium ?? user.referrerMedium;
+        const isInstitutionReferral =
+          effectiveReferrerMedium === ReferrerMedium.INSTITUTION_MAIL;
+
+        if (isInstitutionReferral && referrer.institutionsId) {
+          try {
+            const institution = await this.recordService.findOne(
+              'institutions',
+              referrer.institutionsId,
+            );
+            const institutionObj = institution?.toObject
+              ? institution.toObject()
+              : institution;
+            updatePayload.referredBy =
+              institutionObj?.institutionName ??
+              referrer.userName ??
+              dto.referrerId;
+          } catch {
+            updatePayload.referredBy =
+              referrer.userName ?? dto.referrerId;
+          }
+        } else {
+          updatePayload.referredBy = referrer.userName ?? dto.referrerId;
+        }
+      } else {
+        updatePayload.referrerId = null;
+        updatePayload.referredBy = null;
+      }
     }
 
     const updatedUser = await this.dbService.users.findOneAndUpdate(

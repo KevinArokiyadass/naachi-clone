@@ -37,5 +37,9 @@ export class UpdateUserProfileDto {
     message: `ReferrerMedium must be one of: ${Object.values(ReferrerMedium).join(', ')}`,
   })
   referrerMedium?: ReferrerMedium;
+
+  @IsOptional()
+  @IsString()
+  referrerId?: string;
 }
 
