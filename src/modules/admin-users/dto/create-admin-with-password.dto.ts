@@ -14,10 +14,29 @@ export class MetaTagDto implements IMetaTag {
   departmentsId: string[];
 }
 
+function isSuperAdminOrAdmin(role: AdminRoles | string): boolean {
+  return role === AdminRoles.SUPER_ADMIN || role === AdminRoles.ADMIN;
+}
+
 export class CreateAdminWithPasswordDto {
-  @IsString()
-  @IsNotEmpty({ message: 'Name is required' })
+  @Transform(({ value, obj }) => {
+    const v = typeof value === 'string' ? value.trim() : '';
+    if (v) return v;
+    const first = typeof obj?.firstName === 'string' ? obj.firstName.trim() : '';
+    const last = typeof obj?.lastName === 'string' ? obj.lastName.trim() : '';
+    return first && last ? `${first} ${last}` : value;
+  })
+  @IsString({ message: 'name must be a string' })
+  @IsNotEmpty({ message: 'Name is required. Provide either "name" or both "firstName" and "lastName".' })
   name: string;
+
+  @IsOptional()
+  @IsString({ message: 'firstName must be a string' })
+  firstName?: string;
+
+  @IsOptional()
+  @IsString({ message: 'lastName must be a string' })
+  lastName?: string;
 
   @IsEmail({}, { message: 'Please provide a valid email address' })
   @IsNotEmpty({ message: 'Email is required' })
@@ -55,11 +74,12 @@ export class CreateAdminWithPasswordDto {
   @IsEnum(['active', 'inactive'], { message: 'Status must be either active or inactive' })
   status?: string = 'active';
 
+  @ValidateIf((o) => !isSuperAdminOrAdmin(o.role))
   @IsArray({ message: 'Permission groups ID must be an array' })
   @ArrayMinSize(1, { message: 'At least one permission group is required' })
   @IsString({ each: true, message: 'Each permission group ID must be a string' })
   @IsNotEmpty({ message: 'Permission groups ID is required' })
-  permissionGroupsId: string[];
+  permissionGroupsId?: string[];
 
   @IsString()
   @IsOptional()
