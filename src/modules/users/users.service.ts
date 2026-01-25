@@ -1086,6 +1086,60 @@ export class UsersAuthService {
     // Transform profileImage field to include CloudFront URL for each user
     if (result.items && Array.isArray(result.items)) {
       result.items = result.items.map((user: any) => this.attachProfileImageUrl(user));
+
+      // Collect unique institution IDs from users with institution referral medium
+      const institutionIds = new Set<string>();
+      result.items.forEach((user: any) => {
+        const isInstitutionReferral =
+          user.referrerMedium === ReferrerMedium.INSTITUTION_MAIL ||
+          user.referrerMedium === 'institutionMail';
+        if (isInstitutionReferral && user.institutionsId && !user.referredBy) {
+          institutionIds.add(user.institutionsId);
+        }
+      });
+
+      // Batch fetch all institutions
+      const institutionMap = new Map<string, any>();
+      if (institutionIds.size > 0) {
+        try {
+          const institutionsResult = await this.recordService.findAll('institutions', {
+            filters: {
+              institutionsId: { $in: Array.from(institutionIds) }
+            },
+            nonPaginated: true,
+          });
+
+          if (institutionsResult?.items && Array.isArray(institutionsResult.items)) {
+            institutionsResult.items.forEach((institution: any) => {
+              const institutionObj = institution.toObject ? institution.toObject() : { ...institution };
+              if (institutionObj.institutionsId) {
+                institutionMap.set(institutionObj.institutionsId, institutionObj);
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error batch fetching institution details:', error);
+        }
+      }
+
+      // Map referredBy for users with institution referral medium
+      result.items = result.items.map((user: any) => {
+        const isInstitutionReferral =
+          user.referrerMedium === ReferrerMedium.INSTITUTION_MAIL ||
+          user.referrerMedium === 'institutionMail';
+        if (
+          isInstitutionReferral &&
+          user.institutionsId &&
+          !user.referredBy &&
+          institutionMap.has(user.institutionsId)
+        ) {
+          const institution = institutionMap.get(user.institutionsId);
+          if (institution?.institutionName) {
+            user.referredBy = institution.institutionName;
+          }
+        }
+        return user;
+      });
     }
 
     return result;
