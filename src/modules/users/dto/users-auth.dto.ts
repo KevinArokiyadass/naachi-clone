@@ -191,3 +191,13 @@ export class UnifiedPhoneOtpVerifyDto {
   @IsString()
   session: string;
 }
+
+export class FindFriendsDto extends FetchDto {
+  @IsOptional()
+  @IsString()
+  ownerId?: string;
+
+  @IsOptional()
+  @IsString()
+  userId?: string;
+}

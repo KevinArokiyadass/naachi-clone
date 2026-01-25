@@ -1469,6 +1469,133 @@ export class UsersAuthService {
     };
   }
 
+  async findFriends(
+    requesterId: string,
+    skip: number = 0,
+    limit: number = 10,
+    nonPaginated: boolean = false,
+  ): Promise<IPaginatedResult<IUsers[]>> {
+    // Build the aggregation pipeline
+    const pipeline: any[] = [
+      // Match active users excluding the requester
+      {
+        $match: {
+          userId: { $ne: requesterId },
+          isDeleted: false,
+          status: USER_STATUS.ACTIVE,
+        },
+      },
+      // Lookup friend requests where requester is actor or target
+      {
+        $lookup: {
+          from: 'requests',
+          let: { peerUserId: '$userId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    {
+                      $or: [
+                        // Requester is actor, peer is target
+                        {
+                          $and: [
+                            { $eq: ['$actorId', requesterId] },
+                            {
+                              $or: [
+                                { $eq: ['$targetId', '$$peerUserId'] },
+                                { $eq: ['$metadata.targetUserId', '$$peerUserId'] },
+                              ],
+                            },
+                          ],
+                        },
+                        // Requester is target, peer is actor
+                        {
+                          $and: [
+                            {
+                              $or: [
+                                { $eq: ['$targetId', requesterId] },
+                                { $eq: ['$metadata.targetUserId', requesterId] },
+                              ],
+                            },
+                            { $eq: ['$actorId', '$$peerUserId'] },
+                          ],
+                        },
+                      ],
+                    },
+                    { $eq: ['$type', 'friend'] },
+                    { $eq: ['$reqType', 'friendRequest'] },
+                    {
+                      $in: ['$status', ['pending', 'accepted']],
+                    },
+                    { $ne: ['$isDeleted', true] },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+          ],
+          as: 'friendRequest',
+        },
+      },
+      // Filter out users who have pending or accepted friend requests
+      {
+        $match: {
+          friendRequest: { $size: 0 },
+        },
+      },
+      // Project user fields
+      {
+        $project: {
+          friendRequest: 0,
+        },
+      },
+    ];
+
+    // Apply pagination if needed
+    if (!nonPaginated) {
+      const validatedSkip = skip >= 0 ? skip : 0;
+      const validatedLimit = limit > 0 ? limit : 10;
+
+      // Get total count before pagination
+      const countPipeline = [
+        ...pipeline,
+        { $count: 'total' },
+      ];
+      const countResult = await this.dbService.users.aggregate<any>(countPipeline);
+      const totalItems = countResult[0]?.total || 0;
+
+      // Apply skip and limit
+      pipeline.push(
+        { $sort: { createdAt: -1 } },
+        { $skip: validatedSkip },
+        { $limit: validatedLimit },
+      );
+
+      const items = await this.dbService.users.aggregate<any>(pipeline);
+      const totalPages = Math.max(Math.ceil(totalItems / validatedLimit), 1);
+
+      return {
+        totalItems,
+        totalPages,
+        skip: validatedSkip,
+        limit: validatedLimit,
+        items: items.map((user: any) => this.attachProfileImageUrl(user)),
+      } as IPaginatedResult<IUsers[]>;
+    } else {
+      // Non-paginated: return all results
+      pipeline.push({ $sort: { createdAt: -1 } });
+      const items = await this.dbService.users.aggregate<any>(pipeline);
+      return {
+        totalItems: items.length,
+        totalPages: 1,
+        skip: 0,
+        limit: items.length,
+        items: items.map((user: any) => this.attachProfileImageUrl(user)),
+      } as IPaginatedResult<IUsers[]>;
+    }
+  }
+
 }
 
 

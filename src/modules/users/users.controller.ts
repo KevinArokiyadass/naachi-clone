@@ -1,7 +1,8 @@
-import { Body, Controller, Post, Get, Param, Query, Patch, Put } from '@nestjs/common';
+import { Body, Controller, Post, Get, Param, Query, Patch, Put, BadRequestException } from '@nestjs/common';
 import {
   ActivateByQrCodeDto,
   ConfirmEmailDto,
+  FindFriendsDto,
   GetUsersByPhoneDto,
   GetPermissionsQueryDto,
   GetUsersQueryDto,
@@ -161,6 +162,18 @@ export class UsersController {
   @Post('activate-by-qr-code')
   async activateByQrCode(@Body() dto: ActivateByQrCodeDto) {
     return this.usersService.activateByQrCode(dto.userId, dto.referrerUserId);
+  }
+
+  @Get('find-friends')
+  async findFriends(@Query() query: FindFriendsDto) {
+    const { skip, limit, nonPaginated, ownerId, userId } = query;
+    const requesterId = ownerId || userId;
+    
+    if (!requesterId) {
+      throw new BadRequestException('Either ownerId or userId is required');
+    }
+
+    return this.usersService.findFriends(requesterId, skip, limit, nonPaginated);
   }
 
   @Get(':userId')
