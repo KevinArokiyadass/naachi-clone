@@ -19,14 +19,21 @@ export class FirebaseService {
       const tokenPreview = `${token.slice(0, 12)}...`;
       this.logger.log(`Sending notification to token=${tokenPreview}`);
 
+      // Build notification object, only including imageUrl if it's a valid string
+      const notificationPayload: admin.messaging.Notification = {
+        title: notification.title,
+        body: notification.body,
+      };
+
+      // Only include imageUrl if it's a valid string
+      if (notification.imageUrl && typeof notification.imageUrl === 'string') {
+        notificationPayload.imageUrl = notification.imageUrl;
+      }
+
       // Consistent payload for all platforms, Firebase handles the selection
       const message: admin.messaging.Message = {
         token,
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          imageUrl: notification.imageUrl,
-        },
+        notification: notificationPayload,
         data,
         android: {
           priority: 'high',
@@ -82,13 +89,20 @@ export class FirebaseService {
     const tokenChunks = chunkArray(tokens, 500);
 
     for (const chunk of tokenChunks) {
+      // Build notification object, only including imageUrl if it's a valid string
+      const notificationPayload: admin.messaging.Notification = {
+        title: notification.title,
+        body: notification.body,
+      };
+
+      // Only include imageUrl if it's a valid string
+      if (notification.imageUrl && typeof notification.imageUrl === 'string') {
+        notificationPayload.imageUrl = notification.imageUrl;
+      }
+
       const message: admin.messaging.MulticastMessage = {
         tokens: chunk,
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          imageUrl: notification.imageUrl,
-        },
+        notification: notificationPayload,
         data,
         android: {
           priority: 'high',

@@ -318,10 +318,9 @@ export class NotificationService {
       const fullImageUrl = this.generateImageUrl(notificationRecord.imageUrl);
 
       // Prepare notification data
-      const notificationData = {
+      const notificationData: any = {
         title: notificationRecord.title,
         body: notificationRecord.body,
-        imageUrl: fullImageUrl,
         clickAction: notificationRecord.clickAction,
         data: {
           ...notificationRecord.data,
@@ -329,6 +328,11 @@ export class NotificationService {
           userId: userId
         }
       };
+
+      // Only include imageUrl if it's a valid string
+      if (fullImageUrl && typeof fullImageUrl === 'string') {
+        notificationData.imageUrl = fullImageUrl;
+      }
       // Send notifications to all user's devices
       const results = [];
       for (const deviceToken of deviceTokens) {
@@ -495,12 +499,16 @@ export class NotificationService {
       const fullImageUrl = this.generateImageUrl(bulkDto.imageUrl);
 
       // Prepare notification content
-      const notificationContent = {
+      const notificationContent: any = {
         title: bulkDto.title,
         body: bulkDto.body,
-        imageUrl: fullImageUrl,
         clickAction: bulkDto.clickAction,
       };
+
+      // Only include imageUrl if it's a valid string
+      if (fullImageUrl && typeof fullImageUrl === 'string') {
+        notificationContent.imageUrl = fullImageUrl;
+      }
 
       // Send notifications via Firebase service
       const result = await this.firebaseService.sendToDevices(
