@@ -535,14 +535,8 @@ export class UsersAuthService {
       throw new BadRequestException('Email already registered');
     }
 
-    // Check for matching admin user and sync institutionId
-    const adminSyncResult = await this.syncInstitutionIdFromAdminUser(dto.email, user.phoneNumber);
-
-    const institutionsId = adminSyncResult?.institutionId || await this.validateInstitute(dto.email);
-
     const updatePayload: Record<string, any> = {
       email: dto.email,
-      institutionsId: institutionsId,
       emailVerified: false,
       qrAuth: false,
       updatedAt: new Date()
@@ -551,11 +545,6 @@ export class UsersAuthService {
     // Only set referrerMedium during initial signup flow when it is not already set
     if (!user.referrerMedium && user.status === USER_STATUS.PENDING) {
       updatePayload.referrerMedium = ReferrerMedium.INSTITUTION_MAIL;
-    }
-
-    // Set isVerified to true if institutionId exists from admin user (email match only, phone numbers can differ)
-    if (adminSyncResult && adminSyncResult.institutionId) {
-      updatePayload.isVerified = true;
     }
 
     await this.dbService.users.findOneAndUpdate(
@@ -619,19 +608,29 @@ export class UsersAuthService {
       throw new BadRequestException('Email does not match the one provided during verification');
     }
 
+    // Check for matching admin user and sync institutionId
+    const adminSyncResult = await this.syncInstitutionIdFromAdminUser(dto.email, user.phoneNumber);
+
+    const institutionsId = adminSyncResult?.institutionId || await this.validateInstitute(dto.email);
+
     // Check if default OTP is used
     if (dto.confirmationCode === this.DEFAULT_EMAIL_OTP) {
       const isPendingSignup = user.status === USER_STATUS.PENDING;
 
-      // Preserve isVerified if it was set during verifyEmail (from admin sync)
       const updatePayload: Record<string, any> = {
         emailVerified: true,
+        institutionsId: institutionsId,
         updatedAt: new Date()
       };
 
+      // Set isVerified to true if institutionId exists from admin user (email match only, phone numbers can differ)
+      if (adminSyncResult && adminSyncResult.institutionId) {
+        updatePayload.isVerified = true;
+      }
+
       if (isPendingSignup) {
         updatePayload.status = USER_STATUS.ACTIVE;
-        updatePayload.isVerified = user.isVerified ?? false; // Preserve existing value, default to false
+        updatePayload.isVerified = adminSyncResult?.institutionId ? true : (user.isVerified ?? false);
 
         // Only set referrerMedium during initial signup flow when it is not already set
         if (!user.referrerMedium) {
@@ -674,15 +673,20 @@ export class UsersAuthService {
 
     const isPendingSignup = user.status === USER_STATUS.PENDING;
 
-    // Preserve isVerified if it was set during verifyEmail (from admin sync)
     const updatePayload: Record<string, any> = {
       emailVerified: true,
+      institutionsId: institutionsId,
       updatedAt: new Date()
     };
 
+    // Set isVerified to true if institutionId exists from admin user (email match only, phone numbers can differ)
+    if (adminSyncResult && adminSyncResult.institutionId) {
+      updatePayload.isVerified = true;
+    }
+
     if (isPendingSignup) {
       updatePayload.status = USER_STATUS.ACTIVE;
-      updatePayload.isVerified = user.isVerified ?? false; // Preserve existing value, default to false
+      updatePayload.isVerified = adminSyncResult?.institutionId ? true : (user.isVerified ?? false);
 
       // Only set referrerMedium during initial signup flow when it is not already set
       if (!user.referrerMedium) {
