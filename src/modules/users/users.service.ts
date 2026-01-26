@@ -246,6 +246,13 @@ export class UsersAuthService {
       };
     }
     
+    // Block inactive/blocked users from logging in
+    if (existingUser.status === USER_STATUS.BLOCKED) {
+      throw new UnauthorizedException(
+        'Your account has been deactivated. Please contact support for assistance.',
+      );
+    }
+
     // Existing user - check if they can continue signup or should login
     if (existingUser.status === USER_STATUS.ACTIVE) {
       // Active users can always login
@@ -294,6 +301,13 @@ export class UsersAuthService {
       throw new NotFoundException('User not found');
     }
 
+    // Block inactive/blocked users from logging in
+    if (user.status === USER_STATUS.BLOCKED) {
+      throw new UnauthorizedException(
+        'Your account has been deactivated. Please contact support for assistance.',
+      );
+    }
+
     if (user.status === USER_STATUS.ACTIVE) {
       const loginResult = await this.verifyLoginOtp({
         phoneNumber,
@@ -333,6 +347,13 @@ export class UsersAuthService {
 
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    // Block inactive/blocked users from resending OTP
+    if (user.status === USER_STATUS.BLOCKED) {
+      throw new UnauthorizedException(
+        'Your account has been deactivated. Please contact support for assistance.',
+      );
     }
 
     if (user.status === USER_STATUS.ACTIVE) {
@@ -754,6 +775,13 @@ export class UsersAuthService {
 
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    // Block inactive/blocked users from generating JWT tokens
+    if (user.status === USER_STATUS.BLOCKED) {
+      throw new UnauthorizedException(
+        'Your account has been deactivated. Please contact support for assistance.',
+      );
     }
 
     const payload: Record<string, any> = {
