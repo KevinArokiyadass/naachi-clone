@@ -160,6 +160,10 @@ export class GetUsersByPhoneDto {
   @IsNotEmpty({ message: 'Phone numbers are required' })
   @IsString({ each: true })
   phoneNumbers: string[];
+
+  @IsOptional()
+  @IsString()
+  ownerId?: string;
 }
 
 export class ActivateByQrCodeDto {
@@ -190,4 +194,14 @@ export class UnifiedPhoneOtpVerifyDto {
   @IsNotEmpty({ message: 'Session is required' })
   @IsString()
   session: string;
+}
+
+export class FindFriendsDto extends FetchDto {
+  @IsOptional()
+  @IsString()
+  ownerId?: string;
+
+  @IsOptional()
+  @IsString()
+  userId?: string;
 }

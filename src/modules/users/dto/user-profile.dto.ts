@@ -40,6 +40,6 @@ export class UpdateUserProfileDto {
 
   @IsOptional()
   @IsString()
-  referredBy?: string;
+  referrerId?: string;
 }
 

@@ -12,6 +12,7 @@ import { MiddlewareConsumer } from '@nestjs/common';
 import { CognitoAuthGuard } from 'src/common/middleware/cognito.authgaurd';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
+import { Public } from 'src/common/decorators/public.decorator';
 
 
 
@@ -21,8 +22,7 @@ export class AdminUserController {
   constructor(private readonly adminUserService: AdminUserService) { }
 
   @Post('create')
-  @UseGuards(RolesGuard)
-  @Roles(AdminRoles.SUPER_ADMIN)
+  @Public()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create complete admin user with authentication' })
   @ApiResponse({ status: 201, description: 'Admin user created and verification email sent' })

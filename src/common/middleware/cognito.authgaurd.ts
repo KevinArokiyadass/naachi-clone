@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import * as jwt from 'jsonwebtoken';
 import axios from 'axios';
 import * as jwkToPem from 'jwk-to-pem';
@@ -39,7 +40,17 @@ import * as jwkToPem from 'jwk-to-pem';
 export class CognitoAuthGuard implements CanActivate {
   private jwks: any = null;
 
+  constructor(private reflector: Reflector) {}
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest();
 
     const authHeader = request.headers['authorization'] || request.headers['Authorization'];

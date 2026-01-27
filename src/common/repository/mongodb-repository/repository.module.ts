@@ -7,6 +7,7 @@ import { AdminUser, AdminUserSchema } from 'src/modules/admin-users/entities/adm
 import { ReviewReport, ReviewReportSchema } from 'src/modules/review-report/entities/review-report.entity';
 import { DeviceToken, DeviceTokenSchema } from 'src/modules/notifications/entity/device-token.entity';
 import { NotificationHistory, NotificationHistorySchema } from 'src/modules/notifications/entity/notification-management.entity';
+import { Configuration, ConfigurationSchema } from 'src/modules/configuration/entity/configuration.entity';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { NotificationHistory, NotificationHistorySchema } from 'src/modules/noti
       { name: ReviewReport.name, schema: ReviewReportSchema },
       { name: DeviceToken.name, schema: DeviceTokenSchema },
       { name: NotificationHistory.name, schema: NotificationHistorySchema },
+      { name: Configuration.name, schema: ConfigurationSchema },
     ]),
   ],
   providers: [

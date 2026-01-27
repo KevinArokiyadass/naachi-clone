@@ -19,6 +19,7 @@ import { PermissionModule } from './modules/permissions/permission.module';
 import { PermissionGroupModule } from './modules/permission-groups/permission-group.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { NotificationModule } from './modules/notifications/notification.module';
+import { ConfigurationModule } from './modules/configuration/configuration.module';
 
 
 const ENV = process.env.NODE_ENV;
@@ -33,6 +34,7 @@ const ENV = process.env.NODE_ENV;
     HttpModule,
     HttpClientModule,
     UsersModule,
+    ConfigurationModule,
     AdminUserModule,
     AdminAuthModule,
     ReviewReportModule,

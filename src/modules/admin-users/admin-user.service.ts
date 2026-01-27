@@ -82,11 +82,17 @@ export class AdminUserService {
 
     const userName = createAdminDto.userName?.trim() || await generateUniqueUserNameFromEmail(createAdminDto.email, this.dbServices);
 
+    const isSuperAdminOrAdmin = createAdminDto.role === 'SUPER_ADMIN' || createAdminDto.role === 'ADMIN';
+    const permissionGroupsId = isSuperAdminOrAdmin && (!createAdminDto.permissionGroupsId || createAdminDto.permissionGroupsId.length === 0)
+      ? []
+      : (createAdminDto.permissionGroupsId ?? []);
+
     const { password, ...adminDataWithoutPassword } = createAdminDto;
     const created = await this.dbServices.adminUser.create({
       ...adminDataWithoutPassword,
       userName: userName,
       password: password,
+      permissionGroupsId,
       status: createAdminDto.status ?? 'active',
       isVerifiedAdmin,
     });

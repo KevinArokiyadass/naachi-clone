@@ -40,6 +40,7 @@ import { RecordService } from '@noukha-technologies/mdm-core';
 import { response } from 'express';
 import { UpdateUserProfileDto } from './dto/user-profile.dto';
 import { AwsStoreService } from '../aws-store/aws-store.service';
+import { ConfigurationService } from '../configuration/configuration.service';
 
 
 @Injectable()
@@ -55,6 +56,7 @@ export class UsersAuthService {
     private readonly paginationService: PaginationService,
     private readonly recordService: RecordService,
     private readonly awsStoreService: AwsStoreService,
+    private readonly configurationService: ConfigurationService,
   ) {
     if (!this.clientId) {
       throw new Error('COGNITO_CUSTOMER_APP_CLIENT_ID is not configured');
@@ -72,6 +74,9 @@ export class UsersAuthService {
   }
 
   async signup(dto: UsersSignupDto) {
+    // Check signup restrictions before proceeding
+    await this.checkSignupRestrictions();
+    
     await this.ensurePhoneAvailable(dto.phoneNumber);
 
     const userPayload: IUsers = {
@@ -230,6 +235,9 @@ export class UsersAuthService {
     });
 
     if (!existingUser) {
+      // Check signup restrictions before allowing new signup
+      await this.checkSignupRestrictions();
+
       const signupResult = await this.signup({ phoneNumber } as UsersSignupDto);
 
       return {
@@ -237,7 +245,17 @@ export class UsersAuthService {
         ...signupResult,
       };
     }
+    
+    // Block inactive/blocked users from logging in
+    if (existingUser.status === USER_STATUS.BLOCKED) {
+      throw new UnauthorizedException(
+        'Your account has been deactivated. Please contact support for assistance.',
+      );
+    }
+
+    // Existing user - check if they can continue signup or should login
     if (existingUser.status === USER_STATUS.ACTIVE) {
+      // Active users can always login
       const loginResult = await this.requestLoginOtp({ phoneNumber } as UsersLoginDto);
 
       return {
@@ -246,8 +264,10 @@ export class UsersAuthService {
       };
     }
 
-    if (existingUser.phoneVerified) {
+    // Existing user but not active - check restrictions before allowing them to continue signup
+    await this.checkSignupRestrictions();
 
+    if (existingUser.phoneVerified) {
       const reverifyPhone = await this.generateOtp(phoneNumber);
       return {
         authMode: 'signup',
@@ -279,6 +299,13 @@ export class UsersAuthService {
 
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    // Block inactive/blocked users from logging in
+    if (user.status === USER_STATUS.BLOCKED) {
+      throw new UnauthorizedException(
+        'Your account has been deactivated. Please contact support for assistance.',
+      );
     }
 
     if (user.status === USER_STATUS.ACTIVE) {
@@ -320,6 +347,13 @@ export class UsersAuthService {
 
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    // Block inactive/blocked users from resending OTP
+    if (user.status === USER_STATUS.BLOCKED) {
+      throw new UnauthorizedException(
+        'Your account has been deactivated. Please contact support for assistance.',
+      );
     }
 
     if (user.status === USER_STATUS.ACTIVE) {
@@ -451,7 +485,7 @@ export class UsersAuthService {
    * Returns object with institutionId (phone number check removed - phone numbers can differ)
    */
   private async syncInstitutionIdFromAdminUser(
-    email: string, 
+    email: string,
     userPhoneNumber: string
   ): Promise<{ institutionId: string } | null> {
     const adminUser = await this.dbService.adminUser.findOne({
@@ -501,14 +535,8 @@ export class UsersAuthService {
       throw new BadRequestException('Email already registered');
     }
 
-    // Check for matching admin user and sync institutionId
-    const adminSyncResult = await this.syncInstitutionIdFromAdminUser(dto.email, user.phoneNumber);
-
-    const institutionsId = adminSyncResult?.institutionId || await this.validateInstitute(dto.email);
-
     const updatePayload: Record<string, any> = {
       email: dto.email,
-      institutionsId: institutionsId,
       emailVerified: false,
       qrAuth: false,
       updatedAt: new Date()
@@ -517,11 +545,6 @@ export class UsersAuthService {
     // Only set referrerMedium during initial signup flow when it is not already set
     if (!user.referrerMedium && user.status === USER_STATUS.PENDING) {
       updatePayload.referrerMedium = ReferrerMedium.INSTITUTION_MAIL;
-    }
-
-    // Set isVerified to true if institutionId exists from admin user (email match only, phone numbers can differ)
-    if (adminSyncResult && adminSyncResult.institutionId) {
-      updatePayload.isVerified = true;
     }
 
     await this.dbService.users.findOneAndUpdate(
@@ -585,19 +608,29 @@ export class UsersAuthService {
       throw new BadRequestException('Email does not match the one provided during verification');
     }
 
+    // Check for matching admin user and sync institutionId
+    const adminSyncResult = await this.syncInstitutionIdFromAdminUser(dto.email, user.phoneNumber);
+
+    const institutionsId = adminSyncResult?.institutionId || await this.validateInstitute(dto.email);
+
     // Check if default OTP is used
     if (dto.confirmationCode === this.DEFAULT_EMAIL_OTP) {
       const isPendingSignup = user.status === USER_STATUS.PENDING;
 
-      // Preserve isVerified if it was set during verifyEmail (from admin sync)
       const updatePayload: Record<string, any> = {
         emailVerified: true,
+        institutionsId: institutionsId,
         updatedAt: new Date()
       };
 
+      // Set isVerified to true if institutionId exists from admin user (email match only, phone numbers can differ)
+      if (adminSyncResult && adminSyncResult.institutionId) {
+        updatePayload.isVerified = true;
+      }
+
       if (isPendingSignup) {
         updatePayload.status = USER_STATUS.ACTIVE;
-        updatePayload.isVerified = user.isVerified ?? false; // Preserve existing value, default to false
+        updatePayload.isVerified = adminSyncResult?.institutionId ? true : (user.isVerified ?? false);
 
         // Only set referrerMedium during initial signup flow when it is not already set
         if (!user.referrerMedium) {
@@ -640,15 +673,20 @@ export class UsersAuthService {
 
     const isPendingSignup = user.status === USER_STATUS.PENDING;
 
-    // Preserve isVerified if it was set during verifyEmail (from admin sync)
     const updatePayload: Record<string, any> = {
       emailVerified: true,
+      institutionsId: institutionsId,
       updatedAt: new Date()
     };
 
+    // Set isVerified to true if institutionId exists from admin user (email match only, phone numbers can differ)
+    if (adminSyncResult && adminSyncResult.institutionId) {
+      updatePayload.isVerified = true;
+    }
+
     if (isPendingSignup) {
       updatePayload.status = USER_STATUS.ACTIVE;
-      updatePayload.isVerified = user.isVerified ?? false; // Preserve existing value, default to false
+      updatePayload.isVerified = adminSyncResult?.institutionId ? true : (user.isVerified ?? false);
 
       // Only set referrerMedium during initial signup flow when it is not already set
       if (!user.referrerMedium) {
@@ -741,6 +779,13 @@ export class UsersAuthService {
 
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    // Block inactive/blocked users from generating JWT tokens
+    if (user.status === USER_STATUS.BLOCKED) {
+      throw new UnauthorizedException(
+        'Your account has been deactivated. Please contact support for assistance.',
+      );
     }
 
     const payload: Record<string, any> = {
@@ -897,37 +942,168 @@ export class UsersAuthService {
     return user;
   }
 
+  private async checkSignupRestrictions() {
+    // Get configuration from ConfigurationService
+    const config = await this.configurationService.getConfiguration();
+
+    // If forceRestrictOnboarding is false, allow signup
+    if (!config.forceRestrictOnboarding) {
+      return;
+    }
+
+    // Count all users regardless of status (excluding deleted)
+    const totalUserCount = await this.dbService.users.countDocuments({
+      isDeleted: false,
+    });
+
+    // Debug logging
+    console.log(`[Signup Restriction Check] Total users: ${totalUserCount}, Allowed: ${config.allowedUserCount}, ForceRestrict: ${config.forceRestrictOnboarding}`);
+
+    // If user count exceeds or equals allowed count, block signup
+    if (totalUserCount >= config.allowedUserCount) {
+      console.log(`[Signup Restriction] Blocking signup - Total users (${totalUserCount}) >= Allowed (${config.allowedUserCount})`);
+      throw new BadRequestException({
+        message: 'Signup being temporarily unavailable kindly contact admin',
+        errorCode: 'SIGNUP_RESTRICTED',
+      });
+    }
+  }
+
   async getUsersByPhoneNumbers(
     phoneNumbers: string[],
-  ): Promise<{ phoneNumber: string; name?: string; userName?: string }[]> {
+    ownerId?: string,
+  ): Promise<
+    {
+      phoneNumber: string;
+      name?: string;
+      userName?: string;
+      userId?: string;
+      connection?: any;
+      request?: any;
+    }[]
+  > {
     if (!phoneNumbers || phoneNumbers.length === 0) {
       return [];
     }
 
-    const users = await this.dbService.users.find(
+    const matchStage: any = {
+      phoneNumber: { $in: phoneNumbers },
+      isDeleted: false,
+      status: USER_STATUS.ACTIVE,
+    };
+
+    const pipeline: any[] = [
+      { $match: matchStage },
       {
-        phoneNumber: { $in: phoneNumbers },
-        isDeleted: false,
-        status: USER_STATUS.ACTIVE,
+        $project: {
+          _id: 0,
+          userId: 1,
+          phoneNumber: 1,
+          name: 1,
+          userName: 1,
+        },
       },
-      {
-        phoneNumber: 1,
-        name: 1,
-        userName: 1,
-        userId: 1,
-        _id: 0,
-      },
+    ];
+
+    if (ownerId) {
+      pipeline.push(
+        // 1) Look for existing connection between owner and this user
+        {
+          $lookup: {
+            from: 'connections',
+            let: { peerUserId: '$userId' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$ownerId', ownerId] },
+                      { $eq: ['$peerId', '$$peerUserId'] },
+                      { $eq: ['$isDeleted', false] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+            ],
+            as: 'connection',
+          },
+        },
+        // 2) If no connection, look for pending friend request from owner to this user
+        {
+          $lookup: {
+            from: 'requests',
+            let: {
+              peerUserId: '$userId',
+              hasConnectionCount: { $size: '$connection' },
+            },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      // Only when there is no connection
+                      { $eq: ['$$hasConnectionCount', 0] },
+                      { $eq: ['$actorId', ownerId] },
+                      {
+                        $or: [
+                          { $eq: ['$targetId', '$$peerUserId'] },
+                          {
+                            // fallback: match via metadata.targetUserId when present
+                            $eq: ['$metadata.targetUserId', '$$peerUserId'],
+                          },
+                        ],
+                      },
+                      { $eq: ['$targetType', 'user'] },
+                      { $eq: ['$status', 'pending'] },
+                      { $eq: ['$isDeleted', false] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+              {
+                $project: {
+                  _id: 0,
+                  requestId: 1,
+                  type: 1,
+                  actorId: 1,
+                  targetId: 1,
+                  targetType: 1,
+                  status: 1,
+                  reqType: 1,
+                  expiresAt: 1,
+                  attempt: 1,
+                  previousRequestId: 1,
+                  idempotencyKey: 1,
+                  blockedUntil: 1,
+                  isDeleted: 1,
+                  metadata: 1,
+                  createdAt: 1,
+                  updatedAt: 1,
+                },
+              },
+            ],
+            as: 'request',
+          },
+        },
+        {
+          $addFields: {
+            connection: { $arrayElemAt: ['$connection', 0] },
+            request: { $arrayElemAt: ['$request', 0] },
+          },
+        },
+      );
+    }
+
+    const usersWithConnections = await this.dbService.users.aggregate<any>(
+      pipeline,
     );
 
-    return users.map((u: any) => {
-      const userObj = {
-        phoneNumber: u.phoneNumber,
-        name: u.name,
-        userName: u.userName,
-        userId: u.userId,
-      };
-      return this.attachProfileImageUrl(userObj);
-    });
+    return usersWithConnections.map((u: any) =>
+      this.attachProfileImageUrl(u),
+    );
   }
 
   async findAllUsers(
@@ -942,6 +1118,60 @@ export class UsersAuthService {
     // Transform profileImage field to include CloudFront URL for each user
     if (result.items && Array.isArray(result.items)) {
       result.items = result.items.map((user: any) => this.attachProfileImageUrl(user));
+
+      // Collect unique institution IDs from users with institution referral medium
+      const institutionIds = new Set<string>();
+      result.items.forEach((user: any) => {
+        const isInstitutionReferral =
+          user.referrerMedium === ReferrerMedium.INSTITUTION_MAIL ||
+          user.referrerMedium === 'institutionMail';
+        if (isInstitutionReferral && user.institutionsId && !user.referredBy) {
+          institutionIds.add(user.institutionsId);
+        }
+      });
+
+      // Batch fetch all institutions
+      const institutionMap = new Map<string, any>();
+      if (institutionIds.size > 0) {
+        try {
+          const institutionsResult = await this.recordService.findAll('institutions', {
+            filters: {
+              institutionsId: { $in: Array.from(institutionIds) }
+            },
+            nonPaginated: true,
+          });
+
+          if (institutionsResult?.items && Array.isArray(institutionsResult.items)) {
+            institutionsResult.items.forEach((institution: any) => {
+              const institutionObj = institution.toObject ? institution.toObject() : { ...institution };
+              if (institutionObj.institutionsId) {
+                institutionMap.set(institutionObj.institutionsId, institutionObj);
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error batch fetching institution details:', error);
+        }
+      }
+
+      // Map referredBy for users with institution referral medium
+      result.items = result.items.map((user: any) => {
+        const isInstitutionReferral =
+          user.referrerMedium === ReferrerMedium.INSTITUTION_MAIL ||
+          user.referrerMedium === 'institutionMail';
+        if (
+          isInstitutionReferral &&
+          user.institutionsId &&
+          !user.referredBy &&
+          institutionMap.has(user.institutionsId)
+        ) {
+          const institution = institutionMap.get(user.institutionsId);
+          if (institution?.institutionName) {
+            user.referredBy = institution.institutionName;
+          }
+        }
+        return user;
+      });
     }
 
     return result;
@@ -1038,7 +1268,7 @@ export class UsersAuthService {
     }
 
     const userWithImage = this.attachProfileImageUrl(user);
-    
+
     // Populate institution details if institutionsId exists
     if (userWithImage.institutionsId) {
       try {
@@ -1046,12 +1276,12 @@ export class UsersAuthService {
         if (institution) {
           // Convert institution to plain object to ensure we can add fields
           const institutionObj = institution.toObject ? institution.toObject() : { ...institution };
-          
+
           // Convert s3ProfileImageName to CloudFront URL if present
           if (institutionObj.s3ProfileImageName) {
             institutionObj.s3ProfileImageUrl = this.awsStoreService.getCloudFrontUrl(institutionObj.s3ProfileImageName);
           }
-          
+
           userWithImage.institutionDetails = institutionObj;
         }
       } catch (error) {
@@ -1093,6 +1323,34 @@ export class UsersAuthService {
         // If admin user not found or error occurs, continue without department details
         console.error('Error fetching department details:', error);
       }
+    }
+
+    // Populate referrer details if referrerId exists
+    if (userWithImage.referrerId) {
+      try {
+        const referrer = await this.dbService.users.findOne({
+          userId: userWithImage.referrerId,
+          isDeleted: false,
+        });
+        if (referrer) {
+          userWithImage.referrerDetails = this.attachProfileImageUrl(referrer);
+        }
+      } catch (error) {
+        console.error('Error fetching referrer details:', error);
+      }
+    }
+
+    // For institution referral: ensure referredBy is institution name when we have it
+    const isInstitutionReferral =
+      userWithImage.referrerMedium === ReferrerMedium.INSTITUTION_MAIL ||
+      userWithImage.referrerMedium === 'institutionMail';
+    if (
+      isInstitutionReferral &&
+      userWithImage.institutionDetails?.institutionName &&
+      !userWithImage.referredBy
+    ) {
+      userWithImage.referredBy =
+        userWithImage.institutionDetails.institutionName;
     }
 
     return userWithImage;
@@ -1156,8 +1414,79 @@ export class UsersAuthService {
       updatePayload.referrerMedium = dto.referrerMedium;
     }
 
-    if (dto.referredBy !== undefined) {
-      updatePayload.referredBy = dto.referredBy;
+    // When referrerMedium is set to institution referral and user has referrerId, set referredBy to institution name
+    if (
+      dto.referrerMedium === ReferrerMedium.INSTITUTION_MAIL &&
+      user.referrerId &&
+      dto.referrerId !== null &&
+      dto.referrerId !== ''
+    ) {
+      try {
+        const referrer = await this.dbService.users.findOne({
+          userId: user.referrerId,
+          isDeleted: false,
+        });
+        if (referrer?.institutionsId) {
+          const institution = await this.recordService.findOne(
+            'institutions',
+            referrer.institutionsId,
+          );
+          const institutionObj = institution?.toObject
+            ? institution.toObject()
+            : institution;
+          updatePayload.referredBy =
+            institutionObj?.institutionName ??
+            referrer.userName ??
+            user.referrerId;
+        }
+      } catch {
+        // Keep existing referredBy on error
+      }
+    }
+
+    if (dto.referrerId !== undefined) {
+      if (dto.referrerId) {
+        const referrer = await this.dbService.users.findOne({
+          userId: dto.referrerId,
+          isDeleted: false,
+        });
+        if (!referrer) {
+          throw new BadRequestException('Referrer user not found');
+        }
+        if (dto.referrerId === userId) {
+          throw new BadRequestException('Cannot set yourself as referrer');
+        }
+        updatePayload.referrerId = dto.referrerId;
+
+        const effectiveReferrerMedium =
+          dto.referrerMedium ?? user.referrerMedium;
+        const isInstitutionReferral =
+          effectiveReferrerMedium === ReferrerMedium.INSTITUTION_MAIL;
+
+        if (isInstitutionReferral && referrer.institutionsId) {
+          try {
+            const institution = await this.recordService.findOne(
+              'institutions',
+              referrer.institutionsId,
+            );
+            const institutionObj = institution?.toObject
+              ? institution.toObject()
+              : institution;
+            updatePayload.referredBy =
+              institutionObj?.institutionName ??
+              referrer.userName ??
+              dto.referrerId;
+          } catch {
+            updatePayload.referredBy =
+              referrer.userName ?? dto.referrerId;
+          }
+        } else {
+          updatePayload.referredBy = referrer.userName ?? dto.referrerId;
+        }
+      } else {
+        updatePayload.referrerId = null;
+        updatePayload.referredBy = null;
+      }
     }
 
     const updatedUser = await this.dbService.users.findOneAndUpdate(
@@ -1170,6 +1499,148 @@ export class UsersAuthService {
       message: 'Profile updated successfully',
       user: this.attachProfileImageUrl(updatedUser),
     };
+  }
+
+  async findFriends(
+    requesterId: string,
+    skip: number = 0,
+    limit: number = 10,
+    nonPaginated: boolean = false,
+    search?: string,
+  ): Promise<IPaginatedResult<IUsers[]>> {
+    // Build the base match filter
+    const baseMatch: Record<string, any> = {
+      userId: { $ne: requesterId },
+      isDeleted: false,
+      status: USER_STATUS.ACTIVE,
+    };
+
+    // Add search filter if provided
+    if (search) {
+      baseMatch.$or = [
+        { phoneNumber: { $regex: search, $options: 'i' } },
+        { userName: { $regex: search, $options: 'i' } },
+        { userId: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    // Build the aggregation pipeline
+    const pipeline: any[] = [
+      // Match active users excluding the requester
+      {
+        $match: baseMatch,
+      },
+      // Lookup friend requests where requester is actor or target
+      {
+        $lookup: {
+          from: 'requests',
+          let: { peerUserId: '$userId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    {
+                      $or: [
+                        // Requester is actor, peer is target
+                        {
+                          $and: [
+                            { $eq: ['$actorId', requesterId] },
+                            {
+                              $or: [
+                                { $eq: ['$targetId', '$$peerUserId'] },
+                                { $eq: ['$metadata.targetUserId', '$$peerUserId'] },
+                              ],
+                            },
+                          ],
+                        },
+                        // Requester is target, peer is actor
+                        {
+                          $and: [
+                            {
+                              $or: [
+                                { $eq: ['$targetId', requesterId] },
+                                { $eq: ['$metadata.targetUserId', requesterId] },
+                              ],
+                            },
+                            { $eq: ['$actorId', '$$peerUserId'] },
+                          ],
+                        },
+                      ],
+                    },
+                    { $eq: ['$type', 'friend'] },
+                    { $eq: ['$reqType', 'friendRequest'] },
+                    {
+                      $in: ['$status', ['pending', 'accepted']],
+                    },
+                    { $ne: ['$isDeleted', true] },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+          ],
+          as: 'friendRequest',
+        },
+      },
+      // Filter out users who have pending or accepted friend requests
+      {
+        $match: {
+          friendRequest: { $size: 0 },
+        },
+      },
+      // Project user fields
+      {
+        $project: {
+          friendRequest: 0,
+        },
+      },
+    ];
+
+    // Apply pagination if needed
+    if (!nonPaginated) {
+      const validatedSkip = skip >= 0 ? skip : 0;
+      const validatedLimit = limit > 0 ? limit : 10;
+
+      // Get total count before pagination
+      const countPipeline = [
+        ...pipeline,
+        { $count: 'total' },
+      ];
+      const countResult = await this.dbService.users.aggregate<any>(countPipeline);
+      const totalItems = countResult[0]?.total || 0;
+
+      // Apply skip and limit
+      pipeline.push(
+        { $sort: { createdAt: -1 } },
+        { $skip: validatedSkip },
+        { $limit: validatedLimit },
+      );
+
+      const items = await this.dbService.users.aggregate<any>(pipeline);
+      const totalPages = Math.max(Math.ceil(totalItems / validatedLimit), 1);
+
+      return {
+        totalItems,
+        totalPages,
+        skip: validatedSkip,
+        limit: validatedLimit,
+        items: items.map((user: any) => this.attachProfileImageUrl(user)),
+      } as IPaginatedResult<IUsers[]>;
+    } else {
+      // Non-paginated: return all results
+      pipeline.push({ $sort: { createdAt: -1 } });
+      const items = await this.dbService.users.aggregate<any>(pipeline);
+      return {
+        totalItems: items.length,
+        totalPages: 1,
+        skip: 0,
+        limit: items.length,
+        items: items.map((user: any) => this.attachProfileImageUrl(user)),
+      } as IPaginatedResult<IUsers[]>;
+    }
   }
 
 }

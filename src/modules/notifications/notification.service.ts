@@ -15,6 +15,7 @@ import { CreateNotificationHistoryDto } from "./dto/create-notification.dto";
 import { NotificationHistory } from "./entity/notification-management.entity"
 import { NotificationStatus } from "../../common/enums/notification.enum";
 import { CreateBulkNotificationDto } from "./dto/create-bulk-notification.dto";
+import { HttpClientService } from "src/common/inter-service-communication/http-client.service";
 
 
 @Injectable()
@@ -22,7 +23,8 @@ export class NotificationService {
   constructor(
     private readonly dbServices: IMongoDBServices,
     private readonly paginationService: PaginationService,
-    private readonly firebaseService: FirebaseService
+    private readonly firebaseService: FirebaseService,
+    private readonly httpClientService: HttpClientService
   ) {
     this.Logger = new Logger(NotificationService.name);
   }
@@ -219,6 +221,29 @@ export class NotificationService {
   }
 
   //   notification service layer below
+  /**
+   * Check if the receiver has muted notifications from the sender (connection-level muteNotification).
+   * Uses the connection collection via chat service: ownerId = receiver, peerId = sender.
+   * Returns true if muted, false otherwise. On API error or no connection, returns false (allow notification).
+   */
+  private async isSenderMutedByReceiver(receiverId: string, senderId: string): Promise<boolean> {
+    try {
+      const response: any = await this.httpClientService.get(
+        'NAACHI_CHAT_SERVICE',
+        '/connection',
+        { ownerId: receiverId, skip: 0, limit: 100 },
+        true
+      );
+      if (!response) return false;
+      const items = response?.items ?? response?.result?.items ?? [];
+      const connection = items.find((c: any) => c.peerId === senderId);
+      if (!connection) return false;
+      return connection.muteNotification === true;
+    } catch {
+      return false;
+    }
+  }
+
   /* Create notification history record and send Firebase notification */
   async createNotificationRecord(createNotificationHistoryDto: CreateNotificationHistoryDto) {
     try {
@@ -249,6 +274,17 @@ export class NotificationService {
         if (userProfile?.muteNotifications === true) {
           this.Logger.log(`Skipping notification send for userId ${createNotificationHistoryDto.userId}: muteNotifications is enabled`);
         } else {
+          // Connection-level check: skip if receiver has muted notifications from sender
+          const senderId = createNotificationHistoryDto.data?.senderId;
+          if (senderId) {
+            const mutedByConnection = await this.isSenderMutedByReceiver(createNotificationHistoryDto.userId, senderId);
+            if (mutedByConnection) {
+              this.Logger.log(
+                `Skipping notification send for userId ${createNotificationHistoryDto.userId}: sender ${senderId} is muted (muteNotification on connection)`
+              );
+              return createdRecord;
+            }
+          }
           await this.sendNotificationToUser(createdRecord);
         }
       }
@@ -282,10 +318,9 @@ export class NotificationService {
       const fullImageUrl = this.generateImageUrl(notificationRecord.imageUrl);
 
       // Prepare notification data
-      const notificationData = {
+      const notificationData: any = {
         title: notificationRecord.title,
         body: notificationRecord.body,
-        imageUrl: fullImageUrl,
         clickAction: notificationRecord.clickAction,
         data: {
           ...notificationRecord.data,
@@ -293,6 +328,11 @@ export class NotificationService {
           userId: userId
         }
       };
+
+      // Only include imageUrl if it's a valid string
+      if (fullImageUrl && typeof fullImageUrl === 'string') {
+        notificationData.imageUrl = fullImageUrl;
+      }
       // Send notifications to all user's devices
       const results = [];
       for (const deviceToken of deviceTokens) {
@@ -459,12 +499,16 @@ export class NotificationService {
       const fullImageUrl = this.generateImageUrl(bulkDto.imageUrl);
 
       // Prepare notification content
-      const notificationContent = {
+      const notificationContent: any = {
         title: bulkDto.title,
         body: bulkDto.body,
-        imageUrl: fullImageUrl,
         clickAction: bulkDto.clickAction,
       };
+
+      // Only include imageUrl if it's a valid string
+      if (fullImageUrl && typeof fullImageUrl === 'string') {
+        notificationContent.imageUrl = fullImageUrl;
+      }
 
       // Send notifications via Firebase service
       const result = await this.firebaseService.sendToDevices(
