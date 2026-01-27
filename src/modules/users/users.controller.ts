@@ -107,7 +107,7 @@ export class UsersController {
 
   @Get()
   getAllUsers(@Query() query: GetUsersQueryDto) {
-    const { skip, limit, nonPaginated, phoneNumber, userName, userId, institutionsId, search, status } = query;
+    const { skip, limit, nonPaginated, phoneNumber, userName,email, userId, institutionsId, search, status } = query;
 
     const filter: Record<string, any> = {};
 
@@ -139,6 +139,9 @@ export class UsersController {
 
       if (userId) {
         filter.userId = { $regex: userId, $options: 'i' };
+      }
+      if (email) {
+        filter.email = { $regex: email, $options: 'i' };
       }
     }
 

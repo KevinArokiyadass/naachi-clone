@@ -136,6 +136,10 @@ export class GetUsersQueryDto extends FetchDto {
   @IsOptional()
   @IsIn([USER_STATUS.PENDING, USER_STATUS.ACTIVE, USER_STATUS.BLOCKED], { message: 'Status must be pending or active' })
   status?: UserStatus;
+
+  @IsOptional()
+  @IsString()
+  email?:string;
 }
 
 export class GetPermissionsQueryDto extends FetchDto {
