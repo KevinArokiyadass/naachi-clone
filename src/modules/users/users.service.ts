@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
@@ -41,10 +42,12 @@ import { response } from 'express';
 import { UpdateUserProfileDto } from './dto/user-profile.dto';
 import { AwsStoreService } from '../aws-store/aws-store.service';
 import { ConfigurationService } from '../configuration/configuration.service';
+import { InjectConnection } from '@nestjs/mongoose';
+import { Connection } from 'mongoose';
 
 
 @Injectable()
-export class UsersAuthService {
+export class UsersAuthService implements OnModuleInit {
   private cognitoClient: CognitoIdentityProviderClient;
   private readonly clientId = process.env.COGNITO_CUSTOMER_APP_CLIENT_ID;
   private readonly userPoolId = process.env.COGNITO_CUSTOMER_USER_POOL_ID;
@@ -57,6 +60,7 @@ export class UsersAuthService {
     private readonly recordService: RecordService,
     private readonly awsStoreService: AwsStoreService,
     private readonly configurationService: ConfigurationService,
+    @InjectConnection() private readonly connection: Connection,
   ) {
     if (!this.clientId) {
       throw new Error('COGNITO_CUSTOMER_APP_CLIENT_ID is not configured');
@@ -71,6 +75,10 @@ export class UsersAuthService {
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
       },
     });
+  }
+
+  async onModuleInit(): Promise<void> {
+    await this.ensureFindFriendsIndexes();
   }
 
   async signup(dto: UsersSignupDto) {
@@ -1501,6 +1509,11 @@ export class UsersAuthService {
     };
   }
 
+  /**
+   * Find users that are not yet friends (no pending/accepted friend request with requester).
+   * Single O(n) approach: one agg on requests for excluded user IDs, then one users query with $nin.
+   * Indexes are ensured on first use (see ensureFindFriendsIndexes).
+   */
   async findFriends(
     requesterId: string,
     skip: number = 0,
@@ -1508,139 +1521,114 @@ export class UsersAuthService {
     nonPaginated: boolean = false,
     search?: string,
   ): Promise<IPaginatedResult<IUsers[]>> {
-    // Build the base match filter
-    const baseMatch: Record<string, any> = {
-      userId: { $ne: requesterId },
+    // 1) Single aggregation on requests: get all peer user IDs that have pending/accepted friend request with requester
+    const excludedPeerIds = await this.getExcludedFriendPeerIds(requesterId);
+
+    // 2) Build users filter: not requester, not in excluded list, active, optional search
+    const excludeUserIds = [...excludedPeerIds, requesterId];
+    const userFilter: Record<string, any> = {
+      userId: { $nin: excludeUserIds },
       isDeleted: false,
       status: USER_STATUS.ACTIVE,
     };
-
-    // Add search filter if provided
     if (search) {
-      baseMatch.$or = [
+      userFilter.$or = [
         { phoneNumber: { $regex: search, $options: 'i' } },
         { userName: { $regex: search, $options: 'i' } },
-        { userId: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
         { name: { $regex: search, $options: 'i' } },
       ];
     }
 
-    // Build the aggregation pipeline
-    const pipeline: any[] = [
-      // Match active users excluding the requester
-      {
-        $match: baseMatch,
-      },
-      // Lookup friend requests where requester is actor or target
-      {
-        $lookup: {
-          from: 'requests',
-          let: { peerUserId: '$userId' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    {
-                      $or: [
-                        // Requester is actor, peer is target
-                        {
-                          $and: [
-                            { $eq: ['$actorId', requesterId] },
-                            {
-                              $or: [
-                                { $eq: ['$targetId', '$$peerUserId'] },
-                                { $eq: ['$metadata.targetUserId', '$$peerUserId'] },
-                              ],
-                            },
-                          ],
-                        },
-                        // Requester is target, peer is actor
-                        {
-                          $and: [
-                            {
-                              $or: [
-                                { $eq: ['$targetId', requesterId] },
-                                { $eq: ['$metadata.targetUserId', requesterId] },
-                              ],
-                            },
-                            { $eq: ['$actorId', '$$peerUserId'] },
-                          ],
-                        },
-                      ],
-                    },
-                    { $eq: ['$type', 'friend'] },
-                    { $eq: ['$reqType', 'friendRequest'] },
-                    {
-                      $in: ['$status', ['pending', 'accepted']],
-                    },
-                    { $ne: ['$isDeleted', true] },
-                  ],
-                },
-              },
-            },
-            { $limit: 1 },
-          ],
-          as: 'friendRequest',
-        },
-      },
-      // Filter out users who have pending or accepted friend requests
-      {
-        $match: {
-          friendRequest: { $size: 0 },
-        },
-      },
-      // Project user fields
-      {
-        $project: {
-          friendRequest: 0,
-        },
-      },
-    ];
-
-    // Apply pagination if needed
     if (!nonPaginated) {
       const validatedSkip = skip >= 0 ? skip : 0;
       const validatedLimit = limit > 0 ? limit : 10;
 
-      // Get total count before pagination
-      const countPipeline = [
-        ...pipeline,
-        { $count: 'total' },
-      ];
-      const countResult = await this.dbService.users.aggregate<any>(countPipeline);
-      const totalItems = countResult[0]?.total || 0;
-
-      // Apply skip and limit
-      pipeline.push(
-        { $sort: { createdAt: -1 } },
-        { $skip: validatedSkip },
-        { $limit: validatedLimit },
-      );
-
-      const items = await this.dbService.users.aggregate<any>(pipeline);
+      // 3) Single pass: count and find in parallel (both use same index)
+      const [totalItems, items] = await Promise.all([
+        this.dbService.users.countDocuments(userFilter),
+        this.dbService.users.find(userFilter, undefined, {
+          sort: { createdAt: -1 },
+          skip: validatedSkip,
+          limit: validatedLimit,
+        }),
+      ]);
       const totalPages = Math.max(Math.ceil(totalItems / validatedLimit), 1);
-
       return {
         totalItems,
         totalPages,
         skip: validatedSkip,
         limit: validatedLimit,
-        items: items.map((user: any) => this.attachProfileImageUrl(user)),
-      } as IPaginatedResult<IUsers[]>;
-    } else {
-      // Non-paginated: return all results
-      pipeline.push({ $sort: { createdAt: -1 } });
-      const items = await this.dbService.users.aggregate<any>(pipeline);
-      return {
-        totalItems: items.length,
-        totalPages: 1,
-        skip: 0,
-        limit: items.length,
-        items: items.map((user: any) => this.attachProfileImageUrl(user)),
+        items: (items || []).map((user: any) => this.attachProfileImageUrl(user)),
       } as IPaginatedResult<IUsers[]>;
     }
+
+    const items = await this.dbService.users.find(userFilter, undefined, {
+      sort: { createdAt: -1 },
+    });
+    return {
+      totalItems: (items || []).length,
+      totalPages: 1,
+      skip: 0,
+      limit: (items || []).length,
+      items: (items || []).map((user: any) => this.attachProfileImageUrl(user)),
+    } as IPaginatedResult<IUsers[]>;
+  }
+
+  /**
+   * One aggregation on requests: returns list of user IDs that already have
+   * pending/accepted friend request with requesterId (so we exclude them from find-friends).
+   */
+  private async getExcludedFriendPeerIds(requesterId: string): Promise<string[]> {
+    const requestsColl = this.connection.db.collection('requests');
+    const result = await requestsColl
+      .aggregate<{ _id: null; peerIds: string[] }>([
+        {
+          $match: {
+            type: 'friend',
+            reqType: 'friendRequest',
+            status: { $in: ['pending', 'accepted'] },
+            isDeleted: { $ne: true },
+            $or: [
+              { actorId: requesterId },
+              { targetId: requesterId },
+              { 'metadata.targetUserId': requesterId },
+            ],
+          },
+        },
+        {
+          $project: {
+            peerId: {
+              $cond: {
+                if: { $eq: ['$actorId', requesterId] },
+                then: { $ifNull: ['$targetId', '$metadata.targetUserId'] },
+                else: '$actorId',
+              },
+            },
+          },
+        },
+        { $group: { _id: null, peerIds: { $addToSet: '$peerId' } } },
+      ])
+      .toArray();
+    const peerIds = result[0]?.peerIds ?? [];
+    return peerIds.filter((id): id is string => id != null && id !== requesterId);
+  }
+
+  /**
+   * Ensures indexes used by findFriends exist (idempotent). Call once at app bootstrap.
+   */
+  async ensureFindFriendsIndexes(): Promise<void> {
+    const db = this.connection.db;
+    await Promise.all([
+      db.collection('users').createIndex(
+        { status: 1, isDeleted: 1, createdAt: -1 },
+        { name: 'findFriends_users_status_isDeleted_createdAt' },
+      ),
+      db.collection('requests').createIndex(
+        { type: 1, reqType: 1, status: 1, actorId: 1, targetId: 1 },
+        { name: 'findFriends_requests_type_reqType_status_actor_target' },
+      ),
+    ]);
   }
 
 }
