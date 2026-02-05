@@ -1576,6 +1576,153 @@ export class UsersAuthService implements OnModuleInit {
   }
 
   /**
+   * Find all users (excluding requester) and append friend connection / request details
+   * between the requester and each user.
+   * This reads directly from the users collection and then batch-loads connection + request docs.
+   */
+  async findAllFriends(
+    requesterId: string,
+    skip: number = 0,
+    limit: number = 10,
+    nonPaginated: boolean = false,
+    search?: string,
+  ): Promise<IPaginatedResult<IUsers[]>> {
+    const userFilter: Record<string, any> = {
+      userId: { $ne: requesterId },
+      isDeleted: false,
+      status: USER_STATUS.ACTIVE,
+    };
+
+    if (search) {
+      userFilter.$or = [
+        { phoneNumber: { $regex: search, $options: 'i' } },
+        { userName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    let items: any[] = [];
+    let totalItems = 0;
+    let validatedSkip = 0;
+    let validatedLimit = 0;
+
+    if (!nonPaginated) {
+      validatedSkip = skip >= 0 ? skip : 0;
+      validatedLimit = limit > 0 ? limit : 10;
+
+      const [count, users] = await Promise.all([
+        this.dbService.users.countDocuments(userFilter),
+        this.dbService.users.find(userFilter, undefined, {
+          sort: { createdAt: -1 },
+          skip: validatedSkip,
+          limit: validatedLimit,
+        }),
+      ]);
+
+      totalItems = count;
+      items = users || [];
+    } else {
+      items =
+        (await this.dbService.users.find(userFilter, undefined, {
+          sort: { createdAt: -1 },
+        })) || [];
+      totalItems = items.length;
+      validatedSkip = 0;
+      validatedLimit = items.length;
+    }
+
+    // Batch-load connection and friend-request details for all returned users
+    const peerIds = items
+      .map((u: any) => u.userId)
+      .filter((id: any) => typeof id === 'string');
+
+    let connectionsByPeerId: Record<string, any> = {};
+    let requestsByPeerId: Record<string, any> = {};
+
+    if (peerIds.length > 0) {
+      const db = this.connection.db;
+
+      const [connections, requests] = await Promise.all([
+        db
+          .collection('connections')
+          .find({
+            ownerId: requesterId,
+            peerId: { $in: peerIds },
+          })
+          .toArray(),
+        db
+          .collection('requests')
+          .find({
+            type: 'friend',
+            reqType: 'friendRequest',
+            actorId: requesterId,
+            targetId: { $in: peerIds },
+          })
+          .toArray(),
+      ]);
+
+      connectionsByPeerId = (connections || []).reduce(
+        (acc: Record<string, any>, conn: any) => {
+          if (!conn) return acc;
+          // Determine the "other" user in the connection relative to requesterId
+          const peerIdForMap =
+            conn.peerId === requesterId ? conn.ownerId : conn.peerId;
+          if (peerIdForMap) {
+            acc[peerIdForMap] = conn;
+          }
+          return acc;
+        },
+        {},
+      );
+
+      requestsByPeerId = (requests || []).reduce(
+        (acc: Record<string, any>, req: any) => {
+          let peerId: string | undefined;
+          if (req.actorId === requesterId) {
+            peerId = req.targetId ?? req.metadata?.targetUserId;
+          } else if (req.targetId === requesterId) {
+            peerId = req.actorId;
+          }
+
+          if (peerId) {
+            acc[peerId] = req;
+          }
+          return acc;
+        },
+        {},
+      );
+    }
+
+    const itemsWithDetails = (items || []).map((user: any) => {
+      const userId = user.userId;
+      const connection = connectionsByPeerId[userId];
+      const request = requestsByPeerId[userId];
+
+      // First attach profile image URL, then append connection/request
+      const userWithImage = this.attachProfileImageUrl(user);
+      return {
+        ...userWithImage,
+        connection,
+        request,
+      };
+    });
+
+    const totalPages = Math.max(
+      Math.ceil(totalItems / (validatedLimit || 1)),
+      1,
+    );
+
+    return {
+      totalItems,
+      totalPages,
+      skip: validatedSkip,
+      limit: validatedLimit,
+      items: itemsWithDetails,
+    } as IPaginatedResult<IUsers[]>;
+  }
+
+  /**
    * One aggregation on requests: returns list of user IDs that already have
    * pending/accepted friend request with requesterId (so we exclude them from find-friends).
    */

@@ -179,6 +179,24 @@ export class UsersController {
     return this.usersService.findFriends(requesterId, skip, limit, nonPaginated, search);
   }
 
+  @Get('all-friends')
+  async findAllFriends(@Query() query: FindFriendsDto) {
+    const { skip, limit, nonPaginated, ownerId, userId, search } = query;
+    const requesterId = ownerId || userId;
+
+    if (!requesterId) {
+      throw new BadRequestException('Either ownerId or userId is required');
+    }
+
+    return this.usersService.findAllFriends(
+      requesterId,
+      skip,
+      limit,
+      nonPaginated,
+      search,
+    );
+  }
+
   @Get(':userId')
   async getUserByUserId(@Param('userId') userId: string) {
     return this.usersService.getUserByUserId(userId);
