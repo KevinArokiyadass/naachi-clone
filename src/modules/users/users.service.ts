@@ -1761,41 +1761,48 @@ export class UsersAuthService implements OnModuleInit {
     return peerIds.filter((id): id is string => id != null && id !== requesterId);
   }
 
+  private async safeCreateIndex(
+    collectionName: string,
+    indexSpec: Record<string, any>,
+    options?: Record<string, any>,
+  ): Promise<void> {
+    const db = this.connection.db;
+    try {
+      await db.collection(collectionName).createIndex(indexSpec, options);
+    } catch (error: any) {
+      // Ignore index conflicts when index already exists with different name/options
+      if (error?.code === 85 || error?.codeName === 'IndexOptionsConflict') {
+        return;
+      }
+      throw error;
+    }
+  }
+
   /**
    * Ensures indexes used by findFriends exist (idempotent). Call once at app bootstrap.
    */
   async ensureFindFriendsIndexes(): Promise<void> {
-    const db = this.connection.db;
     await Promise.all([
       // General users collection indexes for fast lookups
-      db.collection('users').createIndex(
-        { phoneNumber: 1, isDeleted: 1 },
-        { name: 'users_phoneNumber_isDeleted' },
-      ),
-      db.collection('users').createIndex(
-        { userId: 1, isDeleted: 1 },
-        { name: 'users_userId_isDeleted' },
-      ),
-      db.collection('users').createIndex(
-        { email: 1, isDeleted: 1, status: 1 },
-        { name: 'users_email_isDeleted_status' },
-      ),
-      db.collection('users').createIndex(
-        { userName: 1, isDeleted: 1 },
-        { name: 'users_userName_isDeleted' },
-      ),
+      this.safeCreateIndex('users', { phoneNumber: 1, isDeleted: 1 }, { name: 'users_phoneNumber_isDeleted' }),
+      this.safeCreateIndex('users', { userId: 1, isDeleted: 1 }, { name: 'users_userId_isDeleted' }),
+      this.safeCreateIndex('users', { email: 1, isDeleted: 1, status: 1 }, { name: 'users_email_isDeleted_status' }),
+      this.safeCreateIndex('users', { userName: 1, isDeleted: 1 }, { name: 'users_userName_isDeleted' }),
       // Existing find-friends specific index
-      db.collection('users').createIndex(
+      this.safeCreateIndex(
+        'users',
         { status: 1, isDeleted: 1, createdAt: -1 },
         { name: 'findFriends_users_status_isDeleted_createdAt' },
       ),
       // Connections collection indexes for friend lookups
-      db.collection('connections').createIndex(
+      this.safeCreateIndex(
+        'connections',
         { ownerId: 1, peerId: 1, isDeleted: 1 },
         { name: 'connections_owner_peer_isDeleted' },
       ),
       // Requests collection indexes for friend requests
-      db.collection('requests').createIndex(
+      this.safeCreateIndex(
+        'requests',
         {
           type: 1,
           reqType: 1,
