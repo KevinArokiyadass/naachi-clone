@@ -163,10 +163,54 @@ export class ReviewReportService {
     limit: number = 10,
     filter: Record<string, any> = {},
     nonPaginated: boolean = false,
-    institutionsId?: string
+    institutionsId?: string,
+    search?: string
   ): Promise<IPaginatedResult<any>> {
     if (institutionsId) {
       filter.institutionsId = institutionsId;
+    }
+
+    // Build search filter, including user-based search (reporter / reported user)
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+
+      // Find users whose username or name matches the search term
+      const matchedUsers = await this.usersModel
+        .find(
+          {
+            isDeleted: { $in: [null, false] },
+            $or: [
+              { userName: { $regex: searchRegex } },
+              { name: { $regex: searchRegex } },
+            ],
+          },
+          { userId: 1, _id: 0 },
+        )
+        .lean()
+        .exec();
+
+      const matchedUserIds = matchedUsers.map((u: any) => u.userId).filter(Boolean);
+
+      const baseOrConditions: any[] = [
+        { reviewId: { $regex: searchRegex } },
+        { reasonText: { $regex: searchRegex } },
+        { conversationId: { $regex: searchRegex } },
+        { status: { $regex: searchRegex } },
+      ];
+
+      // If any users matched, also search by reporter / reported user IDs
+      if (matchedUserIds.length > 0) {
+        baseOrConditions.push(
+          { reporterId: { $in: matchedUserIds } },
+          { reportedUserId: { $in: matchedUserIds } },
+        );
+      }
+
+      if (filter.$or && Array.isArray(filter.$or)) {
+        filter.$or = [...filter.$or, ...baseOrConditions];
+      } else {
+        filter.$or = baseOrConditions;
+      }
     }
 
     const result = await this.paginationService.findAndPaginate(

@@ -32,16 +32,8 @@ export class ReviewReportController {
 
     const filter: Record<string, any> = {};
 
-    if (search) {
-      filter.$or = [
-        { reviewId: { $regex: search, $options: 'i' } },
-        { reasonText: { $regex: search, $options: 'i' } },
-        { conversationId: { $regex: search, $options: 'i' } },
-        { status: { $regex: search, $options: 'i' } },
-      ];
-    }
-
-    return this.service.findAll(skip, limit, filter, nonPaginated, institutionsId);
+    // Let the service handle building the full search filter, including user-name based search
+    return this.service.findAll(skip, limit, filter, nonPaginated, institutionsId, search);
   }
 
   @Get(':reviewId')
