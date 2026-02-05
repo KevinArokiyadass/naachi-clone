@@ -1767,13 +1767,44 @@ export class UsersAuthService implements OnModuleInit {
   async ensureFindFriendsIndexes(): Promise<void> {
     const db = this.connection.db;
     await Promise.all([
+      // General users collection indexes for fast lookups
+      db.collection('users').createIndex(
+        { phoneNumber: 1, isDeleted: 1 },
+        { name: 'users_phoneNumber_isDeleted' },
+      ),
+      db.collection('users').createIndex(
+        { userId: 1, isDeleted: 1 },
+        { name: 'users_userId_isDeleted' },
+      ),
+      db.collection('users').createIndex(
+        { email: 1, isDeleted: 1, status: 1 },
+        { name: 'users_email_isDeleted_status' },
+      ),
+      db.collection('users').createIndex(
+        { userName: 1, isDeleted: 1 },
+        { name: 'users_userName_isDeleted' },
+      ),
+      // Existing find-friends specific index
       db.collection('users').createIndex(
         { status: 1, isDeleted: 1, createdAt: -1 },
         { name: 'findFriends_users_status_isDeleted_createdAt' },
       ),
+      // Connections collection indexes for friend lookups
+      db.collection('connections').createIndex(
+        { ownerId: 1, peerId: 1, isDeleted: 1 },
+        { name: 'connections_owner_peer_isDeleted' },
+      ),
+      // Requests collection indexes for friend requests
       db.collection('requests').createIndex(
-        { type: 1, reqType: 1, status: 1, actorId: 1, targetId: 1 },
-        { name: 'findFriends_requests_type_reqType_status_actor_target' },
+        {
+          type: 1,
+          reqType: 1,
+          status: 1,
+          actorId: 1,
+          targetId: 1,
+          'metadata.targetUserId': 1,
+        },
+        { name: 'findFriends_requests_type_reqType_status_actor_target_meta' },
       ),
     ]);
   }
