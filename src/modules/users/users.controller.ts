@@ -120,11 +120,10 @@ export class UsersController {
     }
 
     if (search) {
-      // When search is provided, search across all relevant fields
+      // When search is provided, search across user-facing fields (excluding userId)
       filter.$or = [
         { phoneNumber: { $regex: search, $options: 'i' } },
         { userName: { $regex: search, $options: 'i' } },
-        { userId: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
         { name: { $regex: search, $options: 'i' } },
       ];

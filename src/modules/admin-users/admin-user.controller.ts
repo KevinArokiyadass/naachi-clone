@@ -59,12 +59,12 @@ export class AdminUserController {
     }
 
     if (search) {
+      // When search is provided, search across admin-facing fields (excluding adminId)
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
         { phoneNumber: { $regex: search, $options: 'i' } },
         { userName: { $regex: search, $options: 'i' } },
-        { adminId: { $regex: search, $options: 'i' } },
       ];
     }
 
