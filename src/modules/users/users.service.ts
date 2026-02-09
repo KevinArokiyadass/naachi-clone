@@ -462,7 +462,7 @@ export class UsersAuthService implements OnModuleInit {
 
       if (!hasMatch) {
         throw new BadRequestException({
-          message: `Email domain "${domain}" is not a registered domain.`,
+          message: `Email domain is not a registered domain.`,
           errorCode: 'INVALID_EMAIL_DOMAIN',
         });
       }
@@ -541,6 +541,14 @@ export class UsersAuthService implements OnModuleInit {
 
     if (existingUser && existingUser.userId !== dto.userId) {
       throw new BadRequestException('Email already registered');
+    }
+
+    // Check for matching admin user and sync institutionId
+    const adminSyncResult = await this.syncInstitutionIdFromAdminUser(dto.email, user.phoneNumber);
+
+    // Validate institution domain if not an admin user
+    if (!adminSyncResult) {
+      await this.validateInstitute(dto.email);
     }
 
     const updatePayload: Record<string, any> = {
