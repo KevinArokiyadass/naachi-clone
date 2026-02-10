@@ -31,6 +31,51 @@ export class NotificationService {
 
   private readonly Logger: Logger;
 
+  /**
+   * Firebase `data` payload must be `Record<string, string>`.
+   * This helper converts any plain object into that shape by
+   * stringifying non-string values. Nested objects/arrays are JSON-stringified.
+   */
+  private normalizeFirebaseDataPayload(data: any): Record<string, string> | undefined {
+    if (!data || typeof data !== 'object') {
+      return undefined;
+    }
+
+    const normalized: Record<string, string> = {};
+
+    Object.entries(data).forEach(([key, value]) => {
+      if (value === undefined) {
+        // Skip undefined to avoid sending "undefined" as a literal string
+        return;
+      }
+
+      if (value === null) {
+        normalized[key] = '';
+        return;
+      }
+
+      if (typeof value === 'string') {
+        normalized[key] = value;
+        return;
+      }
+
+      if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+        normalized[key] = String(value);
+        return;
+      }
+
+      // Objects, arrays, Dates, etc.
+      try {
+        normalized[key] = JSON.stringify(value);
+      } catch {
+        // Fallback in worst case
+        normalized[key] = String(value);
+      }
+    });
+
+    return Object.keys(normalized).length > 0 ? normalized : undefined;
+  }
+
   /* Generate full CloudFront URL from filename */
   private generateImageUrl(filename: string): string | null {
     if (!filename) {
@@ -333,6 +378,9 @@ export class NotificationService {
       if (fullImageUrl && typeof fullImageUrl === 'string') {
         notificationData.imageUrl = fullImageUrl;
       }
+
+      // Normalize data payload to satisfy Firebase constraint: values must be strings
+      const firebaseData = this.normalizeFirebaseDataPayload(notificationData.data);
       // Send notifications to all user's devices
       const results = [];
       for (const deviceToken of deviceTokens) {
@@ -342,7 +390,7 @@ export class NotificationService {
           const result = await this.firebaseService.sendToDevice(
             deviceToken.token,
             notificationData,
-            notificationData.data
+            firebaseData
           );
 
           results.push({
@@ -510,11 +558,14 @@ export class NotificationService {
         notificationContent.imageUrl = fullImageUrl;
       }
 
+      // Normalize data payload to satisfy Firebase constraint: values must be strings
+      const firebaseData = this.normalizeFirebaseDataPayload(bulkDto.data);
+
       // Send notifications via Firebase service
       const result = await this.firebaseService.sendToDevices(
         finalTokens,
         notificationContent,
-        bulkDto.data
+        firebaseData
       );
 
       this.Logger.log(`Bulk notification sent. Success: ${result.successCount}, Failure: ${result.failureCount}`);
