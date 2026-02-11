@@ -82,20 +82,19 @@ export class NotificationService {
       return null;
     }
 
+    // If a full URL is already provided (e.g. from chat-service), respect it as-is.
+    if (filename.startsWith('http://') || filename.startsWith('https://')) {
+      return filename;
+    }
+
     const cloudFrontUrl = process.env.CLOUD_FRONT_URL;
     if (!cloudFrontUrl) {
       this.Logger.warn('CLOUD_FRONT_URL environment variable not set');
       return null;
     }
 
-    let processedFilename = filename;
-    if (filename.includes('http://') || filename.includes('https://')) {
-      this.Logger.log(`Replacing URL pattern in filename: ${filename} with Ix.png`);
-      processedFilename = 'Ix.png';
-    }
-
     const baseUrl = cloudFrontUrl.replace(/\/$/, '');
-    return `${baseUrl}/${processedFilename}`;
+    return `${baseUrl}/${filename}`;
   }
 
   private transformNotificationWithImageUrl(notification: any): any {
@@ -368,7 +367,7 @@ export class NotificationService {
         body: notificationRecord.body,
         clickAction: notificationRecord.clickAction,
         data: {
-          ...notificationRecord.data,
+          ...(notificationRecord.data || {}),
           notificationId: notificationRecord.notificationId,
           userId: userId
         }
