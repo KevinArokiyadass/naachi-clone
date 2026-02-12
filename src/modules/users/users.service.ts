@@ -1128,7 +1128,9 @@ export class UsersAuthService implements OnModuleInit {
     filter: Record<string, any> = {},
     nonPaginated: boolean
   ): Promise<IPaginatedResult<IUsers[]>> {
+    if (filter.isDeleted === undefined) {
     filter.isDeleted = { $in: [null, false] };
+    }
     const result = await this.paginationService.findAndPaginate(this.dbService.users, { skip, limit, filter, nonPaginated });
 
     // Transform profileImage field to include CloudFront URL for each user
@@ -1824,6 +1826,42 @@ export class UsersAuthService implements OnModuleInit {
     ]);
   }
 
-}
+  async deleteUser(userId: string, isDeleted: boolean )
+  {
+    const user = await this.dbService.users.findOne({userId,isDeleted: false})
+
+    if(!user)
+    {
+      throw new NotFoundException('User Not Found');
+    }
+
+      const { nanoid } = await import('nanoid')
+      const randomId = nanoid(8);
+
+
+      const updatePayload = {
+      isDeleted: true,
+      status:USER_STATUS.INACTIVE,
+      name :"naachi_user",
+      userName: `deleted_user_${randomId}`,
+      profileImage : "",
+      };
+
+      const updatedUser = await this.dbService.users.findOneAndUpdate(
+        { userId, isDeleted:false},
+        { $set: updatePayload },
+        { new: true},
+      );
+
+      return{
+        message:'User deleted successfully',
+        user: updatedUser,
+      }
+
+    };
+  }
+
+
+
 
 
