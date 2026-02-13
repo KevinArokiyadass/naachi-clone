@@ -108,14 +108,15 @@ export class UsersController {
 
   @Get()
   getAllUsers(@Query() query: GetUsersQueryDto) {
-    const { skip, limit, nonPaginated, phoneNumber, userName,email, userId, institutionsId, search, status } = query;
-
+    const { skip, limit, nonPaginated, phoneNumber, userName,email, userId, institutionsId, search, status, isDeleted } = query;
     const filter: Record<string, any> = {};
-
+    if (isDeleted !== undefined) {
+          filter.isDeleted = isDeleted;
+    }
     // Filter by status if provided, otherwise default to 'active' for backward compatibility
     if (status) {
       filter.status = status;
-    } else {
+    } else if (!isDeleted){
       filter.status = USER_STATUS.ACTIVE;  
     }
 
@@ -208,6 +209,13 @@ export class UsersController {
   ) {
     return this.usersService.updateUserProfile(userId, dto);
   }
+
+  @Patch(':userId/delete-user')
+  async deleteUser(
+    @Param('userId') userId: string, 
+    @Body()dto: {isDeleted: boolean}
+  )
+  {
+      return this.usersService.deleteUser(userId,dto.isDeleted);
+  }
 }
-
-

@@ -39,6 +39,7 @@ export const USER_STATUS = {
   PENDING: 'pending',
   BLOCKED: 'blocked',
   ACTIVE: 'active',
+  INACTIVE:'inactive'
 } as const;
 
 export const userStatus = [

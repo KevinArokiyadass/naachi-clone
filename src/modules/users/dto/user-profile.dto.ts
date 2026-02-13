@@ -41,5 +41,9 @@ export class UpdateUserProfileDto {
   @IsOptional()
   @IsString()
   referrerId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isDeleted?: boolean;
 }
 
