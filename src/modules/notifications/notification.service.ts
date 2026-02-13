@@ -16,6 +16,7 @@ import { NotificationHistory } from "./entity/notification-management.entity"
 import { NotificationStatus } from "../../common/enums/notification.enum";
 import { CreateBulkNotificationDto } from "./dto/create-bulk-notification.dto";
 import { HttpClientService } from "src/common/inter-service-communication/http-client.service";
+import { DismissNotificationsDto } from "./dto/dismiss-notification.dto";
 
 
 @Injectable()
@@ -493,6 +494,69 @@ export class NotificationService {
       return { unReadCount: count };
     } catch (error) {
       this.Logger.error('Error getting count of notifications by userId:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Dismiss/clear chat notifications for a user and ticketId.
+   *
+   * - If messageIds is provided: marks only matching notifications as READ.
+   * - If messageIds is omitted/empty: marks all notifications for the ticketId as READ.
+   *
+   * Matching is done against notificationHistory documents using:
+   * - userId
+   * - data.ticketId
+   * - optional data.messageId / data.msgId in messageIds
+   */
+  async dismissChatNotifications(payload: DismissNotificationsDto) {
+    try {
+      const { userId, ticketId, chatType, messageIds } = payload;
+
+      if (!userId || !ticketId) {
+        throw new BadRequestException('userId and ticketId are required');
+      }
+
+      const baseFilter: any = {
+        userId,
+        'data.ticketId': ticketId,
+      };
+
+      // Persist chatType context if we ever need to differentiate in future;
+      // for now it's just part of the filter when present.
+      if (chatType) {
+        baseFilter['data.chatType'] = chatType;
+      }
+
+      let filter = baseFilter;
+
+      if (Array.isArray(messageIds) && messageIds.length > 0) {
+        filter = {
+          ...baseFilter,
+          $or: [
+            { 'data.messageId': { $in: messageIds } },
+            { 'data.msgId': { $in: messageIds } },
+          ],
+        };
+      }
+
+      const result: any = await this.dbServices.notificationHistory.updateMany(
+        filter,
+        { status: NotificationStatus.READ }
+      );
+
+      const matchedCount = result?.matchedCount ?? result?.n ?? 0;
+      const modifiedCount = result?.modifiedCount ?? result?.nModified ?? 0;
+
+      this.Logger.log(`Dismissed chat notifications for userId=${userId}, ticketId=${ticketId}, chatType=${chatType}, messageIdsCount=${messageIds?.length ?? 0}. Matched=${matchedCount}, Modified=${modifiedCount}`);
+
+      return {
+        success: true,
+        matchedCount,
+        modifiedCount,
+      };
+    } catch (error) {
+      this.Logger.error('Error dismissing chat notifications:', error);
       throw error;
     }
   }

@@ -19,6 +19,7 @@ import { FetchDto } from 'src/common/shared/pagination/dto/fetch.dto';
 import { toStringArray } from "src/common/utils/string-array.util";
 import { PaginationService } from "src/common/shared/pagination/pagination.service";
 import { CreateBulkNotificationDto } from "./dto/create-bulk-notification.dto";
+import { DismissNotificationsDto } from "./dto/dismiss-notification.dto";
 
 
 @Controller("notifications")
@@ -90,6 +91,22 @@ export class NotificationController {
   async createNotification(@Body() createNotificationHistoryDto: CreateNotificationHistoryDto): Promise<any> {
     this.Logger.log('Creating notification and sending to user devices');
     return this.notificationService.createNotificationRecord(createNotificationHistoryDto);
+  }
+
+  @Post('dismiss')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Dismiss chat notifications for a user and ticketId' })
+  @ApiBody({
+    type: DismissNotificationsDto,
+    description:
+      'Dismiss chat notifications for a user and ticketId. If messageIds is provided, only those messages are dismissed; otherwise all chat notifications for the ticket are dismissed.'
+  })
+  @ApiResponse({ status: 200, description: 'Notifications dismissed successfully' })
+  async dismissNotifications(@Body() dto: DismissNotificationsDto) {
+    this.Logger.log(
+      `Dismissing notifications for userId=${dto.userId}, ticketId=${dto.ticketId}, chatType=${dto.chatType}, messageIdsCount=${dto.messageIds?.length ?? 0}`
+    );
+    return this.notificationService.dismissChatNotifications(dto);
   }
 
   @Post('bulk')
