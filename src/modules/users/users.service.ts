@@ -1017,6 +1017,7 @@ export class UsersAuthService implements OnModuleInit {
           phoneNumber: 1,
           name: 1,
           userName: 1,
+          showPhoneNumber: 1,
         },
       },
     ];
@@ -1117,9 +1118,14 @@ export class UsersAuthService implements OnModuleInit {
       pipeline,
     );
 
-    return usersWithConnections.map((u: any) =>
-      this.attachProfileImageUrl(u),
-    );
+    return usersWithConnections.map((u: any) => {
+      const withImage = this.attachProfileImageUrl(u);
+      if (withImage && withImage.showPhoneNumber === false) {
+        const { phoneNumber: _, ...rest } = withImage;
+        return rest;
+      }
+      return withImage;
+    });
   }
 
   async findAllUsers(
@@ -1569,7 +1575,7 @@ export class UsersAuthService implements OnModuleInit {
         totalPages,
         skip: validatedSkip,
         limit: validatedLimit,
-        items: (items || []).map((user: any) => this.attachProfileImageUrl(user)),
+        items: (items || []).map((user: any) => this.maskPhoneIfHidden(this.attachProfileImageUrl(user))),
       } as IPaginatedResult<IUsers[]>;
     }
 
@@ -1581,8 +1587,20 @@ export class UsersAuthService implements OnModuleInit {
       totalPages: 1,
       skip: 0,
       limit: (items || []).length,
-      items: (items || []).map((user: any) => this.attachProfileImageUrl(user)),
+      items: (items || []).map((user: any) => this.maskPhoneIfHidden(this.attachProfileImageUrl(user))),
     } as IPaginatedResult<IUsers[]>;
+  }
+
+  /**
+   * Returns a copy of the user object without phoneNumber when showPhoneNumber is false.
+   */
+  private maskPhoneIfHidden(user: any): any {
+    if (!user) return user;
+    if (user.showPhoneNumber === false) {
+      const { phoneNumber: _, ...rest } = user;
+      return rest;
+    }
+    return user;
   }
 
   /**
@@ -1711,11 +1729,12 @@ export class UsersAuthService implements OnModuleInit {
 
       // First attach profile image URL, then append connection/request
       const userWithImage = this.attachProfileImageUrl(user);
-      return {
-        ...userWithImage,
+      const out: any = {
+        ...this.maskPhoneIfHidden(userWithImage),
         connection,
         request,
       };
+      return out;
     });
 
     const totalPages = Math.max(

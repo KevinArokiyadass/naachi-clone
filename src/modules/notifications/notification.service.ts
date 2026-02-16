@@ -292,9 +292,30 @@ export class NotificationService {
   /* Create notification history record and send Firebase notification */
   async createNotificationRecord(createNotificationHistoryDto: CreateNotificationHistoryDto) {
     try {
-      // Log notification creation for the provided userId
-      if (createNotificationHistoryDto.userId) {
-        this.Logger.log(`Creating notification record for userId: ${createNotificationHistoryDto.userId}`);
+      const userId = createNotificationHistoryDto.userId;
+
+      if (userId) {
+        this.Logger.log(`Creating notification record for userId: ${userId}`);
+
+        const userProfile = await this.dbServices.users.findOne(
+          { userId },
+          { muteNotifications: 1 }
+        );
+        if (userProfile?.muteNotifications === true) {
+          this.Logger.log(`Skipping notification for userId ${userId}: muteNotifications is enabled (no record created, no in-app notification)`);
+          return { skipped: true, reason: 'muted' };
+        }
+
+        const senderId = createNotificationHistoryDto.data?.senderId;
+        if (senderId) {
+          const mutedByConnection = await this.isSenderMutedByReceiver(userId, senderId);
+          if (mutedByConnection) {
+            this.Logger.log(
+              `Skipping notification for userId ${userId}: sender ${senderId} is muted (muteNotification on connection); no record created`
+            );
+            return { skipped: true, reason: 'connectionMuted' };
+          }
+        }
       }
 
       const historyRecord: CreateNotificationHistoryDto = {
@@ -306,32 +327,11 @@ export class NotificationService {
         userId: createNotificationHistoryDto.userId,
       };
 
-      // Create the notification history record first
       const createdRecord = await this.dbServices.notificationHistory.create(historyRecord);
       this.Logger.log(`Created notification history record: ${createdRecord.notificationId}`);
 
-      // If userId is provided, check muteNotifications and send only when not muted
-      if (createNotificationHistoryDto.userId) {
-        const userProfile = await this.dbServices.users.findOne(
-          { userId: createNotificationHistoryDto.userId },
-          { muteNotifications: 1 }
-        );
-        if (userProfile?.muteNotifications === true) {
-          this.Logger.log(`Skipping notification send for userId ${createNotificationHistoryDto.userId}: muteNotifications is enabled`);
-        } else {
-          // Connection-level check: skip if receiver has muted notifications from sender
-          const senderId = createNotificationHistoryDto.data?.senderId;
-          if (senderId) {
-            const mutedByConnection = await this.isSenderMutedByReceiver(createNotificationHistoryDto.userId, senderId);
-            if (mutedByConnection) {
-              this.Logger.log(
-                `Skipping notification send for userId ${createNotificationHistoryDto.userId}: sender ${senderId} is muted (muteNotification on connection)`
-              );
-              return createdRecord;
-            }
-          }
-          await this.sendNotificationToUser(createdRecord);
-        }
+      if (userId) {
+        await this.sendNotificationToUser(createdRecord);
       }
 
       return createdRecord;
@@ -512,9 +512,11 @@ export class NotificationService {
    */
   async dismissChatNotifications(payload: DismissNotificationsDto) {
     try {
-      const { userId, ticketId, chatType, messageIds } = payload;
+      const rawUserId = payload.userId?.trim();
+      const rawTicketId = payload.ticketId?.trim();
+      const { chatType, messageIds } = payload;
 
-      if (!userId || !ticketId) {
+      if (!rawUserId || !rawTicketId) {
         throw new BadRequestException('userId and ticketId are required');
       }
 
@@ -522,14 +524,14 @@ export class NotificationService {
       // data.conversationId / data.roomId for older or alternate payloads.
       const conversationMatch = {
         $or: [
-          { 'data.ticketId': ticketId },
-          { 'data.conversationId': ticketId },
-          { 'data.roomId': ticketId },
+          { 'data.ticketId': rawTicketId },
+          { 'data.conversationId': rawTicketId },
+          { 'data.roomId': rawTicketId },
         ],
       };
 
       const baseFilter: any = {
-        userId,
+        userId: rawUserId,
         ...conversationMatch,
       };
 
@@ -543,7 +545,7 @@ export class NotificationService {
           ],
         };
         filter = {
-          userId,
+          userId: rawUserId,
           $and: [conversationMatch, messageMatch],
         };
       }
@@ -556,7 +558,14 @@ export class NotificationService {
       const matchedCount = result?.matchedCount ?? result?.n ?? 0;
       const modifiedCount = result?.modifiedCount ?? result?.nModified ?? 0;
 
-      this.Logger.log(`Dismissed chat notifications for userId=${userId}, ticketId=${ticketId}, chatType=${chatType}, messageIdsCount=${messageIds?.length ?? 0}. Matched=${matchedCount}, Modified=${modifiedCount}`);
+      if (matchedCount === 0) {
+        this.Logger.warn(
+          `Dismiss matched 0 notifications. userId=${rawUserId}, ticketId=${rawTicketId}, messageIdsCount=${messageIds?.length ?? 0}. ` +
+          'Check that chat-service dismiss payload ticketId/messageIds match how notifications were created.'
+        );
+      }
+
+      this.Logger.log(`Dismissed chat notifications for userId=${rawUserId}, ticketId=${rawTicketId}, chatType=${chatType}, messageIdsCount=${messageIds?.length ?? 0}. Matched=${matchedCount}, Modified=${modifiedCount}`);
 
       return {
         success: true,
