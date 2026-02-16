@@ -119,12 +119,39 @@ export class NotificationController {
   }
 
 
+  @Get('unread')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get unread notifications only',
+    description:
+      'Use this for the notification bar / inbox. Returns only notifications with status=unread. ' +
+      'After the user opens a chat, chat-service calls POST /notifications/dismiss and marks items as read; ' +
+      'refetch this list (or GET /notifications?status=unread) so read items disappear from the bar.',
+  })
+  @ApiQuery({ name: 'userId', required: true, description: 'User ID' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Number of records to return', type: Number })
+  @ApiQuery({ name: 'skip', required: false, description: 'Number of records to skip', type: Number })
+  @ApiResponse({ status: 200, description: 'Unread notifications only' })
+  async getUnreadNotifications(@Query() queryDto: FetchDto) {
+    const { skip, limit, nonPaginated, userId } = queryDto;
+    const filter: any = { status: NotificationStatus.UNREAD };
+    if (userId) {
+      const arrayuserIds = toStringArray(userId);
+      filter.userId = { $in: arrayuserIds };
+    }
+    return this.notificationService.getNotificationHistory(skip, limit, filter, nonPaginated);
+  }
+
   @Get()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get notification history with filters and pagination' })
   @ApiQuery({ name: 'notificationId', required: false, description: 'Filter by notification ID' })
   @ApiQuery({ name: 'userId', required: false, description: 'Filter by user ID' })
-  @ApiQuery({ name: 'status', required: false, description: 'Filter by notification status' })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description: "Filter by status. For notification bar use status=unread so read items don't show (or use GET /notifications/unread).",
+  })
   @ApiQuery({ name: 'limit', required: false, description: 'Number of records to return', type: Number })
   @ApiQuery({ name: 'skip', required: false, description: 'Number of records to skip', type: Number })
   @ApiResponse({ status: 200, description: 'Notification history retrieved successfully' })
