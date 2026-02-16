@@ -499,15 +499,16 @@ export class NotificationService {
   }
 
   /**
-   * Dismiss/clear chat notifications for a user and ticketId.
+   * Dismiss/clear chat notifications for a user and conversation (ticketId).
    *
-   * - If messageIds is provided: marks only matching notifications as READ.
-   * - If messageIds is omitted/empty: marks all notifications for the ticketId as READ.
+   * Contract (chat-service):
+   * - Triggers: handleMessageRead (single message viewed) or handleMarkAllRead (mark all read).
+   * - Payload: userId (viewer), ticketId (conversation id e.g. CONV-xxx), chatType ('chat'), optional messageIds (chat message _id strings).
+   * - If messageIds present: mark only notifications for those messages as READ.
+   * - If messageIds absent: mark all notifications for this userId + ticketId as READ.
    *
-   * Matching is done against notificationHistory documents using:
-   * - userId
-   * - data.ticketId
-   * - optional data.messageId / data.msgId in messageIds
+   * Matching: userId + conversation id in data (ticketId OR conversationId OR roomId) + optional messageId/msgId in messageIds.
+   * We do not filter by data.chatType so notifications without that field still match.
    */
   async dismissChatNotifications(payload: DismissNotificationsDto) {
     try {
@@ -517,26 +518,33 @@ export class NotificationService {
         throw new BadRequestException('userId and ticketId are required');
       }
 
-      const baseFilter: any = {
-        userId,
-        'data.ticketId': ticketId,
+      // Conversation id: chat-service sends and stores data.ticketId only; we also match
+      // data.conversationId / data.roomId for older or alternate payloads.
+      const conversationMatch = {
+        $or: [
+          { 'data.ticketId': ticketId },
+          { 'data.conversationId': ticketId },
+          { 'data.roomId': ticketId },
+        ],
       };
 
-      // Persist chatType context if we ever need to differentiate in future;
-      // for now it's just part of the filter when present.
-      if (chatType) {
-        baseFilter['data.chatType'] = chatType;
-      }
+      const baseFilter: any = {
+        userId,
+        ...conversationMatch,
+      };
 
-      let filter = baseFilter;
+      let filter: any = baseFilter;
 
       if (Array.isArray(messageIds) && messageIds.length > 0) {
-        filter = {
-          ...baseFilter,
+        const messageMatch = {
           $or: [
             { 'data.messageId': { $in: messageIds } },
             { 'data.msgId': { $in: messageIds } },
           ],
+        };
+        filter = {
+          userId,
+          $and: [conversationMatch, messageMatch],
         };
       }
 
