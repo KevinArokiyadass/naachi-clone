@@ -1,12 +1,10 @@
 import { IsArray, IsOptional, IsString, ArrayNotEmpty } from 'class-validator';
 
 /**
- * DTO used by chat-service to dismiss/clear chat notifications
- * for a given user and conversation (ticketId).
+ * DTO for POST /notifications/dismiss (chat-service → user-service).
  *
- * - If messageIds is provided: dismiss only those messages.
- * - If messageIds is omitted/empty: dismiss all chat notifications
- *   for the given ticketId for that user.
+ * Chat-service sends: userId (viewer), ticketId (conversation id e.g. CONV-xxx), chatType: 'chat',
+ * and optionally messageIds (chat message _id strings). If messageIds omitted → dismiss all for userId + ticketId.
  */
 export class DismissNotificationsDto {
   @IsString()
@@ -15,8 +13,9 @@ export class DismissNotificationsDto {
   @IsString()
   ticketId: string;
 
+  @IsOptional()
   @IsString()
-  chatType: string;
+  chatType?: string;
 
   /**
    * Optional list of message IDs for which to dismiss notifications.
