@@ -104,14 +104,15 @@ export class UsersAuthService implements OnModuleInit {
       await this.signUpUserInCognito(dto.phoneNumber, userPayload.userId);
     } catch (error) {
       if (error.name === 'UsernameExistsException') {
-        // For sync users, isVerified will be set later when institutionId is synced (email match only)
+        // Existing Cognito user (including previously deleted local users):
+        // treat as a fresh signup in our system, not as an already active user.
         const syncUserPayload: IUsers = {
           userId: generateUniqueId(),
           phoneNumber: dto.phoneNumber,
           customLogin: true,
-          status: USER_STATUS.ACTIVE,
-          isVerified: false, // Will be set to true when institutionId is synced (email match only)
-          phoneVerified: true,
+          status: USER_STATUS.PENDING,
+          isVerified: false,
+          phoneVerified: false,
           userNameSet: false,
           emailVerified: false,
           isDeleted: false,
