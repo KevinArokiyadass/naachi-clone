@@ -318,6 +318,29 @@ export class NotificationService {
         }
       }
 
+      // Chat flow can occasionally call POST /notifications more than once
+      // for the same message/user (e.g. navigation-triggered sends). To avoid
+      // duplicate in-app entries, we de-duplicate by (userId, messageId/msgId).
+      const data = createNotificationHistoryDto.data || {};
+      const messageId = data.messageId ?? data.msgId;
+
+      if (userId && messageId) {
+        const existingNotification = await this.dbServices.notificationHistory.findOne({
+          userId,
+          $or: [
+            { 'data.messageId': messageId },
+            { 'data.msgId': messageId },
+          ],
+        });
+
+        if (existingNotification) {
+          this.Logger.log(
+            `Duplicate notification detected for userId ${userId} and messageId ${messageId}; returning existing notification ${existingNotification.notificationId}`
+          );
+          return existingNotification;
+        }
+      }
+
       const historyRecord: CreateNotificationHistoryDto = {
         title: createNotificationHistoryDto.title,
         body: createNotificationHistoryDto.body,
@@ -623,8 +646,13 @@ export class NotificationService {
 
       this.Logger.log(`Sending bulk notification to ${finalTokens.length} unique devices`);
 
-      // Generate full CloudFront URL for the image
-      const fullImageUrl = this.generateImageUrl(bulkDto.imageUrl);
+      // Group invite UI: do not include profile image (expected: no profile needed)
+      const isGroupInvite =
+        bulkDto.data?.messageType === 'GROUP_INVITE' ||
+        bulkDto.data?.requestType === 'GroupInvite';
+
+      // Generate full CloudFront URL for the image (skip for group invites)
+      const fullImageUrl = isGroupInvite ? null : this.generateImageUrl(bulkDto.imageUrl);
 
       // Prepare notification content
       const notificationContent: any = {
@@ -633,7 +661,7 @@ export class NotificationService {
         clickAction: bulkDto.clickAction,
       };
 
-      // Only include imageUrl if it's a valid string
+      // Only include imageUrl if it's a valid string (never for group invites)
       if (fullImageUrl && typeof fullImageUrl === 'string') {
         notificationContent.imageUrl = fullImageUrl;
       }
