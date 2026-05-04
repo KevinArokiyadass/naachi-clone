@@ -36,4 +36,5 @@ export interface IUsers {
     };
     createdAt?: Date;
     updatedAt?: Date;
+    referralCode?: string;
 }
