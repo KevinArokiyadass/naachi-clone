@@ -23,6 +23,11 @@ export const generateOtp = (length = 6): string => {
     .padStart(length, '0');
 }
 
+export const generateReferralCodeString = customAlphabet(
+  '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  6
+);
+
 
 export const generateSecretHash = (
   username: string,

@@ -89,7 +89,7 @@ export class Users extends Document {
 
     @Prop({
         type: String,
-        enum: ['qrCode', 'institutionMail', 'mutualFriend'],
+        enum: ['qrCode', 'institutionMail', 'mutualFriend', 'referralCode'],
         required: false,
         trim: true,
     })
@@ -129,6 +129,15 @@ export class Users extends Document {
     metaData?: {
         institutionId?: string;
     };
+
+    @Prop({
+        type: String,
+        required: false,
+        unique: true,
+        sparse: true,
+        trim: true,
+    })
+    referralCode?: string;
 }
 
 export const UsersSchema = SchemaFactory.createForClass(Users);

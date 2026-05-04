@@ -6,6 +6,10 @@ export class UsersSignupDto {
   @IsNotEmpty({ message: 'Phone number is required' })
   @IsString()
   phoneNumber: string;
+
+  @IsOptional()
+  @IsString()
+  referredBy?: string;
 }
 
 export class UsersVerifySignupDto {
@@ -184,6 +188,10 @@ export class UnifiedPhoneOtpRequestDto {
   @IsNotEmpty({ message: 'Phone number is required' })
   @IsString()
   phoneNumber: string;
+
+  @IsOptional()
+  @IsString()
+  referredBy?: string;
 }
 
 export class UnifiedPhoneOtpVerifyDto {

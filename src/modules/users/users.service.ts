@@ -24,7 +24,7 @@ import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstr
 import { IUsers } from 'src/common/interfaces/users.interface';
 import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
 import { ReferrerMedium, USER_STATUS } from 'src/common/enums/user.enum';
-import { generateRandomPassword, generateUniqueId } from 'src/common/utils/util';
+import { generateRandomPassword, generateUniqueId, generateReferralCodeString } from 'src/common/utils/util';
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
 import {
   ConfirmEmailDto,
@@ -81,6 +81,19 @@ export class UsersAuthService implements OnModuleInit {
     await this.ensureFindFriendsIndexes();
   }
 
+  private async generateUniqueReferralCode(): Promise<string> {
+    let referralCode: string = '';
+    let isUnique = false;
+    while (!isUnique) {
+      referralCode = generateReferralCodeString();
+      const existingUser = await this.dbService.users.findOne({ referralCode });
+      if (!existingUser) {
+        isUnique = true;
+      }
+    }
+    return referralCode;
+  }
+
   async signup(dto: UsersSignupDto) {
     // Check signup restrictions before proceeding
     await this.checkSignupRestrictions();
@@ -98,6 +111,9 @@ export class UsersAuthService implements OnModuleInit {
       emailVerified: false,
       createdAt: new Date(),
       updatedAt: new Date(),
+      referralCode: await this.generateUniqueReferralCode(),
+      referredBy: dto.referredBy,
+      referrerMedium: dto.referredBy ? ReferrerMedium.REFERRAL_CODE : undefined,
     };
 
     try {
@@ -118,6 +134,9 @@ export class UsersAuthService implements OnModuleInit {
           isDeleted: false,
           createdAt: new Date(),
           updatedAt: new Date(),
+          referralCode: await this.generateUniqueReferralCode(),
+          referredBy: dto.referredBy,
+          referrerMedium: dto.referredBy ? ReferrerMedium.REFERRAL_CODE : undefined,
         };
 
         const otpResponse = await this.generateOtp(dto.phoneNumber);
@@ -247,7 +266,7 @@ export class UsersAuthService implements OnModuleInit {
       // Check signup restrictions before allowing new signup
       await this.checkSignupRestrictions();
 
-      const signupResult = await this.signup({ phoneNumber } as UsersSignupDto);
+      const signupResult = await this.signup({ phoneNumber, referredBy: dto.referredBy } as UsersSignupDto);
 
       return {
         authMode: 'signup',
@@ -342,6 +361,7 @@ export class UsersAuthService implements OnModuleInit {
       nextStep: 'setUsername',
       message: 'Phone verified successfully. Continue signup.',
       userId: signupResult.user?.userId ?? user.userId,
+      referralCode: signupResult.user?.referralCode ?? user.referralCode,
       tokens: signupResult.tokens,
     };
   }
