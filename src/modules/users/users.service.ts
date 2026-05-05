@@ -1139,14 +1139,7 @@ export class UsersAuthService implements OnModuleInit {
       pipeline,
     );
 
-    return usersWithConnections.map((u: any) => {
-      const withImage = this.attachProfileImageUrl(u);
-      if (withImage && withImage.showPhoneNumber === false) {
-        const { phoneNumber: _, ...rest } = withImage;
-        return rest;
-      }
-      return withImage;
-    });
+    return usersWithConnections.map((u: any) => this.attachProfileImageUrl(u));
   }
 
   async findAllUsers(
