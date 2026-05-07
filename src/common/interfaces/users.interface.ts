@@ -25,6 +25,7 @@ export interface IUsers {
     referrerMedium?: ReferrerMedium;
     institutionsId?: string;
     qrAuth?: boolean;
+    isReferralVerified?: boolean;
     profileImage?: string;
     profileImageUpdatedAt?: Date;
     customLogin?: boolean;

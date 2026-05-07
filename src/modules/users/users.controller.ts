@@ -1,6 +1,7 @@
 import { Body, Controller, Post, Get, Param, Query, Patch, Put, BadRequestException } from '@nestjs/common';
 import {
   ActivateByQrCodeDto,
+  ActivateByReferralCodeDto,
   ConfirmEmailDto,
   FindFriendsDto,
   GetUsersByPhoneDto,
@@ -105,6 +106,15 @@ export class UsersController {
   async generateJwt(@Body() dto: UsersGenerateJwtDto) {
     return this.usersService.generateAppJwt(dto.userId);
   }
+  @Post('backfill-referral-codes')
+  async backfillReferralCodes() {
+    return this.usersService.backfillReferralCodes();
+  }
+
+  @Post('generate-referral-code')
+  async generateReferralCode(@Body('userId') userId: string) {
+    return this.usersService.getOrCreateReferralCode(userId);
+  }
 
   @Get()
   getAllUsers(@Query() query: GetUsersQueryDto) {
@@ -165,6 +175,11 @@ export class UsersController {
   @Post('activate-by-qr-code')
   async activateByQrCode(@Body() dto: ActivateByQrCodeDto) {
     return this.usersService.activateByQrCode(dto.userId, dto.referrerUserId);
+  }
+
+  @Post('activate-by-referral-code')
+  async activateByReferralCode(@Body() dto: ActivateByReferralCodeDto) {
+    return this.usersService.activateByReferralCode(dto.userId, dto.referralCode);
   }
 
   @Get('find-friends')
