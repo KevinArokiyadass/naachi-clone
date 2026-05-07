@@ -1744,7 +1744,7 @@ export class UsersAuthService implements OnModuleInit {
       // First attach profile image URL, then append connection/request
       const userWithImage = this.attachProfileImageUrl(user);
       const out: any = {
-        ...this.maskPhoneIfHidden(userWithImage),
+        ...userWithImage,
         connection,
         request,
       };
