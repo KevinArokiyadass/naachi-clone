@@ -83,9 +83,7 @@ export class CognitoAuthGuard implements CanActivate {
     try {
       // fetch and cache jwks
       if (!this.jwks) {
-        const jwksUri = `https://cognito-idp.${process.env.AWS_REGION}.amazonaws.com/${process.env.COGNITO_USER_POOL_ID}/.well-known/jwks.json`;
-        const res = await axios.get(jwksUri);
-        this.jwks = res.data.keys;
+        await this.refreshJwks();
       }
 
       const decodedHeader: any = jwt.decode(token, { complete: true });
@@ -96,8 +94,19 @@ export class CognitoAuthGuard implements CanActivate {
       }
 
       const kid = decodedHeader.header.kid;
-      const jwk = this.jwks.find((key) => key.kid === kid);
-      if (!jwk) throw new UnauthorizedException('Invalid token kid');
+      let jwk = this.jwks.find((key) => key.kid === kid);
+
+      // JWKS can rotate. Refresh once and retry before failing.
+      if (!jwk) {
+        await this.refreshJwks();
+        jwk = this.jwks.find((key) => key.kid === kid);
+      }
+
+      if (!jwk) {
+        throw new UnauthorizedException(
+          'Invalid token kid. Token may belong to a different Cognito user pool/client or JWKS is outdated.',
+        );
+      }
 
       const pubKey = jwkToPem(jwk);
 
@@ -159,5 +168,11 @@ export class CognitoAuthGuard implements CanActivate {
       console.error('CognitoAuthGuard error:', err.message, err.name);
       throw new UnauthorizedException(`Token validation failed: ${err.message || 'Invalid or expired token'}`);
     }
+  }
+
+  private async refreshJwks(): Promise<void> {
+    const jwksUri = `https://cognito-idp.${process.env.AWS_REGION}.amazonaws.com/${process.env.COGNITO_USER_POOL_ID}/.well-known/jwks.json`;
+    const res = await axios.get(jwksUri);
+    this.jwks = res.data.keys;
   }
 }

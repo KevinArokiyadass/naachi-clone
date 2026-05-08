@@ -15,16 +15,16 @@ export class ClientIdMiddleware implements NestMiddleware {
       throw new ForbiddenException('Origin header is required');
     }
 
-    let naachiAdminUrl = process.env.NAACHI_ADMIN_URL;
-    naachiAdminUrl = JSON.parse(naachiAdminUrl);
-    if (naachiAdminUrl && naachiAdminUrl.includes(origin)) {
+    const normalizedOrigin = this.normalizeOrigin(origin);
+    const naachiAdminUrl = this.parseAdminOrigins(process.env.NAACHI_ADMIN_URL);
+
+    if (naachiAdminUrl.includes(normalizedOrigin)) {
       req['isSuperAdminRequest'] = true;
       return next();
     }
     try {
       // Extract hostname from origin URL (e.g., "http://sastra.localhost:3000" -> "sastra.localhost")
-      const originUrl = new URL(origin);
-      const adminDomain = originUrl.origin;
+      const adminDomain = normalizedOrigin;
       
       
       // Find institution by institutionDomain field using findAll with filters
@@ -50,6 +50,36 @@ export class ClientIdMiddleware implements NestMiddleware {
         throw new ForbiddenException(`Unable to find institution for domain: ${origin}`);
       }
       throw error;
+    }
+  }
+
+  private parseAdminOrigins(rawValue?: string): string[] {
+    if (!rawValue) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(rawValue);
+      if (Array.isArray(parsed)) {
+        return parsed.map((value) => this.normalizeOrigin(String(value))).filter(Boolean);
+      }
+    } catch (_) {
+      // Fallback: allow comma-separated values if JSON parsing fails.
+    }
+
+    return rawValue
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map((value) => this.normalizeOrigin(value))
+      .filter(Boolean);
+  }
+
+  private normalizeOrigin(value: string): string {
+    try {
+      return new URL(value.trim()).origin;
+    } catch (_) {
+      return value.trim().replace(/\/+$/, '');
     }
   }
 }

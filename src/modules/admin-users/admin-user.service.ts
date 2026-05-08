@@ -1,4 +1,7 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { Workbook } from 'exceljs';
 import { IMongoDBServices } from '../../common/repository/mongodb-repository/abstract.repository';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
@@ -530,6 +533,161 @@ export class AdminUserService {
         errorCode: 'DOMAIN_VALIDATION_ERROR',
       });
     }
+  }
+
+  async getBulkUploadTemplate(): Promise<{ fileName: string; fileBuffer: Buffer }> {
+    const fileName = 'admin-user-bulk-upload-template-v2.xlsx';
+    const filePath = path.resolve(process.cwd(), 'templates', fileName);
+
+    try {
+      const fileBuffer = await fs.readFile(filePath);
+      return { fileName, fileBuffer };
+    } catch (_) {
+      throw new NotFoundException('Bulk upload template not found');
+    }
+  }
+
+  validateInstitutionScope(institutionsId: string, requestContext: { institutionsId?: string; isSuperAdminRequest?: boolean }): void {
+    if (!institutionsId) {
+      throw new BadRequestException('institutionsId is required in URL');
+    }
+
+    if (requestContext?.isSuperAdminRequest) {
+      return;
+    }
+
+    const requestInstitutionId = requestContext?.institutionsId;
+    if (!requestInstitutionId) {
+      throw new ForbiddenException('Institution context is missing for this request.');
+    }
+
+    if (String(requestInstitutionId).trim() !== String(institutionsId).trim()) {
+      throw new ForbiddenException('Institution mismatch. You can only upload for your institution.');
+    }
+  }
+
+  async getBulkUploadOptions(institutionsId: string): Promise<{
+    institutionsId: string;
+    permissions: Array<{ name: string; permissionGroupsId: string }>;
+    departments: Array<{ departmentName: string; departmentsId: string }>;
+  }> {
+    const [permissionsResult, departmentsResult] = await Promise.all([
+      this.recordService.findAll('permissiongroups', {
+        filters: {
+          institutionsId,
+          isDeleted: false,
+          isActive: true,
+        },
+        fields: ['name', 'permissionGroupsId'],
+        nonPaginated: true,
+      }),
+      this.recordService.findAll('departments', {
+        filters: {
+          institutionsId,
+          isDeleted: false,
+          isActive: true,
+        },
+        fields: ['departmentName', 'departmentsId'],
+        nonPaginated: true,
+      }),
+    ]);
+
+    return {
+      institutionsId,
+      permissions: (permissionsResult?.items || []).map((item: any) => ({
+        name: item.name,
+        permissionGroupsId: item.permissionGroupsId,
+      })),
+      departments: (departmentsResult?.items || []).map((item: any) => ({
+        departmentName: item.departmentName,
+        departmentsId: item.departmentsId,
+      })),
+    };
+  }
+
+  async getInstitutionBulkUploadTemplate(institutionsId: string): Promise<{ fileName: string; fileBuffer: Buffer }> {
+    const options = await this.getBulkUploadOptions(institutionsId);
+    const workbook = new Workbook();
+    const sheet = workbook.addWorksheet('BulkUpload');
+    const master = workbook.addWorksheet('MasterData');
+
+    const headers = [
+      'Name',
+      'phoneNumber',
+      'email id',
+      'status',
+      'select permission',
+      'select department',
+      'create password',
+      'confirm password',
+    ];
+
+    sheet.addRow(headers);
+    sheet.addRow([
+      'John Admin',
+      '7912345678',
+      'john.admin@example.com',
+      'active',
+      options.permissions[0]?.name || '',
+      options.departments[0]?.departmentName || '',
+      'Password@123',
+      'Password@123',
+    ]);
+
+    sheet.columns = [
+      { width: 24 },
+      { width: 18 },
+      { width: 34 },
+      { width: 14 },
+      { width: 28 },
+      { width: 28 },
+      { width: 22 },
+      { width: 22 },
+    ];
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+    master.getCell('A1').value = 'PermissionName';
+    master.getCell('B1').value = 'DepartmentName';
+    options.permissions.forEach((permission, index) => {
+      master.getCell(`A${index + 2}`).value = permission.name;
+    });
+    options.departments.forEach((department, index) => {
+      master.getCell(`B${index + 2}`).value = department.departmentName;
+    });
+    master.state = 'veryHidden';
+
+    for (let row = 2; row <= 1000; row++) {
+      sheet.getCell(`D${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: false,
+        formulae: ['"inactive,active"'],
+      };
+      sheet.getCell(`E${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: false,
+        formulae: ['MasterData!$A$2:$A$500'],
+      };
+      sheet.getCell(`F${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: false,
+        formulae: ['MasterData!$B$2:$B$500'],
+      };
+    }
+
+    const notes = workbook.addWorksheet('Notes');
+    notes.addRows([
+      ['Rule', 'Details'],
+      ['Institution', `Template generated for institutionsId: ${institutionsId}`],
+      ['Phone default', 'If phoneNumber is submitted without country code, backend defaults it to +44'],
+      ['Email', 'Use lowercase email with @'],
+      ['Password', 'Minimum 8 chars, include uppercase + number + special character'],
+      ['Confirm password', 'Must match create password'],
+    ]);
+    notes.columns = [{ width: 20 }, { width: 90 }];
+
+    const fileName = `admin-user-bulk-upload-template-${institutionsId}.xlsx`;
+    const fileBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
+    return { fileName, fileBuffer };
   }
 
 }
