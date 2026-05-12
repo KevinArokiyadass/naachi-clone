@@ -6,6 +6,7 @@ export interface IUsers {
     password?: string;
     userName?: string;
     Name?: string;
+    name?: string;
     isVerified: boolean;
     isDeleted: boolean;
     otp?: string;

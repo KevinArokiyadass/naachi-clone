@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { Workbook } from 'exceljs';
@@ -14,6 +14,7 @@ import { RecordService } from '@noukha-technologies/mdm-core';
 import { AwsStoreService } from '../aws-store/aws-store.service';
 import { generateUniqueUserNameFromEmail } from 'src/common/utils/util';
 import { MetaTagDto } from './dto/create-admin-with-password.dto';
+import { assertInstitutionUploadScope } from '../../common/utils/institution-scope.util';
 
 
 @Injectable()
@@ -547,23 +548,11 @@ export class AdminUserService {
     }
   }
 
-  validateInstitutionScope(institutionsId: string, requestContext: { institutionsId?: string; isSuperAdminRequest?: boolean }): void {
-    if (!institutionsId) {
-      throw new BadRequestException('institutionsId is required in URL');
-    }
-
-    if (requestContext?.isSuperAdminRequest) {
-      return;
-    }
-
-    const requestInstitutionId = requestContext?.institutionsId;
-    if (!requestInstitutionId) {
-      throw new ForbiddenException('Institution context is missing for this request.');
-    }
-
-    if (String(requestInstitutionId).trim() !== String(institutionsId).trim()) {
-      throw new ForbiddenException('Institution mismatch. You can only upload for your institution.');
-    }
+  validateInstitutionScope(
+    institutionsId: string,
+    requestContext: { institutionsId?: string; isSuperAdminRequest?: boolean },
+  ): void {
+    assertInstitutionUploadScope(institutionsId, requestContext);
   }
 
   async getBulkUploadOptions(institutionsId: string): Promise<{
@@ -656,7 +645,8 @@ export class AdminUserService {
     });
     master.state = 'veryHidden';
 
-    for (let row = 2; row <= 1000; row++) {
+    const maxValidatedRows = 100;
+    for (let row = 2; row <= maxValidatedRows; row++) {
       sheet.getCell(`D${row}`).dataValidation = {
         type: 'list',
         allowBlank: false,

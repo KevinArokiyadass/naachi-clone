@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   OnModuleInit,
@@ -44,6 +45,8 @@ import { AwsStoreService } from '../aws-store/aws-store.service';
 import { ConfigurationService } from '../configuration/configuration.service';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
+import { Workbook } from 'exceljs';
+import { assertInstitutionUploadScope } from 'src/common/utils/institution-scope.util';
 
 
 @Injectable()
@@ -506,6 +509,204 @@ export class UsersAuthService implements OnModuleInit {
         message: 'Failed to validate email domain. Please try again.',
         errorCode: 'DOMAIN_VALIDATION_ERROR',
       });
+    }
+  }
+
+  validateInstitutionScope(
+    institutionsId: string,
+    requestContext: { institutionsId?: string; isSuperAdminRequest?: boolean },
+  ): void {
+    assertInstitutionUploadScope(institutionsId, requestContext);
+  }
+
+  async createInstitutionManagedUser(payload: {
+    institutionsId: string;
+    name: string;
+    phoneNumber: string;
+    email?: string;
+    userName?: string;
+    status?: 'active' | 'blocked' | 'pending';
+  }): Promise<{ userId: string }> {
+    const phoneNumber = payload.phoneNumber.trim();
+    const email = payload.email?.trim().toLowerCase();
+    const userName = payload.userName?.trim();
+
+    const institution = await this.recordService.findOne('institutions', payload.institutionsId);
+    if (!institution) {
+      throw new BadRequestException('Institution not found');
+    }
+
+    const [existingByPhone, existingByEmail, existingByUserName] = await Promise.all([
+      this.dbService.users.findOne({ phoneNumber, isDeleted: false }),
+      email ? this.dbService.users.findOne({ email, isDeleted: false }) : Promise.resolve(null),
+      userName ? this.dbService.users.findOne({ userName, isDeleted: false }) : Promise.resolve(null),
+    ]);
+
+    if (existingByPhone) {
+      throw new BadRequestException('User with this phone number already exists');
+    }
+    if (existingByEmail) {
+      throw new BadRequestException('User with this email already exists');
+    }
+    if (existingByUserName) {
+      throw new BadRequestException('User with this username already exists');
+    }
+
+    const userId = generateUniqueId();
+    const referredBy = await this.getInstitutionDisplayName(payload.institutionsId);
+
+    try {
+      await this.signUpUserInCognito(phoneNumber, userId);
+    } catch (error: any) {
+      if (error?.name === 'UsernameExistsException') {
+        throw new BadRequestException(
+          'User with this phone number already exists in authentication provider',
+        );
+      }
+      throw error;
+    }
+
+    await this.dbService.users.create({
+      userId,
+      name: payload.name.trim(),
+      phoneNumber,
+      email,
+      userName,
+      userNameSet: Boolean(userName),
+      status: payload.status || USER_STATUS.ACTIVE,
+      isVerified: true,
+      isDeleted: false,
+      phoneVerified: true,
+      emailVerified: Boolean(email),
+      institutionsId: payload.institutionsId,
+      customLogin: false,
+      referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
+      referredBy: referredBy || undefined,
+      qrAuth: false,
+      referralCode: await this.generateUniqueReferralCode(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    return { userId };
+  }
+
+  async updateInstitutionManagedUser(
+    userId: string,
+    payload: {
+      institutionsId: string;
+      name: string;
+      email?: string;
+      userName?: string;
+      status?: 'active' | 'blocked' | 'pending';
+    },
+  ): Promise<void> {
+    const user = await this.dbService.users.findOne({ userId, isDeleted: false });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.institutionsId && user.institutionsId !== payload.institutionsId) {
+      throw new ForbiddenException('Cannot update a user from another institution');
+    }
+
+    const email = payload.email?.trim().toLowerCase();
+    const userName = payload.userName?.trim();
+
+    if (email && email !== user.email) {
+      const existingByEmail = await this.dbService.users.findOne({
+        email,
+        userId: { $ne: userId },
+        isDeleted: false,
+      });
+      if (existingByEmail) {
+        throw new BadRequestException('User with this email already exists');
+      }
+    }
+
+    if (userName && userName !== user.userName) {
+      const existingByUserName = await this.dbService.users.findOne({
+        userName,
+        userId: { $ne: userId },
+        isDeleted: false,
+      });
+      if (existingByUserName) {
+        throw new BadRequestException('User with this username already exists');
+      }
+    }
+
+    await this.dbService.users.findOneAndUpdate(
+      { userId, isDeleted: false },
+      {
+        name: payload.name.trim(),
+        email,
+        userName,
+        userNameSet: Boolean(userName),
+        status: payload.status || USER_STATUS.ACTIVE,
+        institutionsId: payload.institutionsId,
+        isVerified: true,
+        phoneVerified: true,
+        emailVerified: Boolean(email),
+        referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
+        referredBy: await this.getInstitutionDisplayName(payload.institutionsId),
+        updatedAt: new Date(),
+      },
+      { new: true },
+    );
+  }
+
+  async getInstitutionBulkUploadTemplate(
+    institutionsId: string,
+  ): Promise<{ fileName: string; fileBuffer: Buffer }> {
+    const workbook = new Workbook();
+    const sheet = workbook.addWorksheet('StudentsBulkUpload');
+
+    sheet.addRow(['name', 'phoneNumber', 'email', 'userName', 'status']);
+    sheet.addRow(['John Student', '7912345678', 'john.student@example.com', 'john.student', 'active']);
+    sheet.columns = [
+      { width: 28 },
+      { width: 20 },
+      { width: 34 },
+      { width: 22 },
+      { width: 14 },
+    ];
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const maxValidatedRows = 100;
+    for (let row = 2; row <= maxValidatedRows; row++) {
+      sheet.getCell(`E${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: false,
+        formulae: ['"active,blocked,pending"'],
+      };
+    }
+
+    const notes = workbook.addWorksheet('Notes');
+    notes.addRows([
+      ['Rule', 'Details'],
+      ['Institution', `Template generated for institutionsId: ${institutionsId}`],
+      ['Phone', 'If phoneNumber is submitted without country code, backend defaults it to +44'],
+      ['Status', 'Allowed values: active, blocked, pending'],
+      ['Email', 'Optional but must be unique if provided'],
+      ['Username', 'Optional but must be unique if provided'],
+    ]);
+    notes.columns = [{ width: 20 }, { width: 90 }];
+
+    const fileName = `institution-student-bulk-upload-template-${institutionsId}.xlsx`;
+    const fileBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
+    return { fileName, fileBuffer };
+  }
+
+  private async getInstitutionDisplayName(institutionsId: string): Promise<string | null> {
+    try {
+      const institution = await this.recordService.findOne('institutions', institutionsId);
+      if (!institution) {
+        return null;
+      }
+      const institutionObj = institution.toObject ? institution.toObject() : institution;
+      return institutionObj?.institutionName || null;
+    } catch {
+      return null;
     }
   }
 
