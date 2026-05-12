@@ -8,6 +8,12 @@ import { CognitoService } from '../cognito/cognito.service';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ClientIdMiddleware } from '../../common/middleware/clientId.middlewere';
 import { AwsStoreModule } from '../aws-store/aws-store.module';
+import { AdminUserBulkParser } from './bulk-upload/admin-user-bulk-parser';
+import { AdminUserBulkValidator } from './bulk-upload/admin-user-bulk-validator';
+import { AdminUserBulkRepository } from './bulk-upload/admin-user-bulk.repository';
+import { AdminUserBulkUploadService } from './bulk-upload/admin-user-bulk-upload.service';
+import { AdminUserBulkMetricsService } from './bulk-upload/admin-user-bulk-metrics.service';
+import { AdminUserBulkRateLimitGuard } from './bulk-upload/admin-user-bulk-rate-limit.guard';
 
 @Module({
   imports: [
@@ -17,7 +23,18 @@ import { AwsStoreModule } from '../aws-store/aws-store.module';
     AwsStoreModule,
   ],
   controllers: [AdminUserController],
-  providers: [AdminUserService, CognitoService, RolesGuard, ClientIdMiddleware],
+  providers: [
+    AdminUserService,
+    CognitoService,
+    RolesGuard,
+    ClientIdMiddleware,
+    AdminUserBulkParser,
+    AdminUserBulkValidator,
+    AdminUserBulkRepository,
+    AdminUserBulkUploadService,
+    AdminUserBulkMetricsService,
+    AdminUserBulkRateLimitGuard,
+  ],
   exports: [AdminUserService]
 })
 export class AdminUserModule implements NestModule {

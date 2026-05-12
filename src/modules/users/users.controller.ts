@@ -1,4 +1,13 @@
-import { Body, Controller, Post, Get, Param, Query, Patch, Put, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ActivateByQrCodeDto,
   ConfirmEmailDto,
@@ -21,7 +30,6 @@ import {
 } from './dto/users-auth.dto';
 import { UpdateUserProfileDto } from './dto/user-profile.dto';
 import { UsersAuthService } from './users.service';
-import { RecordService } from "@noukha-technologies/mdm-core"
 import { USER_STATUS } from 'src/common/enums/user.enum';
 
 
@@ -152,7 +160,6 @@ export class UsersController {
 
     return this.usersService.findAllUsers(skip, limit, filter, nonPaginated);
   }
-
 
   @Post('users-by-phone')
   getUsersByPhone(@Body() dto: GetUsersByPhoneDto) {
