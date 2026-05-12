@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Logger, Post } from "@nestjs/common";
+import { BadRequestException, Body, Controller, HttpCode, HttpStatus, Logger, Post } from "@nestjs/common";
 import { FirebaseService } from "./firebase.service";
 import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
 import { ValidateTokenDto, ValidateTokenResponseDto } from "./dto/validate-token.dto";
@@ -29,35 +29,43 @@ export class FireBaseController {
   }
 
   @Post('bulk')
-@HttpCode(HttpStatus.OK)
-async sendBulk(
-  @Body()
-  body: {
-    tokens: string[];
-    notification: {
-      title: string;
-      body: string;
-      imageUrl?: string;
-      clickAction?: string;
-    };
-    data?: Record<string, string>;
+  @HttpCode(HttpStatus.OK)
+  async sendBulk(
+    @Body()
+    body: {
+      tokens: string[];
+      notification: {
+        title: string;
+        body: string;
+        imageUrl?: string;
+        clickAction?: string;
+      };
+      data?: Record<string, string>;
+    },
+  ): Promise<{
+    successCount: number;
+    failureCount: number;
+  }> {
+    if (!body?.tokens || !Array.isArray(body.tokens)) {
+      throw new BadRequestException('tokens is required and must be an array');
+    }
+    if (body.tokens.length === 0) {
+      throw new BadRequestException('tokens must contain at least one FCM token');
+    }
+    if (!body?.notification?.title || !body?.notification?.body) {
+      throw new BadRequestException('notification.title and notification.body are required');
+    }
+
+    this.logger.log(`Sending bulk notification to ${body.tokens.length} devices`);
+
+    const result = await this.firebaseService.sendToDevices(
+      body.tokens,
+      body.notification,
+      body.data,
+    );
+
+    return result;
   }
-): Promise<{
-  successCount: number;
-  failureCount: number;
-}> {
-  this.logger.log(
-    `Sending bulk notification to ${body.tokens.length} devices`
-  );
-
-  const result = await this.firebaseService.sendToDevices(
-    body.tokens,
-    body.notification,
-    body.data
-  );
-
-  return result;
-}
 
 
 
