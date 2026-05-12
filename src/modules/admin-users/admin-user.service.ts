@@ -144,6 +144,184 @@ export class AdminUserService {
     }
   }
 
+  async validateOnboardingAdminUser(validateDto: any) {
+    if (!validateDto.email) {
+      throw new BadRequestException('Email is required');
+    }
+    const existingAdmin = await this.dbServices.adminUser.findOne({ email: validateDto.email });
+    if (existingAdmin) {
+      throw new BadRequestException('Admin with this email already exists');
+    }
+
+    const phoneNumber = validateDto.phoneNumber?.trim();
+    if (phoneNumber) {
+      const existingPhone = await this.dbServices.adminUser.findOne({
+        phoneNumber,
+        isDeleted: { $ne: true },
+      });
+      if (existingPhone) {
+        throw new BadRequestException('Admin with this phone number already exists');
+      }
+    }
+
+    return { valid: true };
+  }
+
+  async createOnboardingAdminUser(createAdminDto: any) {
+    // Validate role is provided
+    const role = createAdminDto.role || 'INSTITUTION_ADMIN';
+    if (!createAdminDto.email) {
+      throw new BadRequestException('Email is required');
+    }
+    if (!createAdminDto.password) {
+      throw new BadRequestException('Password is required');
+    }
+    if (!createAdminDto.name) {
+      throw new BadRequestException('Name is required');
+    }
+
+    const existingAdmin = await this.dbServices.adminUser.findOne({ email: createAdminDto.email });
+    if (existingAdmin) {
+      throw new BadRequestException('Admin with this email already exists');
+    }
+
+    const providedInstitutionsId = createAdminDto.institutionsId || createAdminDto.metaTags?.[0]?.institutionsId;
+    if (!providedInstitutionsId) {
+      throw new BadRequestException('Institution ID is required for onboarding admin creation');
+    }
+
+    // Validate email domain and get institution ID to prevent accidental wrong email address mapping
+    const validatedInstitutionsId = await this.validateInstitute(createAdminDto.email);
+
+    if (providedInstitutionsId !== validatedInstitutionsId) {
+      throw new BadRequestException({
+        message: `Email domain does not match with the provided institution ID.`,
+        errorCode: 'INSTITUTION_MISMATCH',
+      });
+    }
+
+    const institution = await this.recordService.findOne('institutions', providedInstitutionsId);
+    if (!institution) {
+      throw new BadRequestException('Institution not found');
+    }
+
+    const phoneNumber = createAdminDto.phoneNumber?.trim();
+    if (phoneNumber) {
+      const existingPhone = await this.dbServices.adminUser.findOne({
+        phoneNumber,
+        isDeleted: { $ne: true },
+      });
+
+      if (existingPhone) {
+        throw new BadRequestException('Admin with this phone number already exists');
+      }
+    }
+
+    // Check if there's an existing user with the same email
+    const existingUser = await this.dbServices.users.findOne({
+      email: createAdminDto.email.toLowerCase().trim(),
+      isDeleted: false
+    });
+
+    const userName = createAdminDto.userName?.trim() || await generateUniqueUserNameFromEmail(createAdminDto.email, this.dbServices);
+
+    // 1. Fetch all permissions to map to the new admin
+    let allPermissionsId: string[] = [];
+    try {
+      const permissionsResult = await this.recordService.findAll('permissions', {
+        filters: {
+          isDeleted: false
+        },
+        nonPaginated: true
+      });
+      const permissions = permissionsResult?.items || [];
+      allPermissionsId = permissions.map((p: any) => p.permissionsId).filter(Boolean);
+    } catch (err) {
+      console.error('Failed to fetch permissions for onboarding admin:', err);
+    }
+
+    // 2. Create a permission group with all permissions
+    let newPermissionGroupsId: string | undefined;
+    if (allPermissionsId.length > 0) {
+      try {
+        const createdGroup = await this.recordService.createRecord('permissionGroups', {
+          data: {
+            name: 'Master Admin Group',
+            description: 'Automatically created group with all permissions for institution onboarding',
+            permissionsId: allPermissionsId,
+            institutionsId: providedInstitutionsId,
+            status: 'active',
+          }
+        });
+        newPermissionGroupsId = createdGroup?.permissionGroupsId || createdGroup?.data?.permissionGroupsId;
+      } catch (err) {
+        console.error('Failed to create permission group for onboarding admin:', err);
+      }
+    }
+
+    const permissionGroupsId = newPermissionGroupsId ? [newPermissionGroupsId] : [];
+
+    // Ensure metaTags structure is present without mandatory departmentsId
+    const metaTags = [
+      {
+        institutionsId: providedInstitutionsId,
+        departmentsId: []
+      }
+    ];
+
+    const { password, institutionsId, ...adminDataWithoutPassword } = createAdminDto;
+    const created = await this.dbServices.adminUser.create({
+      ...adminDataWithoutPassword,
+      name: createAdminDto.name,
+      email: createAdminDto.email,
+      role,
+      metaTags,
+      userName: userName,
+      password: password,
+      permissionGroupsId,
+      status: createAdminDto.status ?? 'active',
+      isVerifiedAdmin: true,
+    });
+
+    try {
+      await this.cognitoService.createAdminUser(
+        userName,
+        createAdminDto.email,
+        password,
+        createAdminDto.name,
+        createAdminDto.phoneNumber,
+      );
+
+      if (existingUser) {
+        try {
+          const updateData: Record<string, any> = {
+            institutionsId: providedInstitutionsId,
+            isVerified: true,
+            updatedAt: new Date()
+          };
+
+          await this.dbServices.users.findOneAndUpdate(
+            { userId: existingUser.userId, isDeleted: false },
+            { $set: updateData }
+          );
+        } catch (syncError) {
+          console.error('Failed to sync institutionId to existing user:', syncError);
+        }
+      }
+
+      return {
+        adminUser: this.attachProfileImageUrl(created),
+        message: 'Onboarding admin user created successfully with all permissions mapped.',
+        requiresVerification: false,
+      };
+    } catch (cognitoError) {
+      try {
+        await this.dbServices.adminUser.findOneAndDelete({ adminId: created.adminId });
+      } catch (_) {}
+      throw new BadRequestException(`Failed to create admin user in Cognito: ${cognitoError.message}`);
+    }
+  }
+
   async findAllAdminUsers(
     skip: number = 0,
     limit: number = 10,

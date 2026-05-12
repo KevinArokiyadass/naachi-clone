@@ -30,6 +30,23 @@ export class AdminUserController {
     return await this.adminUserService.createAdminUser(createAdminDto);
   }
 
+  @Post('onboarding-create')
+  @Public()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create onboarding admin user mapping all permissions automatically without mandatory department' })
+  @ApiResponse({ status: 201, description: 'Onboarding admin created with all permissions mapped' })
+  async createOnboardingAdminUser(@Body() createAdminDto: any) {
+    return await this.adminUserService.createOnboardingAdminUser(createAdminDto);
+  }
+
+  @Post('onboarding-validate')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Pre-validate admin user details before institution creation' })
+  async validateOnboardingAdminUser(@Body() validateDto: any) {
+    return await this.adminUserService.validateOnboardingAdminUser(validateDto);
+  }
+
 
   @Get()
   getAllAdminUsers(
