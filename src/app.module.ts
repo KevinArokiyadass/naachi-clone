@@ -22,6 +22,9 @@ import { NotificationModule } from './modules/notifications/notification.module'
 import { ConfigurationModule } from './modules/configuration/configuration.module';
 
 
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 const ENV = process.env.NODE_ENV;
 
 @Module({

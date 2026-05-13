@@ -41,8 +41,8 @@ export class AdminUserService {
     let isVerifiedAdmin = false;
     const providedInstitutionsId = createAdminDto.metaTags?.[0]?.institutionsId;
 
-    // Only validate email domain for INSTITUTION_ADMIN role
-    if (createAdminDto.role === 'INSTITUTION_ADMIN') {
+    // Only validate email domain for INSTITUTION_ADMIN role if skipDomainValidation is not true
+    if (createAdminDto.role === 'INSTITUTION_ADMIN' && !(createAdminDto as any).skipDomainValidation) {
       if (!providedInstitutionsId) {
         throw new BadRequestException('Institution ID is required in metaTags for INSTITUTION_ADMIN role');
       }
