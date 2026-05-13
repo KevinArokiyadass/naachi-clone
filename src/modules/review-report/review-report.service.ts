@@ -12,6 +12,10 @@ import { USER_STATUS } from 'src/common/enums/user.enum';
 import { HttpClientService } from 'src/common/inter-service-communication/http-client.service';
 import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstract.repository';
 import { RecordService } from '@noukha-technologies/mdm-core';
+import {
+  assertReviewReportScope,
+  ReviewReportScopeContext,
+} from 'src/common/utils/review-report-scope.util';
 @Injectable()
 export class ReviewReportService {
 
@@ -71,14 +75,41 @@ export class ReviewReportService {
     }
   }
 
-  private async validateInstitution(reporterId: string, reportedUserId: string): Promise<string | null> {
-    const reporter = await this.dbService.users.findOne({ userId: reporterId, isDeleted: false });
-    const reported = await this.dbService.users.findOne({ userId: reportedUserId, isDeleted: false });
+  /** Reported user's institution at creation time (for indexing / denormalized queries). */
+  private async resolveReportedInstitution(reportedUserId: string): Promise<string | null> {
+    const reported = await this.dbService.users.findOne({
+      userId: reportedUserId,
+      isDeleted: { $in: [null, false] },
+    });
+    return reported?.institutionsId ?? null;
+  }
 
-    if (reporter?.institutionsId && reported?.institutionsId && reporter.institutionsId === reported.institutionsId) {
-      return reporter.institutionsId;
+  private async loadAndAuthorize(
+    reviewId: string,
+    ctx: ReviewReportScopeContext,
+  ): Promise<{ reportedUserId: string }> {
+    const report = await this.reportModel.findOne({ reviewId }).lean().exec();
+    if (!report) {
+      throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
     }
-    return null;
+
+    const reportedUserId =
+      report.reportedUserId != null ? String(report.reportedUserId) : '';
+
+    if (!reportedUserId) {
+      throw new NotFoundException(`ReviewReport with reviewId ${reviewId} has no reported user`);
+    }
+
+    const reportedUser = await this.usersModel
+      .findOne(
+        { userId: reportedUserId, isDeleted: { $in: [null, false] } },
+        { institutionsId: 1, _id: 0 },
+      )
+      .lean()
+      .exec();
+
+    assertReviewReportScope(reportedUser?.institutionsId, ctx);
+    return { reportedUserId };
   }
   private async blockUserConnection(connectionId: string, ownerId: string): Promise<any> {
     try {
@@ -113,7 +144,7 @@ export class ReviewReportService {
       );
     }
 
-    const institutionsId = await this.validateInstitution(dto.reporterId, dto.reportedUserId);
+    const institutionsId = await this.resolveReportedInstitution(dto.reportedUserId);
 
     await this.blockUserConnection(connectionId, dto.reporterId);
 
@@ -147,7 +178,7 @@ export class ReviewReportService {
           error.message,
         );
       }
-    } 
+    }
     const createdReport = new this.reportModel({
       ...dto,
       reviewId: generateUniqueId(),
@@ -166,8 +197,26 @@ export class ReviewReportService {
     institutionsId?: string,
     search?: string
   ): Promise<IPaginatedResult<any>> {
+    filter.isDeleted = { $in: [null, false] };
+
+    // Institution listing: reports where the reported user belongs to this institution
     if (institutionsId) {
-      filter.institutionsId = institutionsId;
+      const usersInInstitution = await this.usersModel
+        .find(
+          {
+            institutionsId,
+            isDeleted: { $in: [null, false] },
+          },
+          { userId: 1, _id: 0 },
+        )
+        .lean()
+        .exec();
+
+      const reportedUserIds = usersInInstitution
+        .map((u: { userId?: string }) => u.userId)
+        .filter(Boolean);
+
+      filter.reportedUserId = { $in: reportedUserIds };
     }
 
     // Build search filter, including user-based search (reporter / reported user)
@@ -277,7 +326,9 @@ export class ReviewReportService {
     return result;
   }
 
-  async findOne(reviewId: string): Promise<any> {
+  async findOne(reviewId: string, ctx: ReviewReportScopeContext): Promise<any> {
+    await this.loadAndAuthorize(reviewId, ctx);
+
     const reportArr = await this.reportModel.aggregate([
       { $match: { reviewId } },
 
@@ -340,7 +391,14 @@ export class ReviewReportService {
     return updatedReport;
   }
 
-  async updateStatus(reviewId: string, status: string, isBlocked?: boolean): Promise<ReviewReport> {
+  async updateStatus(
+    reviewId: string,
+    status: string,
+    isBlocked: boolean | undefined,
+    ctx: ReviewReportScopeContext,
+  ): Promise<ReviewReport> {
+    await this.loadAndAuthorize(reviewId, ctx);
+
     const updated = await this.reportModel
       .findOneAndUpdate(
         { reviewId },
@@ -373,7 +431,9 @@ export class ReviewReportService {
     return updated;
   }
 
-  async delete(reviewId: string): Promise<{ message: string }> {
+  async delete(reviewId: string, ctx: ReviewReportScopeContext): Promise<{ message: string }> {
+    await this.loadAndAuthorize(reviewId, ctx);
+
     const deleted = await this.reportModel.findOneAndDelete({ reviewId }).exec();
     if (!deleted) {
       throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);

@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Req } from '@nestjs/common';
+import { Request } from 'express';
 import { ReviewReportService } from './review-report.service';
 import { CreateReviewReportDto } from './dto/create-review-report.dto';
 import { UpdateReviewReportDto } from './dto/update-review-report.dto';
@@ -27,27 +28,38 @@ export class ReviewReportController {
       search,
     } = query;
 
-    
     const institutionsId = isSuperAdmin ? query.institutionsId : sessionInstitutionsId;
 
     const filter: Record<string, any> = {};
 
-    // Let the service handle building the full search filter, including user-name based search
     return this.service.findAll(skip, limit, filter, nonPaginated, institutionsId, search);
   }
 
   @Get(':reviewId')
-  findOne(@Param('reviewId') reviewId: string): Promise<ReviewReport> {
-    return this.service.findOne(reviewId);
+  findOne(@Param('reviewId') reviewId: string, @Req() req: Request): Promise<ReviewReport> {
+    return this.service.findOne(reviewId, {
+      isSuperAdminRequest: req['isSuperAdminRequest'],
+      institutionsId: req['institutionsId'],
+    });
   }
 
   @Patch(':reviewId/status')
-  update(@Param('reviewId') reviewId: string, @Body() body: UpdateReviewReportDto): Promise<ReviewReport> {
-    return this.service.updateStatus(reviewId, body.status, body.isBlocked);
+  update(
+    @Param('reviewId') reviewId: string,
+    @Body() body: UpdateReviewReportDto,
+    @Req() req: Request,
+  ): Promise<ReviewReport> {
+    return this.service.updateStatus(reviewId, body.status, body.isBlocked, {
+      isSuperAdminRequest: req['isSuperAdminRequest'],
+      institutionsId: req['institutionsId'],
+    });
   }
 
   @Delete(':reviewId')
-  delete(@Param('reviewId') reviewId: string) {
-    return this.service.delete(reviewId);
+  delete(@Param('reviewId') reviewId: string, @Req() req: Request) {
+    return this.service.delete(reviewId, {
+      isSuperAdminRequest: req['isSuperAdminRequest'],
+      institutionsId: req['institutionsId'],
+    });
   }
 }
