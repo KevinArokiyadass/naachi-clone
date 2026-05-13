@@ -47,7 +47,7 @@ describe('AdminUserBulkUploadService', () => {
         rowNumber: 2,
         data: {
           name: 'John',
-          phoneNumber: '7912345678',
+          phoneNumber: '+447912345678',
           email: 'john@naachi.com',
           status: 'active',
           permissionGroupName: 'Marketing',
@@ -78,7 +78,7 @@ describe('AdminUserBulkUploadService', () => {
         rowNumber: 2,
         data: {
           name: 'A',
-          phoneNumber: '7912345678',
+          phoneNumber: '+447912345678',
           email: 'dup@naachi.com',
           status: 'active',
           permissionGroupName: 'Marketing',
@@ -91,7 +91,7 @@ describe('AdminUserBulkUploadService', () => {
         rowNumber: 3,
         data: {
           name: 'B',
-          phoneNumber: '7912345679',
+          phoneNumber: '+447912345679',
           email: 'dup@naachi.com',
           status: 'active',
           permissionGroupName: 'Marketing',
@@ -124,7 +124,7 @@ describe('AdminUserBulkUploadService', () => {
         rowNumber: 2,
         data: {
           name: 'A',
-          phoneNumber: '7912345678',
+          phoneNumber: '+447912345678',
           email: 'dup@naachi.com',
           status: 'active',
           permissionGroupName: 'Marketing',

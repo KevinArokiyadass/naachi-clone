@@ -53,6 +53,8 @@ export interface AdminUserBulkUploadResult {
   createdIds: string[];
   updatedIds: string[];
   dryRun: boolean;
+  rejectedExcelFileName?: string;
+  rejectedExcelBase64?: string;
 }
 
 export interface ExistingAdminLookupMaps {

@@ -33,12 +33,17 @@ export class AdminUserBulkUploadService {
   async processUpload(
     file: Express.Multer.File,
     options: AdminUserBulkUploadDto,
-    context?: { institutionsId?: string; requestInstitutionsId?: string; isSuperAdminRequest?: boolean },
+    context?: {
+      institutionsId?: string;
+      requestInstitutionsId?: string;
+      isSuperAdminRequest?: boolean;
+    },
   ): Promise<AdminUserBulkUploadResult> {
     this.metrics.increment('upload_started');
     const dryRun = Boolean(options.dryRun);
     const skipExisting = options.skipExisting ?? true;
     const updateExisting = options.updateExisting ?? false;
+    const reportRows: { rowNumber: number; reason: string; status: 'SUCCESS' | 'FAILURE' }[] = [];
 
     if (skipExisting && updateExisting) {
       throw new BadRequestException('Only one of skipExisting or updateExisting can be true.');
@@ -92,6 +97,11 @@ export class AdminUserBulkUploadService {
           code: BulkUploadErrorCode.DUPLICATE_IN_FILE,
           message,
         });
+        reportRows.push({
+          rowNumber,
+          reason: message,
+          status: 'FAILURE',
+        });
         result.failureCount += 1;
         result.duplicateCount += 1;
       }
@@ -117,15 +127,26 @@ export class AdminUserBulkUploadService {
         const rowErrors = this.validator.validateRow(row);
         if (rowErrors.length) {
           this.appendRowErrors(result, rowErrors);
+          reportRows.push({
+            rowNumber: row.rowNumber,
+            reason: rowErrors.map((e) => e.message).join('; '),
+            status: 'FAILURE',
+          });
           continue;
         }
 
         try {
           const existingByEmail = row.email ? existingMaps.byEmail.get(row.email) : undefined;
           if (existingByEmail && skipExisting) {
+            const reason = `Admin already exists for ${row.email}.`;
             this.appendRowErrors(result, [
-              this.toRowError(row.rowNumber, 'email', BulkUploadErrorCode.DUPLICATE_IN_DB, `Admin already exists for ${row.email}.`),
+              this.toRowError(row.rowNumber, 'email', BulkUploadErrorCode.DUPLICATE_IN_DB, reason),
             ]);
+            reportRows.push({
+              rowNumber: row.rowNumber,
+              reason,
+              status: 'FAILURE',
+            });
             result.duplicateCount += 1;
             continue;
           }
@@ -139,6 +160,11 @@ export class AdminUserBulkUploadService {
             }
             result.successCount += 1;
             result.processedRows += 1;
+            reportRows.push({
+              rowNumber: row.rowNumber,
+              reason: '',
+              status: 'SUCCESS',
+            });
             continue;
           }
 
@@ -149,23 +175,40 @@ export class AdminUserBulkUploadService {
             }
             result.successCount += 1;
             result.processedRows += 1;
+            reportRows.push({
+              rowNumber: row.rowNumber,
+              reason: '',
+              status: 'SUCCESS',
+            });
             continue;
           }
 
+          const reason = `Admin already exists for ${row.email}.`;
           this.appendRowErrors(result, [
-            this.toRowError(row.rowNumber, 'email', BulkUploadErrorCode.DUPLICATE_IN_DB, `Admin already exists for ${row.email}.`),
+            this.toRowError(row.rowNumber, 'email', BulkUploadErrorCode.DUPLICATE_IN_DB, reason),
           ]);
+          reportRows.push({
+            rowNumber: row.rowNumber,
+            reason,
+            status: 'FAILURE',
+          });
           result.duplicateCount += 1;
         } catch (error: any) {
           const errorMessage = error?.response?.message || error?.message || 'Failed to process this row.';
+          const reason = typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage);
           this.appendRowErrors(result, [
             this.toRowError(
               row.rowNumber,
               'row',
               BulkUploadErrorCode.INTERNAL_PROCESSING_ERROR,
-              typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage),
+              reason,
             ),
           ]);
+          reportRows.push({
+            rowNumber: row.rowNumber,
+            reason,
+            status: 'FAILURE',
+          });
           this.logger.error(`admin-user bulk row failed rowNumber=${row.rowNumber}`, error?.stack);
         }
       }
@@ -173,7 +216,54 @@ export class AdminUserBulkUploadService {
       this.logger.log(`admin-user bulk upload batch completed. rows=${batch.length}, start=${index + 1}`);
     }
 
+    result.processedRows = result.successCount + result.failureCount;
+
     if (result.failureCount > 0) {
+      try {
+        const { Workbook } = await import('exceljs');
+        const workbook = new Workbook();
+        const worksheet = workbook.addWorksheet('Rejected Admins');
+
+        const allHeaders = new Set<string>();
+        for (const row of parsedRows) {
+          for (const key of Object.keys(row.data)) {
+            allHeaders.add(key);
+          }
+        }
+        const columns = Array.from(allHeaders);
+
+        worksheet.columns = [
+          ...columns.map((col) => ({
+            header: col.charAt(0).toUpperCase() + col.slice(1),
+            key: col,
+            width: 22,
+          })),
+          { header: 'Reason', key: 'reason', width: 45 },
+        ];
+
+        worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        worksheet.getRow(1).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFF8400' },
+        };
+
+        for (const report of reportRows) {
+          if (report.status === 'FAILURE') {
+            const matchedParsed = parsedRows.find((p) => p.rowNumber === report.rowNumber);
+            const rowData: Record<string, any> = matchedParsed ? { ...matchedParsed.data } : {};
+            rowData['reason'] = report.reason;
+            worksheet.addRow(rowData);
+          }
+        }
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        result.rejectedExcelFileName = `rejected-admins-${institutionsId}-${Date.now()}.xlsx`;
+        result.rejectedExcelBase64 = Buffer.from(buffer).toString('base64');
+      } catch (excelErr) {
+        this.logger.error('Failed to generate rejected excel workbook', (excelErr as Error)?.stack);
+      }
+
       this.metrics.increment('upload_failed');
       this.metrics.increment('rows_failed_total', result.failureCount);
       for (const error of result.errors) {
@@ -257,13 +347,7 @@ export class AdminUserBulkUploadService {
       return null;
     }
     const normalized = phoneNumber.trim();
-    if (!normalized) {
-      return null;
-    }
-    if (normalized.startsWith('+')) {
-      return normalized;
-    }
-    return `+44${normalized.replace(/\D/g, '')}`;
+    return normalized || null;
   }
 
   private mapInstitutionScopedFields(

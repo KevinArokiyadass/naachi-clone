@@ -522,6 +522,7 @@ export class UsersAuthService implements OnModuleInit {
 
   async createInstitutionManagedUser(payload: {
     institutionsId: string;
+    departmentsId?: string;
     name: string;
     phoneNumber: string;
     email?: string;
@@ -587,11 +588,12 @@ export class UsersAuthService implements OnModuleInit {
       userName,
       userNameSet: Boolean(userName),
       status: payload.status || USER_STATUS.ACTIVE,
-      isVerified: true,
+      isVerified: false,
       isDeleted: false,
       phoneVerified: true,
       emailVerified: Boolean(email),
       institutionsId: payload.institutionsId,
+      departmentsId: payload.departmentsId,
       customLogin: false,
       referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
       referredBy: referredBy || undefined,
@@ -608,6 +610,7 @@ export class UsersAuthService implements OnModuleInit {
     userId: string,
     payload: {
       institutionsId: string;
+      departmentsId?: string;
       name: string;
       email?: string;
       userName?: string;
@@ -657,7 +660,8 @@ export class UsersAuthService implements OnModuleInit {
         userNameSet: Boolean(userName),
         status: payload.status || USER_STATUS.ACTIVE,
         institutionsId: payload.institutionsId,
-        isVerified: true,
+        departmentsId: payload.departmentsId,
+        isVerified: false,
         phoneVerified: true,
         emailVerified: Boolean(email),
         referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
@@ -668,29 +672,64 @@ export class UsersAuthService implements OnModuleInit {
     );
   }
 
+  async getBulkUploadOptions(institutionsId: string): Promise<{
+    institutionsId: string;
+    departments: Array<{ departmentName: string; departmentsId: string }>;
+  }> {
+    const departmentsResult = await this.recordService.findAll('departments', {
+      filters: {
+        institutionsId,
+        isDeleted: false,
+        isActive: true,
+      },
+      fields: ['departmentName', 'departmentsId'],
+      nonPaginated: true,
+    });
+
+    return {
+      institutionsId,
+      departments: (departmentsResult?.items || []).map((item: any) => ({
+        departmentName: item.departmentName,
+        departmentsId: item.departmentsId,
+      })),
+    };
+  }
+
   async getInstitutionBulkUploadTemplate(
     institutionsId: string,
   ): Promise<{ fileName: string; fileBuffer: Buffer }> {
+    const options = await this.getBulkUploadOptions(institutionsId);
     const workbook = new Workbook();
     const sheet = workbook.addWorksheet('StudentsBulkUpload');
+    const master = workbook.addWorksheet('MasterData');
 
-    sheet.addRow(['name', 'phoneNumber', 'email', 'userName', 'status']);
-    sheet.addRow(['John Student', '7912345678', 'john.student@example.com', 'john.student', 'active']);
+    sheet.addRow(['name', 'phoneNumber', 'email', 'select department']);
+    sheet.addRow([
+      'John Student',
+      '+919344605885',
+      'john.student@example.com',
+      options.departments[0]?.departmentName || '',
+    ]);
     sheet.columns = [
       { width: 28 },
-      { width: 20 },
+      { width: 25, style: { numFmt: '@' } },
       { width: 34 },
-      { width: 22 },
-      { width: 14 },
+      { width: 28 },
     ];
     sheet.views = [{ state: 'frozen', ySplit: 1 }];
 
+    master.getCell('A1').value = 'DepartmentName';
+    options.departments.forEach((department, index) => {
+      master.getCell(`A${index + 2}`).value = department.departmentName;
+    });
+    master.state = 'veryHidden';
+
     const maxValidatedRows = 100;
     for (let row = 2; row <= maxValidatedRows; row++) {
-      sheet.getCell(`E${row}`).dataValidation = {
+      sheet.getCell(`D${row}`).dataValidation = {
         type: 'list',
         allowBlank: false,
-        formulae: ['"active,blocked,pending"'],
+        formulae: ['MasterData!$A$2:$A$500'],
       };
     }
 
@@ -698,10 +737,10 @@ export class UsersAuthService implements OnModuleInit {
     notes.addRows([
       ['Rule', 'Details'],
       ['Institution', `Template generated for institutionsId: ${institutionsId}`],
-      ['Phone', 'If phoneNumber is submitted without country code, backend defaults it to +44'],
-      ['Status', 'Allowed values: active, blocked, pending'],
-      ['Email', 'Optional but must be unique if provided'],
-      ['Username', 'Optional but must be unique if provided'],
+      ['Phone', 'Compulsory: Must start with "+" (e.g. +919344605885). Tip: Type a single quote (\') before the + in Excel to prevent formula conversion.'],
+      ['Email', 'Compulsory: Must be a valid, unique email address'],
+      ['Department', 'Compulsory: Select from the pre-populated dropdown list'],
+      ['Status', 'All uploaded users default to Active automatically'],
     ]);
     notes.columns = [{ width: 20 }, { width: 90 }];
 

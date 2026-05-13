@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as XLSX from 'xlsx';
 import { BulkUploadErrorCode, ParsedAdminUserUploadRow } from './admin-user-bulk-upload.types';
 
-const REQUIRED_COLUMNS = ['name', 'phoneNumber', 'email', 'status', 'permissionGroupName', 'departmentName', 'password', 'confirmPassword'];
+const REQUIRED_COLUMNS = ['name', 'phoneNumber', 'email', 'permissionGroupName', 'departmentName', 'password', 'confirmPassword'];
 
 const HEADER_ALIAS_MAP: Record<string, string> = {
   name: 'name',

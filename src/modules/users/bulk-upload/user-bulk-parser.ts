@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as XLSX from 'xlsx';
 import { ParsedUserUploadRow, UserBulkUploadErrorCode } from './user-bulk-upload.types';
 
-const REQUIRED_COLUMNS = ['name', 'phoneNumber'];
+const REQUIRED_COLUMNS = ['name', 'phoneNumber', 'departmentName'];
 
 const HEADER_ALIAS_MAP: Record<string, string> = {
   name: 'name',
@@ -15,6 +15,9 @@ const HEADER_ALIAS_MAP: Record<string, string> = {
   username: 'userName',
   'user name': 'userName',
   status: 'status',
+  'select department': 'departmentName',
+  departmentname: 'departmentName',
+  department: 'departmentName',
 };
 
 @Injectable()
@@ -96,10 +99,16 @@ export class UserBulkParser {
     const normalized: Record<string, string | number | null> = {};
     for (const [key, value] of Object.entries(row)) {
       const normalizedHeader = key.trim().toLowerCase().replace(/\s+/g, ' ');
-      const canonicalKey =
+      let canonicalKey =
         HEADER_ALIAS_MAP[normalizedHeader] ||
         HEADER_ALIAS_MAP[normalizedHeader.replace(/\s/g, '')] ||
         key.trim();
+
+      const cleanHeader = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (cleanHeader.includes('department')) {
+        canonicalKey = 'departmentName';
+      }
+
       normalized[canonicalKey] = value;
     }
     return normalized;

@@ -30,7 +30,16 @@ export class UserBulkValidator {
           'Phone number is required.',
         ),
       );
-    } else if (!/^\+?\d{7,15}$/.test(row.phoneNumber)) {
+    } else if (!row.phoneNumber.startsWith('+')) {
+      errors.push(
+        this.error(
+          row.rowNumber,
+          'phoneNumber',
+          UserBulkUploadErrorCode.INVALID_FIELD_FORMAT,
+          'Country code is compulsory (must start with +).',
+        ),
+      );
+    } else if (!/^\+\d{7,15}$/.test(row.phoneNumber)) {
       errors.push(
         this.error(
           row.rowNumber,
@@ -41,7 +50,16 @@ export class UserBulkValidator {
       );
     }
 
-    if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
+    if (!row.email) {
+      errors.push(
+        this.error(
+          row.rowNumber,
+          'email',
+          UserBulkUploadErrorCode.MISSING_REQUIRED_FIELD,
+          'Email is required.',
+        ),
+      );
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
       errors.push(
         this.error(
           row.rowNumber,
@@ -70,6 +88,17 @@ export class UserBulkValidator {
           'status',
           UserBulkUploadErrorCode.INVALID_FIELD_FORMAT,
           'Status must be active, blocked, or pending.',
+        ),
+      );
+    }
+
+    if (!row.departmentsId && !row.departmentName) {
+      errors.push(
+        this.error(
+          row.rowNumber,
+          'departmentName',
+          UserBulkUploadErrorCode.MISSING_REQUIRED_FIELD,
+          'Department is required.',
         ),
       );
     }

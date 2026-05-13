@@ -30,6 +30,8 @@ export interface NormalizedUserUploadRow {
   status: 'active' | 'blocked' | 'pending' | null;
   /** Original cell text for status (after trim); used to detect invalid values vs omitted. */
   rawStatus: string | null;
+  departmentName: string | null;
+  departmentsId?: string;
 }
 
 export interface UserBulkUploadResult {
@@ -44,6 +46,8 @@ export interface UserBulkUploadResult {
   dryRun: boolean;
   reportFileName?: string;
   reportCsvBase64?: string;
+  rejectedExcelFileName?: string;
+  rejectedExcelBase64?: string;
 }
 
 export interface ExistingUserLookupMaps {

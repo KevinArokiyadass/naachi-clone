@@ -81,6 +81,9 @@ export class Users extends Document {
     @Prop({ type: String })
     institutionsId?: string;
 
+    @Prop({ type: String })
+    departmentsId?: string;
+
     @Prop({ type: String, required: false, trim: true })
     referrerId?: string;
 
