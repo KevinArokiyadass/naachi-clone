@@ -232,8 +232,9 @@ export class UserBulkUploadService {
             reason: duplicateReason,
           });
           result.duplicateCount += 1;
-        } catch (error) {
-          const processingReason = 'Failed to process this row.';
+        } catch (error: any) {
+          const errorMessage = error?.response?.message || error?.message || 'Failed to process this row.';
+          const processingReason = typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage);
           this.appendRowErrors(result, [
             this.toRowError(
               row.rowNumber,

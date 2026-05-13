@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import {
   AdminUpdateUserAttributesCommand,
+  AdminDeleteUserCommand,
   AuthFlowType,
   CognitoIdentityProviderClient,
   GetUserAttributeVerificationCodeCommand,
@@ -559,11 +560,23 @@ export class UsersAuthService implements OnModuleInit {
       await this.signUpUserInCognito(phoneNumber, userId);
     } catch (error: any) {
       if (error?.name === 'UsernameExistsException') {
-        throw new BadRequestException(
-          'User with this phone number already exists in authentication provider',
-        );
+        // Auto-heal: delete the orphaned/stuck Cognito record and retry signup once
+        try {
+          await this.cognitoClient.send(
+            new AdminDeleteUserCommand({
+              UserPoolId: this.userPoolId,
+              Username: phoneNumber,
+            })
+          );
+          await this.signUpUserInCognito(phoneNumber, userId);
+        } catch (retryErr: any) {
+          throw new BadRequestException(
+            `User with this phone number already exists in authentication provider and could not be reset: ${retryErr.message || retryErr.name}`,
+          );
+        }
+      } else {
+        throw error;
       }
-      throw error;
     }
 
     await this.dbService.users.create({
@@ -2087,13 +2100,75 @@ export class UsersAuthService implements OnModuleInit {
         { new: true},
       );
 
+      if (user.phoneNumber) {
+        try {
+          await this.cognitoClient.send(
+            new AdminDeleteUserCommand({
+              UserPoolId: this.userPoolId,
+              Username: user.phoneNumber,
+            })
+          );
+        } catch (cognitoErr) {
+          // Keep database update intact if user already not found in Cognito
+        }
+      }
+
       return{
         message:'User deleted successfully',
         user: updatedUser,
       }
 
     };
+
+  async bulkDeleteUsers(userIds: string[]) {
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      throw new BadRequestException('No user IDs provided for deletion');
+    }
+
+    const { nanoid } = await import('nanoid');
+    const results = [];
+
+    for (const userId of userIds) {
+      const user = await this.dbService.users.findOne({ userId, isDeleted: false });
+      if (user) {
+        const randomId = nanoid(8);
+        const updatePayload = {
+          isDeleted: true,
+          status: USER_STATUS.INACTIVE,
+          name: "naachi_user",
+          userName: `deleted_user_${randomId}`,
+          profileImage: "",
+        };
+
+        const updatedUser = await this.dbService.users.findOneAndUpdate(
+          { userId, isDeleted: false },
+          { $set: updatePayload },
+          { new: true }
+        );
+
+        if (user.phoneNumber) {
+          try {
+            await this.cognitoClient.send(
+              new AdminDeleteUserCommand({
+                UserPoolId: this.userPoolId,
+                Username: user.phoneNumber,
+              })
+            );
+          } catch (cognitoErr) {
+            // Ignore if user is absent from Cognito
+          }
+        }
+
+        results.push(updatedUser);
+      }
+    }
+
+    return {
+      message: `${results.length} users deleted successfully`,
+      deletedCount: results.length,
+    };
   }
+}
 
 
 
