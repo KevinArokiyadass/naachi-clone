@@ -148,29 +148,6 @@ export class AdminUserService {
     }
   }
 
-  async validateOnboardingAdminUser(validateDto: any) {
-    if (!validateDto.email) {
-      throw new BadRequestException('Email is required');
-    }
-    const existingAdmin = await this.dbServices.adminUser.findOne({ email: validateDto.email });
-    if (existingAdmin) {
-      throw new BadRequestException('Admin with this email already exists');
-    }
-
-    const phoneNumber = validateDto.phoneNumber?.trim();
-    if (phoneNumber) {
-      const existingPhone = await this.dbServices.adminUser.findOne({
-        phoneNumber,
-        isDeleted: { $ne: true },
-      });
-      if (existingPhone) {
-        throw new BadRequestException('Admin with this phone number already exists');
-      }
-    }
-
-    return { valid: true };
-  }
-
   async createOnboardingAdminUser(createAdminDto: any) {
     // Validate role is provided
     const role = createAdminDto.role || 'INSTITUTION_ADMIN';
@@ -180,36 +157,38 @@ export class AdminUserService {
     if (!createAdminDto.password) {
       throw new BadRequestException('Password is required');
     }
+
+    // Upfront Password Policy Validation to meet standard AWS Cognito complexity constraints
+    const pwd = createAdminDto.password;
+    if (pwd.length < 8 || !/[A-Z]/.test(pwd) || !/[a-z]/.test(pwd) || !/[0-9]/.test(pwd) || !/[!@#$%^&*(),.?":{}|<>]/.test(pwd)) {
+      throw new BadRequestException('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.');
+    }
+
     if (!createAdminDto.name) {
       throw new BadRequestException('Name is required');
     }
+    if (!createAdminDto.institutionName) {
+      throw new BadRequestException('Institution Name is required');
+    }
+    if (!createAdminDto.institutionDomain) {
+      throw new BadRequestException('Institution Domain is required');
+    }
 
-    const existingAdmin = await this.dbServices.adminUser.findOne({ email: createAdminDto.email });
+    // 1. Verify email format and domain match
+    const emailStr = createAdminDto.email.trim().toLowerCase();
+    const instDomainStr = createAdminDto.institutionDomain.trim().toLowerCase();
+    const emailParts = emailStr.split('@');
+    if (emailParts.length !== 2 || emailParts[1] !== instDomainStr) {
+      throw new BadRequestException(`Admin email domain (@${emailParts[1] || ''}) must match the institution domain (${instDomainStr})`);
+    }
+
+    // 2. Verify admin email/phone non-existence
+    const existingAdmin = await this.dbServices.adminUser.findOne({ email: emailStr });
     if (existingAdmin) {
       throw new BadRequestException('Admin with this email already exists');
     }
 
-    const providedInstitutionsId = createAdminDto.institutionsId || createAdminDto.metaTags?.[0]?.institutionsId;
-    if (!providedInstitutionsId) {
-      throw new BadRequestException('Institution ID is required for onboarding admin creation');
-    }
-
-    // Validate email domain and get institution ID to prevent accidental wrong email address mapping
-    const validatedInstitutionsId = await this.validateInstitute(createAdminDto.email);
-
-    if (providedInstitutionsId !== validatedInstitutionsId) {
-      throw new BadRequestException({
-        message: `Email domain does not match with the provided institution ID.`,
-        errorCode: 'INSTITUTION_MISMATCH',
-      });
-    }
-
-    const institution = await this.recordService.findOne('institutions', providedInstitutionsId);
-    if (!institution) {
-      throw new BadRequestException('Institution not found');
-    }
-
-    const phoneNumber = createAdminDto.phoneNumber?.trim();
+    const phoneNumber = createAdminDto.contactNumber?.trim() || createAdminDto.phoneNumber?.trim();
     if (phoneNumber) {
       const existingPhone = await this.dbServices.adminUser.findOne({
         phoneNumber,
@@ -223,13 +202,58 @@ export class AdminUserService {
 
     // Check if there's an existing user with the same email
     const existingUser = await this.dbServices.users.findOne({
-      email: createAdminDto.email.toLowerCase().trim(),
+      email: emailStr,
       isDeleted: false
     });
 
-    const userName = createAdminDto.userName?.trim() || await generateUniqueUserNameFromEmail(createAdminDto.email, this.dbServices);
+    // 3. Verify institution domain uniqueness via RecordService to prevent duplicate institution entries
+    try {
+      const existingInstRes = await this.recordService.findAll('institutions', {
+        filters: {
+          $or: [
+            { institutionDomain: instDomainStr },
+            { institutionDomain: `@${instDomainStr}` }
+          ],
+        },
+        fields: ['institutionDomain', 'institutionsId'],
+        nonPaginated: true,
+      });
+      if (existingInstRes?.items && existingInstRes.items.length > 0) {
+        throw new BadRequestException(`Institution with domain '${instDomainStr}' already exists`);
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) {
+        throw err;
+      }
+    }
 
-    // 1. Fetch all permissions to map to the new admin
+    // 4. Create the Institution Record via RecordService
+    let createdInst: any;
+    try {
+      createdInst = await this.recordService.createRecord('institutions', {
+        data: {
+          institutionName: createAdminDto.institutionName,
+          institutionDomain: createAdminDto.institutionDomain,
+          adminDomain: createAdminDto.adminDomain || '',
+          contactName: createAdminDto.contactName || createAdminDto.name,
+          contactNumber: phoneNumber || '',
+          s3ProfileImageName: createAdminDto.s3ProfileImageName || '',
+          status: 'active',
+          isActive: true
+        }
+      });
+    } catch (err: any) {
+      throw new BadRequestException(`Failed to create institution record: ${err.message || 'Unknown error'}`);
+    }
+
+    const institutionsId = createdInst?.institutionsId || createdInst?.data?.institutionsId || createdInst?._id;
+    if (!institutionsId) {
+      throw new BadRequestException('Failed to retrieve created institution ID');
+    }
+
+    const userName = createAdminDto.userName?.trim() || await generateUniqueUserNameFromEmail(emailStr, this.dbServices);
+
+    // 5. Fetch all permissions to map to the new admin
     let allPermissionsId: string[] = [];
     try {
       const permissionsResult = await this.recordService.findAll('permissions', {
@@ -244,7 +268,7 @@ export class AdminUserService {
       console.error('Failed to fetch permissions for onboarding admin:', err);
     }
 
-    // 2. Create a permission group with all permissions
+    // 6. Create a permission group with all permissions
     let newPermissionGroupsId: string | undefined;
     if (allPermissionsId.length > 0) {
       try {
@@ -253,7 +277,7 @@ export class AdminUserService {
             name: 'Master Admin Group',
             description: 'Automatically created group with all permissions for institution onboarding',
             permissionsId: allPermissionsId,
-            institutionsId: providedInstitutionsId,
+            institutionsId: institutionsId,
             status: 'active',
           }
         });
@@ -268,38 +292,52 @@ export class AdminUserService {
     // Ensure metaTags structure is present without mandatory departmentsId
     const metaTags = [
       {
-        institutionsId: providedInstitutionsId,
+        institutionsId: institutionsId,
         departmentsId: []
       }
     ];
 
-    const { password, institutionsId, ...adminDataWithoutPassword } = createAdminDto;
-    const created = await this.dbServices.adminUser.create({
-      ...adminDataWithoutPassword,
-      name: createAdminDto.name,
-      email: createAdminDto.email,
-      role,
-      metaTags,
-      userName: userName,
-      password: password,
-      permissionGroupsId,
-      status: createAdminDto.status ?? 'active',
-      isVerifiedAdmin: true,
-    });
+    const { password, ...adminDataWithoutPassword } = createAdminDto;
+    
+    // 7. Create admin user in database
+    let createdAdminDb: any;
+    try {
+      createdAdminDb = await this.dbServices.adminUser.create({
+        name: createAdminDto.name,
+        email: emailStr,
+        role,
+        metaTags,
+        userName: userName,
+        password: password,
+        phoneNumber: phoneNumber || undefined,
+        permissionGroupsId,
+        status: createAdminDto.status ?? 'active',
+        isVerifiedAdmin: true,
+      } as any);
+    } catch (err: any) {
+      // If database insertion fails, attempt rollback of created institution status to inactive/deleted
+      try {
+        await this.recordService.updateRecord('institutions', institutionsId, {
+          data: { isDeleted: true, status: 'inactive', isActive: false }
+        });
+      } catch (_) {}
+      throw new BadRequestException(`Failed to create admin database record: ${err.message}`);
+    }
 
+    // 8. Provision user in AWS Cognito
     try {
       await this.cognitoService.createAdminUser(
         userName,
-        createAdminDto.email,
+        emailStr,
         password,
         createAdminDto.name,
-        createAdminDto.phoneNumber,
+        phoneNumber,
       );
 
       if (existingUser) {
         try {
           const updateData: Record<string, any> = {
-            institutionsId: providedInstitutionsId,
+            institutionsId: institutionsId,
             isVerified: true,
             updatedAt: new Date()
           };
@@ -314,13 +352,18 @@ export class AdminUserService {
       }
 
       return {
-        adminUser: this.attachProfileImageUrl(created),
-        message: 'Onboarding admin user created successfully with all permissions mapped.',
+        adminUser: this.attachProfileImageUrl(createdAdminDb),
+        institutionsId,
+        message: 'Onboarding institution, permission group, and admin user created successfully.',
         requiresVerification: false,
       };
-    } catch (cognitoError) {
+    } catch (cognitoError: any) {
+      // Rollback database user and institution record
       try {
-        await this.dbServices.adminUser.findOneAndDelete({ adminId: created.adminId });
+        await this.dbServices.adminUser.findOneAndDelete({ adminId: createdAdminDb.adminId });
+        await this.recordService.updateRecord('institutions', institutionsId, {
+          data: { isDeleted: true, status: 'inactive', isActive: false }
+        });
       } catch (_) {}
       throw new BadRequestException(`Failed to create admin user in Cognito: ${cognitoError.message}`);
     }
