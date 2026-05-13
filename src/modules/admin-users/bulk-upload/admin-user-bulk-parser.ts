@@ -104,8 +104,27 @@ export class AdminUserBulkParser {
   private normalizeRowKeys(row: Record<string, string | number | null>): Record<string, string | number | null> {
     const normalized: Record<string, string | number | null> = {};
     for (const [key, value] of Object.entries(row)) {
-      const normalizedHeader = key.trim().toLowerCase().replace(/\s+/g, ' ');
-      const canonicalKey = HEADER_ALIAS_MAP[normalizedHeader] || HEADER_ALIAS_MAP[normalizedHeader.replace(/\s/g, '')] || key.trim();
+      const cleanHeader = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      let canonicalKey = key.trim();
+      if (cleanHeader.includes('permission')) {
+        canonicalKey = 'permissionGroupName';
+      } else if (cleanHeader.includes('department')) {
+        canonicalKey = 'departmentName';
+      } else if (cleanHeader.includes('confirm')) {
+        canonicalKey = 'confirmPassword';
+      } else if (cleanHeader.includes('password')) {
+        canonicalKey = 'password';
+      } else if (cleanHeader.includes('phone')) {
+        canonicalKey = 'phoneNumber';
+      } else if (cleanHeader.includes('email')) {
+        canonicalKey = 'email';
+      } else if (cleanHeader.includes('status')) {
+        canonicalKey = 'status';
+      } else if (cleanHeader.includes('name')) {
+        canonicalKey = 'name';
+      }
+
       normalized[canonicalKey] = value;
     }
     return normalized;

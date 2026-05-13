@@ -156,13 +156,14 @@ export class AdminUserBulkUploadService {
             this.toRowError(row.rowNumber, 'email', BulkUploadErrorCode.DUPLICATE_IN_DB, `Admin already exists for ${row.email}.`),
           ]);
           result.duplicateCount += 1;
-        } catch (error) {
+        } catch (error: any) {
+          const errorMessage = error?.response?.message || error?.message || 'Failed to process this row.';
           this.appendRowErrors(result, [
             this.toRowError(
               row.rowNumber,
               'row',
               BulkUploadErrorCode.INTERNAL_PROCESSING_ERROR,
-              'Failed to process this row.',
+              typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage),
             ),
           ]);
           this.logger.error(`admin-user bulk row failed rowNumber=${row.rowNumber}`, error?.stack);
@@ -220,7 +221,8 @@ export class AdminUserBulkUploadService {
         ? [{ institutionsId: row.institutionsId, departmentsId: row.departmentsId }]
         : undefined,
       s3ProfileImageName: row.s3ProfileImageName || undefined,
-    };
+      skipDomainValidation: true,
+    } as any;
   }
 
   private toUpdatePayload(row: NormalizedAdminUserUploadRow): Record<string, unknown> {
