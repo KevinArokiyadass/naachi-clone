@@ -225,4 +225,9 @@ export class UsersController {
   {
       return this.usersService.deleteUser(userId,dto.isDeleted);
   }
+
+  @Post('bulk-delete')
+  async bulkDeleteUsers(@Body() dto: { userIds: string[] }) {
+    return this.usersService.bulkDeleteUsers(dto.userIds);
+  }
 }
