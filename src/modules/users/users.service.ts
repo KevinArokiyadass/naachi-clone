@@ -48,6 +48,7 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { Workbook } from 'exceljs';
 import { assertInstitutionUploadScope } from 'src/common/utils/institution-scope.util';
+import { normalizePhoneNumbersForLookup } from './utils/normalize-phone-lookup.util';
 
 
 @Injectable()
@@ -1319,8 +1320,13 @@ export class UsersAuthService implements OnModuleInit {
       return [];
     }
 
+    const lookupPhoneNumbers = normalizePhoneNumbersForLookup(phoneNumbers);
+    if (lookupPhoneNumbers.length === 0) {
+      return [];
+    }
+
     const matchStage: any = {
-      phoneNumber: { $in: phoneNumbers },
+      phoneNumber: { $in: lookupPhoneNumbers },
       isDeleted: false,
       status: USER_STATUS.ACTIVE,
     };
