@@ -27,6 +27,7 @@ export interface IUsers {
     institutionsId?: string;
     departmentsId?: string;
     qrAuth?: boolean;
+    isReferralVerified?: boolean;
     profileImage?: string;
     profileImageUpdatedAt?: Date;
     customLogin?: boolean;
