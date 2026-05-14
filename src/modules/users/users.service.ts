@@ -98,7 +98,48 @@ export class UsersAuthService implements OnModuleInit {
     return referralCode;
   }
 
+  async getOrCreateReferralCode(userId: string): Promise<string> {
+    const user = await this.dbService.users.findOne({ userId, isDeleted: false });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    if (user.referralCode) {
+      return user.referralCode;
+    }
+    const newCode = await this.generateUniqueReferralCode();
+    await this.dbService.users.findOneAndUpdate({ userId }, { referralCode: newCode, updatedAt: new Date() });
+    return newCode;
+  }
+
+  async backfillReferralCodes() {
+    const users = await this.dbService.users.find({
+      $or: [{ referralCode: { $exists: false } }, { referralCode: null }],
+      isDeleted: false,
+    });
+
+    let count = 0;
+    for (const user of users) {
+      const code = await this.generateUniqueReferralCode();
+      await this.dbService.users.findOneAndUpdate(
+        { userId: user.userId },
+        { referralCode: code, updatedAt: new Date() },
+      );
+      count++;
+    }
+    return { message: `Backfilled ${count} users with referral codes` };
+  }
+
   async signup(dto: UsersSignupDto) {
+    if (dto.referredBy) {
+      const referrer = await this.dbService.users.findOne({ referralCode: dto.referredBy, isDeleted: false });
+      if (!referrer) {
+        throw new BadRequestException('Invalid referral code');
+      }
+      if (referrer.status !== USER_STATUS.ACTIVE) {
+        throw new BadRequestException('Referrer user is not active');
+      }
+      dto.referredBy = referrer.userId;
+    }
     // Check signup restrictions before proceeding
     await this.checkSignupRestrictions();
     
@@ -113,6 +154,8 @@ export class UsersAuthService implements OnModuleInit {
       phoneVerified: false,
       userNameSet: false,
       emailVerified: false,
+      isReferralVerified: false,
+      qrAuth: false,
       createdAt: new Date(),
       updatedAt: new Date(),
       referralCode: await this.generateUniqueReferralCode(),
@@ -1445,7 +1488,13 @@ export class UsersAuthService implements OnModuleInit {
       throw new BadRequestException('User signup is already completed. Cannot activate via QR code.');
     }
 
-    // Verify that the referrer user exists
+    const updateData: Record<string, any> = {
+      status: USER_STATUS.ACTIVE,
+      referrerMedium: ReferrerMedium.QR_CODE,
+      qrAuth: true,
+      updatedAt: new Date(),
+    };
+  if (referrerUserId) {
     const referrer = await this.dbService.users.findOne({
       userId: referrerUserId,
       isDeleted: false,
@@ -1460,19 +1509,11 @@ export class UsersAuthService implements OnModuleInit {
       throw new BadRequestException('Cannot refer yourself');
     }
 
-    const referrerUserName = referrer.userName ?? referrerUserId;
+    updateData.referrerId = referrerUserId;
+    updateData.referredBy = referrer.userName ?? referrerUserId;
+  }
 
     // Update user: activate, set referrer, and set activation medium
-    // Only set isVerified to true if institutionId exists
-    const updateData: Record<string, any> = {
-      status: USER_STATUS.ACTIVE,
-      referrerId: referrerUserId,
-      referredBy: referrerUserName,
-      referrerMedium: ReferrerMedium.QR_CODE,
-      qrAuth: true,
-      updatedAt: new Date(),
-    };
-
     // Only set isVerified to true if institutionId exists
     if (user.institutionsId) {
       updateData.isVerified = true;
@@ -1490,6 +1531,66 @@ export class UsersAuthService implements OnModuleInit {
 
     return {
       message: 'User activated successfully via QR code',
+      user: this.attachProfileImageUrl(updatedUser),
+    };
+  }
+
+  async activateByReferralCode(userId: string, referralCode?: string) {
+    const user = await this.dbService.users.findOne({
+      userId,
+      isDeleted: false,
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.status === USER_STATUS.ACTIVE) {
+      throw new BadRequestException('User signup is already completed.');
+    }
+
+    const updateData: Record<string, any> = {
+      status: USER_STATUS.ACTIVE,
+      referrerMedium: ReferrerMedium.REFERRAL_CODE,
+      isReferralVerified: true,
+      updatedAt: new Date(),
+    };
+
+    if (referralCode) {
+      const referrer = await this.dbService.users.findOne({
+        referralCode,
+        isDeleted: false,
+      });
+
+      if (!referrer) {
+        throw new NotFoundException('Invalid referral code');
+      }
+
+      if (user.userId === referrer.userId) {
+        throw new BadRequestException('Cannot refer yourself');
+      }
+
+      updateData.referrerId = referrer.userId;
+      updateData.referredBy = referrer.userName ?? referrer.userId;
+    }
+
+    // Only set isVerified to true if institutionId exists
+    if (user.institutionsId) {
+      updateData.isVerified = true;
+    }
+
+    const updatedUser = await this.dbService.users.findOneAndUpdate(
+      { userId, isDeleted: false },
+      updateData,
+      { new: true },
+    );
+
+    if (!updatedUser) {
+      throw new NotFoundException('Failed to update user');
+    }
+
+    return {
+      message: 'User activated successfully via referral code',
       user: this.attachProfileImageUrl(updatedUser),
     };
   }

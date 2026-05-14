@@ -184,6 +184,16 @@ export class ActivateByQrCodeDto {
   referrerUserId: string;
 }
 
+export class ActivateByReferralCodeDto {
+  @IsNotEmpty({ message: 'User ID is required' })
+  @IsString()
+  userId: string;
+
+  @IsOptional()
+  @IsString()
+  referralCode?: string;
+}
+
 export class UnifiedPhoneOtpRequestDto {
   @IsNotEmpty({ message: 'Phone number is required' })
   @IsString()
