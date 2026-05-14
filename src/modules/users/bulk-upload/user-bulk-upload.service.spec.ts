@@ -17,6 +17,10 @@ describe('UserBulkUploadService', () => {
   } as unknown as UserBulkRepository;
   const usersService = {
     validateInstitutionScope: jest.fn(),
+    getBulkUploadOptions: jest.fn().mockResolvedValue({
+      institutionsId: 'inst-1',
+      departments: [{ departmentName: 'Science', departmentsId: 'dept-sci' }],
+    }),
     createInstitutionManagedUser: jest.fn(),
     updateInstitutionManagedUser: jest.fn(),
   } as any;
@@ -38,10 +42,11 @@ describe('UserBulkUploadService', () => {
         rowNumber: 2,
         data: {
           name: 'John Student',
-          phoneNumber: '7912345678',
+          phoneNumber: '+447912345678',
           email: 'john@student.com',
           userName: 'john.student',
           status: 'active',
+          departmentName: 'Science',
         },
       },
     ]);
@@ -69,9 +74,10 @@ describe('UserBulkUploadService', () => {
         rowNumber: 2,
         data: {
           name: 'Updated Student',
-          phoneNumber: '7912345678',
+          phoneNumber: '+447912345678',
           email: 'existing@student.com',
           status: 'active',
+          departmentName: 'Science',
         },
       },
     ]);
@@ -103,8 +109,9 @@ describe('UserBulkUploadService', () => {
         rowNumber: 2,
         data: {
           name: 'Bad Status',
-          phoneNumber: '7999999999',
+          phoneNumber: '+447999999999',
           status: 'not-valid',
+          departmentName: 'Science',
         },
       },
     ]);

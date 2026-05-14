@@ -38,7 +38,11 @@ export class AdminUserBulkValidator {
       errors.push(this.error(row.rowNumber, 'status', BulkUploadErrorCode.INVALID_FIELD_FORMAT, 'Status must be active or inactive.'));
     }
 
-    if (row.phoneNumber && !/^\+?\d{7,15}$/.test(row.phoneNumber)) {
+    if (!row.phoneNumber) {
+      errors.push(this.error(row.rowNumber, 'phoneNumber', BulkUploadErrorCode.MISSING_REQUIRED_FIELD, 'Phone number is required.'));
+    } else if (!row.phoneNumber.startsWith('+')) {
+      errors.push(this.error(row.rowNumber, 'phoneNumber', BulkUploadErrorCode.INVALID_FIELD_FORMAT, 'Country code is compulsory (must start with +).'));
+    } else if (!/^\+\d{7,15}$/.test(row.phoneNumber)) {
       errors.push(this.error(row.rowNumber, 'phoneNumber', BulkUploadErrorCode.INVALID_FIELD_FORMAT, 'Phone number format is invalid.'));
     }
 

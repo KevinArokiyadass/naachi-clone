@@ -67,6 +67,13 @@ export class UserBulkUploadService {
       isSuperAdminRequest: context.isSuperAdminRequest,
     });
 
+    const institutionOptions = await this.usersService.getBulkUploadOptions(context.institutionsId);
+    const departmentNameToId = new Map(
+      institutionOptions.departments
+        .filter((item) => item?.departmentName && item?.departmentsId)
+        .map((item) => [item.departmentName.trim().toLowerCase(), item.departmentsId]),
+    );
+
     const normalizedRows = parsedRows.map((row) => {
       const normalized = normalizeUserUploadRow(row);
       normalized.phoneNumber = this.withDefaultCountryCode(normalized.phoneNumber);
@@ -120,6 +127,13 @@ export class UserBulkUploadService {
       this.logger.log(`users bulk upload batch start. rows=${batch.length}, start=${index + 1}`);
 
       for (const row of batch) {
+        if (!row.departmentsId && row.departmentName) {
+          const mappedDepartment = departmentNameToId.get(row.departmentName.trim().toLowerCase());
+          if (mappedDepartment) {
+            row.departmentsId = mappedDepartment;
+          }
+        }
+
         const rowErrors = this.validator.validateRow(row);
         if (rowErrors.length) {
           this.appendRowErrors(result, rowErrors);
@@ -167,6 +181,7 @@ export class UserBulkUploadService {
             if (!dryRun) {
               const created = await this.usersService.createInstitutionManagedUser({
                 institutionsId: context.institutionsId,
+                departmentsId: row.departmentsId,
                 name: row.name!,
                 phoneNumber: row.phoneNumber!,
                 email: row.email || undefined,
@@ -194,6 +209,7 @@ export class UserBulkUploadService {
             if (!dryRun) {
               await this.usersService.updateInstitutionManagedUser(existingByPhone.userId, {
                 institutionsId: context.institutionsId,
+                departmentsId: row.departmentsId,
                 name: row.name!,
                 email: row.email || undefined,
                 userName: row.userName || undefined,
@@ -262,6 +278,54 @@ export class UserBulkUploadService {
       result.reportFileName = `user-bulk-upload-report-${context.institutionsId}-${Date.now()}.csv`;
       result.reportCsvBase64 = Buffer.from(this.toCsv(reportRows), 'utf8').toString('base64');
     }
+
+    if (result.failureCount > 0) {
+      try {
+        const { Workbook } = await import('exceljs');
+        const workbook = new Workbook();
+        const worksheet = workbook.addWorksheet('Rejected Users');
+
+        const allHeaders = new Set<string>();
+        for (const row of parsedRows) {
+          for (const key of Object.keys(row.data)) {
+            allHeaders.add(key);
+          }
+        }
+        const columns = Array.from(allHeaders);
+
+        worksheet.columns = [
+          ...columns.map((col) => ({
+            header: col.charAt(0).toUpperCase() + col.slice(1),
+            key: col,
+            width: 22,
+          })),
+          { header: 'Reason', key: 'reason', width: 45 },
+        ];
+
+        worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        worksheet.getRow(1).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFF8400' },
+        };
+
+        for (const report of reportRows) {
+          if (report.status === 'FAILURE') {
+            const matchedParsed = parsedRows.find((p) => p.rowNumber === report.rowNumber);
+            const rowData: Record<string, any> = matchedParsed ? { ...matchedParsed.data } : {};
+            rowData['reason'] = report.reason;
+            worksheet.addRow(rowData);
+          }
+        }
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        result.rejectedExcelFileName = `rejected-users-${context.institutionsId}-${Date.now()}.xlsx`;
+        result.rejectedExcelBase64 = Buffer.from(buffer).toString('base64');
+      } catch (excelErr) {
+        this.logger.error('Failed to generate rejected excel workbook', (excelErr as Error)?.stack);
+      }
+    }
+
     return result;
   }
 
@@ -303,13 +367,7 @@ export class UserBulkUploadService {
       return null;
     }
     const normalized = phoneNumber.trim();
-    if (!normalized) {
-      return null;
-    }
-    if (normalized.startsWith('+')) {
-      return normalized;
-    }
-    return `+44${normalized.replace(/\D/g, '')}`;
+    return normalized || null;
   }
 
   private toCsv(rows: RowReportEntry[]): string {

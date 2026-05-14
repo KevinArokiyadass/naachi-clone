@@ -825,7 +825,6 @@ export class AdminUserService {
       'Name',
       'phoneNumber',
       'email id',
-      'status',
       'select permission',
       'select department',
       'create password',
@@ -835,9 +834,8 @@ export class AdminUserService {
     sheet.addRow(headers);
     sheet.addRow([
       'John Admin',
-      '7912345678',
+      '+447912345678',
       'john.admin@example.com',
-      'active',
       options.permissions[0]?.name || '',
       options.departments[0]?.departmentName || '',
       'Password@123',
@@ -846,9 +844,8 @@ export class AdminUserService {
 
     sheet.columns = [
       { width: 24 },
-      { width: 18 },
+      { width: 25, style: { numFmt: '@' } },
       { width: 34 },
-      { width: 14 },
       { width: 28 },
       { width: 28 },
       { width: 22 },
@@ -871,14 +868,9 @@ export class AdminUserService {
       sheet.getCell(`D${row}`).dataValidation = {
         type: 'list',
         allowBlank: false,
-        formulae: ['"inactive,active"'],
-      };
-      sheet.getCell(`E${row}`).dataValidation = {
-        type: 'list',
-        allowBlank: false,
         formulae: ['MasterData!$A$2:$A$500'],
       };
-      sheet.getCell(`F${row}`).dataValidation = {
+      sheet.getCell(`E${row}`).dataValidation = {
         type: 'list',
         allowBlank: false,
         formulae: ['MasterData!$B$2:$B$500'],
@@ -889,7 +881,7 @@ export class AdminUserService {
     notes.addRows([
       ['Rule', 'Details'],
       ['Institution', `Template generated for institutionsId: ${institutionsId}`],
-      ['Phone default', 'If phoneNumber is submitted without country code, backend defaults it to +44'],
+      ['Phone format', 'Phone numbers must start with the + country code prefix'],
       ['Email', 'Use lowercase email with @'],
       ['Password', 'Minimum 8 chars, include uppercase + number + special character'],
       ['Confirm password', 'Must match create password'],
@@ -900,5 +892,4 @@ export class AdminUserService {
     const fileBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
     return { fileName, fileBuffer };
   }
-
 }

@@ -54,5 +54,30 @@ describe('AdminUserBulkValidator', () => {
 
     expect(errors).toEqual([]);
   });
+
+  it('rejects phone numbers missing the plus prefix', () => {
+    const errors = validator.validateRow({
+      rowNumber: 3,
+      name: 'John Admin',
+      firstName: null,
+      lastName: null,
+      email: 'john@naachi.com',
+      userName: 'johnadmin',
+      password: 'Password@123',
+      confirmPassword: 'Password@123',
+      permissionGroupName: 'Marketing',
+      departmentName: 'Operations',
+      phoneNumber: '919876543210',
+      role: AdminRoles.ADMIN,
+      status: 'active',
+      rawStatus: 'active',
+      permissionGroupsId: [],
+      institutionsId: null,
+      departmentsId: [],
+      s3ProfileImageName: null,
+    });
+
+    expect(errors.some((e) => e.field === 'phoneNumber')).toBe(true);
+  });
 });
 

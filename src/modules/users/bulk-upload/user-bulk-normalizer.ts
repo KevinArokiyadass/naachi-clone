@@ -64,5 +64,6 @@ export const normalizeUserUploadRow = (row: ParsedUserUploadRow): NormalizedUser
     phoneNumber: normalizePhone(row.data.phoneNumber),
     rawStatus: toText(row.data.status),
     status: normalizeStatus(row.data.status),
+    departmentName: toText(row.data.departmentName),
   };
 };
