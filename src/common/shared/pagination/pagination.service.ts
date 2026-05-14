@@ -23,11 +23,16 @@ export class PaginationService {
           projection = {},
           sort = { _id: -1 }
       } = options;
-      const shouldPaginate = !(skip === undefined || skip !== skip || limit === undefined || limit !== limit);
-      const isNonPaginated = nonPaginated || !shouldPaginate;
-  
-      const validatedSkip = skip >= 0 ? skip : 0;
-      const validatedLimit = limit > 0 ? limit : 10;
+
+      /**
+       * Previously, missing `skip` or `limit` (e.g. only `limit` sent from the client) forced a
+       * non-paginated query and returned *every* matching document. That breaks list UIs (oversized
+       * payloads, inconsistent first page) and is almost never intended. Only `nonPaginated: true`
+       * should opt into an unbounded fetch.
+       */
+      const normalizedSkip = skip === undefined || skip !== skip ? 0 : Math.max(0, skip);
+      const normalizedLimit = limit === undefined || limit !== limit || limit <= 0 ? 10 : Math.max(1, limit);
+      const isNonPaginated = Boolean(nonPaginated);
 
       const query = this.constructQuery(filter);
   
@@ -44,16 +49,16 @@ export class PaginationService {
       } else {
           // Fetch paginated items
           const [items, totalItems] = await Promise.all([
-              collection.find(query, projection, { lean: true, sort, skip: validatedSkip, limit: validatedLimit }),
+              collection.find(query, projection, { lean: true, sort, skip: normalizedSkip, limit: normalizedLimit }),
               collection.countDocuments(query),
           ]);
-          const totalPages = Math.max(Math.ceil(totalItems / validatedLimit), 1);
+          const totalPages = Math.max(Math.ceil(totalItems / normalizedLimit), 1);
   
           return {
               totalItems,
               totalPages,
-              skip: validatedSkip,
-              limit: validatedLimit,
+              skip: normalizedSkip,
+              limit: normalizedLimit,
               items,
           };
       }

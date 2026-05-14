@@ -29,7 +29,11 @@ export class AdminUserBulkRepository {
     ]);
 
     return {
-      byEmail: new Map(emailRows.filter((row) => row?.email).map((row) => [row.email, row])),
+      byEmail: new Map(
+        emailRows
+          .filter((row) => row?.email)
+          .map((row) => [String(row.email).toLowerCase(), row]),
+      ),
       byUserName: new Map(userNameRows.filter((row) => row?.userName).map((row) => [row.userName, row])),
       byPhoneNumber: new Map(phoneRows.filter((row) => row?.phoneNumber).map((row) => [row.phoneNumber, row])),
     };
