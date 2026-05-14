@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors, UnprocessableEntityException } from '@nestjs/common';
 import { ApiBody, ApiConsumes, ApiOperation, ApiProduces, ApiResponse } from '@nestjs/swagger';
 import { AdminUserService } from './admin-user.service';
 import { CreateAdminWithPasswordDto } from './dto/create-admin-with-password.dto';
@@ -18,6 +18,7 @@ import { memoryStorage } from 'multer';
 import { AdminUserBulkUploadDto } from './dto/admin-user-bulk-upload.dto';
 import { AdminUserBulkUploadService } from './bulk-upload/admin-user-bulk-upload.service';
 import { AdminUserBulkRateLimitGuard } from './bulk-upload/admin-user-bulk-rate-limit.guard';
+import { AdminUserBulkUploadResult } from './bulk-upload/admin-user-bulk-upload.types';
 import { Response } from 'express';
 
 
@@ -29,6 +30,20 @@ export class AdminUserController {
     private readonly adminUserService: AdminUserService,
     private readonly adminUserBulkUploadService: AdminUserBulkUploadService,
   ) { }
+
+  /**
+   * When every row fails, respond with 422 so HTTP clients do not treat the call as a generic success.
+   * Row-level details and optional rejected-rows spreadsheet remain on the exception body.
+   */
+  private assertAdminBulkUploadHasSuccessRows(result: AdminUserBulkUploadResult): void {
+    if (result.failureCount > 0 && result.successCount === 0) {
+      throw new UnprocessableEntityException({
+        message:
+          'Bulk upload did not import any rows. Fix invalid values and try again. If present, decode rejectedExcelBase64 using rejectedExcelFileName for rejected rows.',
+        ...result,
+      });
+    }
+  }
 
   @Post('create')
   @Public()
@@ -75,6 +90,7 @@ export class AdminUserController {
       required: ['file'],
     },
   })
+  @ApiResponse({ status: 422, description: 'No rows were imported (all rows invalid, duplicate, or failed).' })
   async bulkUploadAdmins(
     @UploadedFile() file: Express.Multer.File,
     @Body() bulkUploadDto: AdminUserBulkUploadDto,
@@ -84,11 +100,13 @@ export class AdminUserController {
       throw new BadRequestException('file is required');
     }
     const requestInstitutionsId = req['institutionsId'] as string | undefined;
-    return this.adminUserBulkUploadService.processUpload(file, bulkUploadDto, {
+    const result = await this.adminUserBulkUploadService.processUpload(file, bulkUploadDto, {
       institutionsId: requestInstitutionsId,
       requestInstitutionsId,
       isSuperAdminRequest: Boolean(req['isSuperAdminRequest']),
     });
+    this.assertAdminBulkUploadHasSuccessRows(result);
+    return result;
   }
 
   @Post(':institutionsId/bulk-upload')
@@ -118,6 +136,7 @@ export class AdminUserController {
       required: ['file'],
     },
   })
+  @ApiResponse({ status: 422, description: 'No rows were imported (all rows invalid, duplicate, or failed).' })
   async bulkUploadAdminsByInstitution(
     @Param('institutionsId') institutionsId: string,
     @UploadedFile() file: Express.Multer.File,
@@ -127,11 +146,13 @@ export class AdminUserController {
     if (!file) {
       throw new BadRequestException('file is required');
     }
-    return this.adminUserBulkUploadService.processUpload(file, bulkUploadDto, {
+    const result = await this.adminUserBulkUploadService.processUpload(file, bulkUploadDto, {
       institutionsId,
       requestInstitutionsId: req['institutionsId'] as string | undefined,
       isSuperAdminRequest: Boolean(req['isSuperAdminRequest']),
     });
+    this.assertAdminBulkUploadHasSuccessRows(result);
+    return result;
   }
 
   @Get('bulk-upload/template')

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { assignBulkUploadOutcome } from '../../../common/utils/bulk-upload-outcome.util';
 import { AdminRoles } from '../../../common/enums/user.enum';
 import { AdminUserService } from '../admin-user.service';
 import { AdminUserBulkUploadDto } from '../dto/admin-user-bulk-upload.dto';
@@ -273,7 +274,7 @@ export class AdminUserBulkUploadService {
       this.metrics.increment('upload_succeeded');
     }
 
-    return result;
+    return assignBulkUploadOutcome(result);
   }
 
   private findDuplicatesInFile(rows: NormalizedAdminUserUploadRow[]): Map<number, string> {

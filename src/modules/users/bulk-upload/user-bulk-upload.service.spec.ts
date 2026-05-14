@@ -129,6 +129,7 @@ describe('UserBulkUploadService', () => {
 
     expect(result.successCount).toBe(0);
     expect(result.failureCount).toBe(1);
+    expect(result.uploadOutcome).toBe('failed');
     expect(usersService.createInstitutionManagedUser).not.toHaveBeenCalled();
   });
 });

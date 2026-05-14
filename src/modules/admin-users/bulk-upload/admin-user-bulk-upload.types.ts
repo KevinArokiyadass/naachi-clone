@@ -1,3 +1,4 @@
+import type { BulkUploadOutcome } from '../../../common/utils/bulk-upload-outcome.util';
 import { AdminRoles } from '../../../common/enums/user.enum';
 
 export enum BulkUploadErrorCode {
@@ -53,6 +54,8 @@ export interface AdminUserBulkUploadResult {
   createdIds: string[];
   updatedIds: string[];
   dryRun: boolean;
+  /** Present on responses from processUpload; use with failureCount / successCount for UI messaging. */
+  uploadOutcome?: BulkUploadOutcome;
   rejectedExcelFileName?: string;
   rejectedExcelBase64?: string;
 }

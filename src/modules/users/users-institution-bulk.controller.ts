@@ -12,6 +12,7 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -24,6 +25,7 @@ import { UserBulkUploadDto } from './dto/user-bulk-upload.dto';
 import { UserBulkUploadService } from './bulk-upload/user-bulk-upload.service';
 import { UserBulkRateLimitGuard } from './bulk-upload/user-bulk-rate-limit.guard';
 import { UsersAuthService } from './users.service';
+import { UserBulkUploadResult } from './bulk-upload/user-bulk-upload.types';
 
 /**
  * Institution-scoped user bulk upload routes only.
@@ -36,6 +38,16 @@ export class UsersInstitutionBulkController {
     private readonly usersService: UsersAuthService,
     private readonly userBulkUploadService: UserBulkUploadService,
   ) {}
+
+  private assertUserBulkUploadHasSuccessRows(result: UserBulkUploadResult): void {
+    if (result.failureCount > 0 && result.successCount === 0) {
+      throw new UnprocessableEntityException({
+        message:
+          'Bulk upload did not import any users. Fix invalid values and try again. If present, decode rejectedExcelBase64 using rejectedExcelFileName for rejected rows.',
+        ...result,
+      });
+    }
+  }
 
   @Post('bulk-upload')
   @UseGuards(CognitoAuthGuard, RolesGuard, UserBulkRateLimitGuard)
@@ -56,11 +68,13 @@ export class UsersInstitutionBulkController {
     if (!file) {
       throw new BadRequestException('file is required');
     }
-    return this.userBulkUploadService.processUpload(file, bulkUploadDto, {
+    const result = await this.userBulkUploadService.processUpload(file, bulkUploadDto, {
       institutionsId,
       requestInstitutionsId: req['institutionsId'] as string | undefined,
       isSuperAdminRequest: Boolean(req['isSuperAdminRequest']),
     });
+    this.assertUserBulkUploadHasSuccessRows(result);
+    return result;
   }
 
   @Get('bulk-upload/template')

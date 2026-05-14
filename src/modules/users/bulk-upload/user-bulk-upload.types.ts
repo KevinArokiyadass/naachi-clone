@@ -1,3 +1,5 @@
+import type { BulkUploadOutcome } from '../../../common/utils/bulk-upload-outcome.util';
+
 export enum UserBulkUploadErrorCode {
   INVALID_FILE_FORMAT = 'INVALID_FILE_FORMAT',
   MISSING_REQUIRED_FIELD = 'MISSING_REQUIRED_FIELD',
@@ -44,6 +46,8 @@ export interface UserBulkUploadResult {
   createdIds: string[];
   updatedIds: string[];
   dryRun: boolean;
+  /** Present on responses from processUpload; use with failureCount / successCount for UI messaging. */
+  uploadOutcome?: BulkUploadOutcome;
   reportFileName?: string;
   reportCsvBase64?: string;
   rejectedExcelFileName?: string;

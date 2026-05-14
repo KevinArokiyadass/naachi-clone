@@ -63,5 +63,35 @@ describe('AdminUserController bulk upload', () => {
 
     expect(bulkServiceMock.processUpload).toHaveBeenCalled();
   });
+
+  it('returns 422 when no rows succeed', async () => {
+    bulkServiceMock.processUpload = jest.fn().mockResolvedValue({
+      totalRows: 1,
+      processedRows: 1,
+      successCount: 0,
+      failureCount: 1,
+      duplicateCount: 0,
+      errors: [
+        {
+          rowNumber: 2,
+          field: 'email',
+          code: 'MISSING_REQUIRED_FIELD',
+          message: 'Email is required.',
+        },
+      ],
+      createdIds: [],
+      updatedIds: [],
+      dryRun: false,
+      uploadOutcome: 'failed',
+    });
+
+    const csv =
+      'name,phoneNumber,email,permissionGroupName,departmentName,password,confirmPassword\n' +
+      'Jane,+447912345678,,Marketing,Operations,Password@123,Password@123';
+    await request(app.getHttpServer())
+      .post('/admin-user/bulk-upload')
+      .attach('file', Buffer.from(csv), 'admins.csv')
+      .expect(422);
+  });
 });
 

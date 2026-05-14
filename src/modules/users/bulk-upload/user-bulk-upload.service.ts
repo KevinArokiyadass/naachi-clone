@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { assignBulkUploadOutcome } from '../../../common/utils/bulk-upload-outcome.util';
 import { UserBulkUploadDto } from '../dto/user-bulk-upload.dto';
 import { UsersAuthService } from '../users.service';
 import { normalizeUserUploadRow } from './user-bulk-normalizer';
@@ -326,7 +327,7 @@ export class UserBulkUploadService {
       }
     }
 
-    return result;
+    return assignBulkUploadOutcome(result);
   }
 
   private findDuplicatesInFile(rows: NormalizedUserUploadRow[]): Map<number, string> {

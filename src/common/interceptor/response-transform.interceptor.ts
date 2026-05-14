@@ -1,5 +1,6 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { map, Observable } from 'rxjs';
+import { isBulkUploadSummaryPayload } from '../utils/bulk-upload-outcome.util';
 
 @Injectable()
 export class ResponseInterceptor implements NestInterceptor {
@@ -29,13 +30,28 @@ export class ResponseInterceptor implements NestInterceptor {
                         };
                     }
 
+                    let envelopeMessage = value?.message;
+                    if (!envelopeMessage) {
+                        if (isBulkUploadSummaryPayload(value)) {
+                            if (value.failureCount === 0) {
+                                envelopeMessage = 'Bulk upload completed successfully.';
+                            } else if (value.successCount > 0) {
+                                envelopeMessage = 'Bulk upload completed with errors on one or more rows.';
+                            } else {
+                                envelopeMessage = 'Bulk upload failed.';
+                            }
+                        } else {
+                            envelopeMessage = "Success";
+                        }
+                    }
+
                     // If it's direct data, wrap it in the standard format
                     return {
                         statusCode: response.statusCode,
                         timestamp: new Date().toISOString(),
                         method: request.method,
                         path: request.url,
-                        message: "Success",
+                        message: envelopeMessage,
                         data: value,
                     };
                 }),

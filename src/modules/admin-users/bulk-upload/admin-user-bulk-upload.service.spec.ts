@@ -69,6 +69,7 @@ describe('AdminUserBulkUploadService', () => {
       { institutionsId: 'inst-1', requestInstitutionsId: 'inst-1' },
     );
     expect(result.successCount).toBe(1);
+    expect(result.uploadOutcome).toBe('success');
     expect(adminUserService.createAdminUser).not.toHaveBeenCalled();
   });
 
@@ -116,6 +117,7 @@ describe('AdminUserBulkUploadService', () => {
     expect(result.duplicateCount).toBe(1);
     expect(result.failureCount).toBe(1);
     expect(result.successCount).toBe(1);
+    expect(result.uploadOutcome).toBe('partial_failure');
   });
 
   it('updates existing rows when updateExisting is true', async () => {
