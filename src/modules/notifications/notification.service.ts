@@ -289,6 +289,18 @@ export class NotificationService {
     }
   }
 
+  /** True when FCM must not run (user mute or connection-level mute). In-app row may still exist. */
+  private async shouldSkipFcmForUser(userId: string, senderId?: string): Promise<boolean> {
+    const userProfile = await this.dbServices.users.findOne({ userId }, { muteNotifications: 1 });
+    if (userProfile?.muteNotifications === true) {
+      return true;
+    }
+    if (senderId && (await this.isSenderMutedByReceiver(userId, senderId))) {
+      return true;
+    }
+    return false;
+  }
+
   /* Create notification history record and send Firebase notification */
   async createNotificationRecord(createNotificationHistoryDto: CreateNotificationHistoryDto) {
     try {
@@ -296,26 +308,6 @@ export class NotificationService {
 
       if (userId) {
         this.Logger.log(`Creating notification record for userId: ${userId}`);
-
-        const userProfile = await this.dbServices.users.findOne(
-          { userId },
-          { muteNotifications: 1 }
-        );
-        if (userProfile?.muteNotifications === true) {
-          this.Logger.log(`Skipping notification for userId ${userId}: muteNotifications is enabled (no record created, no in-app notification)`);
-          return { skipped: true, reason: 'muted' };
-        }
-
-        const senderId = createNotificationHistoryDto.data?.senderId;
-        if (senderId) {
-          const mutedByConnection = await this.isSenderMutedByReceiver(userId, senderId);
-          if (mutedByConnection) {
-            this.Logger.log(
-              `Skipping notification for userId ${userId}: sender ${senderId} is muted (muteNotification on connection); no record created`
-            );
-            return { skipped: true, reason: 'connectionMuted' };
-          }
-        }
       }
 
       // Chat flow can occasionally call POST /notifications more than once
@@ -337,7 +329,19 @@ export class NotificationService {
           this.Logger.log(
             `Duplicate notification detected for userId ${userId} and messageId ${messageId}; returning existing notification ${existingNotification.notificationId}`
           );
-          return existingNotification;
+          if (existingNotification.status === NotificationStatus.FAILED) {
+            const senderId = createNotificationHistoryDto.data?.senderId;
+            if (!(await this.shouldSkipFcmForUser(userId, senderId))) {
+              this.Logger.log(
+                `Retrying FCM for previously failed notification ${existingNotification.notificationId}`
+              );
+              await this.sendNotificationToUser(existingNotification);
+            }
+          }
+          const refreshed = await this.dbServices.notificationHistory.findOne({
+            notificationId: existingNotification.notificationId,
+          });
+          return refreshed ?? existingNotification;
         }
       }
 
@@ -354,7 +358,19 @@ export class NotificationService {
       this.Logger.log(`Created notification history record: ${createdRecord.notificationId}`);
 
       if (userId) {
-        await this.sendNotificationToUser(createdRecord);
+        const senderId = createNotificationHistoryDto.data?.senderId;
+        const userProfile = await this.dbServices.users.findOne({ userId }, { muteNotifications: 1 });
+        if (userProfile?.muteNotifications === true) {
+          this.Logger.log(
+            `Skipping FCM for userId ${userId}: muteNotifications is enabled (in-app record kept)`
+          );
+        } else if (senderId && (await this.isSenderMutedByReceiver(userId, senderId))) {
+          this.Logger.log(
+            `Skipping FCM for userId ${userId}: sender is muted at connection level (in-app record kept)`
+          );
+        } else {
+          await this.sendNotificationToUser(createdRecord);
+        }
       }
 
       return createdRecord;
@@ -438,6 +454,12 @@ export class NotificationService {
       // Update notification status based on results
       const successCount = results.filter(r => r.success).length;
       const totalCount = results.length;
+
+      if (successCount === 0 && totalCount > 0) {
+        await this.updateNotificationStatus(notificationRecord.notificationId, NotificationStatus.FAILED);
+      } else if (successCount > 0 && notificationRecord.status === NotificationStatus.FAILED) {
+        await this.updateNotificationStatus(notificationRecord.notificationId, NotificationStatus.UNREAD);
+      }
 
       return {
         notificationId: notificationRecord.notificationId,
