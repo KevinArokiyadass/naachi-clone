@@ -1657,8 +1657,7 @@ export class UsersAuthService implements OnModuleInit {
 
   async getUserByUserId(userId: string) {
     const user = await this.dbService.users.findOne({
-      userId,
-      isDeleted: false,
+      userId
     });
 
     if (!user) {
