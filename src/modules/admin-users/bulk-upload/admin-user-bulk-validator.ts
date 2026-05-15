@@ -55,16 +55,20 @@ export class AdminUserBulkValidator {
       }
     }
 
-    if (!row.permissionGroupsId.length && !row.permissionGroupName) {
-      errors.push(this.error(row.rowNumber, 'permissionGroupName', BulkUploadErrorCode.MISSING_REQUIRED_FIELD, 'Select permission is required.'));
+    if (!row.permissionGroupsId.length) {
+      if (row.permissionGroupName) {
+        errors.push(this.error(row.rowNumber, 'permissionGroupName', BulkUploadErrorCode.INVALID_FIELD_FORMAT, `Permission '${row.permissionGroupName}' does not exist.`));
+      } else if (row.role && ![AdminRoles.SUPER_ADMIN, AdminRoles.ADMIN].includes(row.role)) {
+        errors.push(this.error(row.rowNumber, 'permissionGroupsId', BulkUploadErrorCode.MISSING_REQUIRED_FIELD, 'permissionGroupsId is required for this role.'));
+      }
     }
 
-    if (!row.departmentsId.length && !row.departmentName) {
-      errors.push(this.error(row.rowNumber, 'departmentName', BulkUploadErrorCode.MISSING_REQUIRED_FIELD, 'Select department is required.'));
-    }
-
-    if (row.role && ![AdminRoles.SUPER_ADMIN, AdminRoles.ADMIN].includes(row.role) && row.permissionGroupsId.length === 0 && !row.permissionGroupName) {
-      errors.push(this.error(row.rowNumber, 'permissionGroupsId', BulkUploadErrorCode.MISSING_REQUIRED_FIELD, 'permissionGroupsId is required for this role.'));
+    if (!row.departmentsId.length) {
+      if (row.departmentName) {
+        errors.push(this.error(row.rowNumber, 'departmentName', BulkUploadErrorCode.INVALID_FIELD_FORMAT, `Department '${row.departmentName}' does not exist.`));
+      } else {
+        errors.push(this.error(row.rowNumber, 'departmentName', BulkUploadErrorCode.MISSING_REQUIRED_FIELD, 'Select department is required.'));
+      }
     }
 
     return errors;
