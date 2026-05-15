@@ -46,9 +46,9 @@ describe('AdminUserBulkValidator', () => {
       role: AdminRoles.ADMIN,
       status: 'active',
       rawStatus: 'active',
-      permissionGroupsId: [],
+      permissionGroupsId: ['mock-perm-id'],
       institutionsId: null,
-      departmentsId: [],
+      departmentsId: ['mock-dept-id'],
       s3ProfileImageName: null,
     });
 
@@ -71,9 +71,9 @@ describe('AdminUserBulkValidator', () => {
       role: AdminRoles.ADMIN,
       status: 'active',
       rawStatus: 'active',
-      permissionGroupsId: [],
+      permissionGroupsId: ['mock-perm-id'],
       institutionsId: null,
-      departmentsId: [],
+      departmentsId: ['mock-dept-id'],
       s3ProfileImageName: null,
     });
 

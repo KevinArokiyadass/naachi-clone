@@ -92,15 +92,26 @@ export class UserBulkValidator {
       );
     }
 
-    if (!row.departmentsId && !row.departmentName) {
-      errors.push(
-        this.error(
-          row.rowNumber,
-          'departmentName',
-          UserBulkUploadErrorCode.MISSING_REQUIRED_FIELD,
-          'Department is required.',
-        ),
-      );
+    if (!row.departmentsId) {
+      if (row.departmentName) {
+        errors.push(
+          this.error(
+            row.rowNumber,
+            'departmentName',
+            UserBulkUploadErrorCode.INVALID_FIELD_FORMAT,
+            `Department '${row.departmentName}' does not exist.`,
+          ),
+        );
+      } else {
+        errors.push(
+          this.error(
+            row.rowNumber,
+            'departmentName',
+            UserBulkUploadErrorCode.MISSING_REQUIRED_FIELD,
+            'Department is required.',
+          ),
+        );
+      }
     }
 
     return errors;
