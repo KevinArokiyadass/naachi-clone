@@ -624,6 +624,9 @@ export class UsersAuthService implements OnModuleInit {
       }
     }
 
+    // Check if user exists as an admin to set isVerified: true
+    const adminSyncResult = email ? await this.syncInstitutionIdFromAdminUser(email, phoneNumber) : null;
+
     await this.dbService.users.create({
       userId,
       name: payload.name.trim(),
@@ -632,7 +635,7 @@ export class UsersAuthService implements OnModuleInit {
       userName,
       userNameSet: Boolean(userName),
       status: payload.status || USER_STATUS.ACTIVE,
-      isVerified: false,
+      isVerified: Boolean(adminSyncResult),
       isDeleted: false,
       phoneVerified: true,
       emailVerified: Boolean(email),
@@ -695,6 +698,9 @@ export class UsersAuthService implements OnModuleInit {
       }
     }
 
+    // Check if user exists as an admin to set isVerified: true
+    const adminSyncResult = email ? await this.syncInstitutionIdFromAdminUser(email, user.phoneNumber) : null;
+
     await this.dbService.users.findOneAndUpdate(
       { userId, isDeleted: false },
       {
@@ -705,7 +711,7 @@ export class UsersAuthService implements OnModuleInit {
         status: payload.status || USER_STATUS.ACTIVE,
         institutionsId: payload.institutionsId,
         departmentsId: payload.departmentsId,
-        isVerified: false,
+        isVerified: Boolean(adminSyncResult),
         phoneVerified: true,
         emailVerified: Boolean(email),
         referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
