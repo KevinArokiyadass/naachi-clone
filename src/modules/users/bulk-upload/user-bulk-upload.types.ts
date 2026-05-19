@@ -54,8 +54,16 @@ export interface UserBulkUploadResult {
   rejectedExcelBase64?: string;
 }
 
+export interface ExistingUserRecord {
+  userId: string;
+  email?: string;
+  phoneNumber?: string;
+  userName?: string;
+  institutionsId?: string;
+}
+
 export interface ExistingUserLookupMaps {
-  byEmail: Map<string, { userId: string; email: string }>;
-  byUserName: Map<string, { userId: string; userName: string }>;
-  byPhoneNumber: Map<string, { userId: string; phoneNumber: string }>;
+  byEmail: Map<string, ExistingUserRecord>;
+  byUserName: Map<string, ExistingUserRecord>;
+  byPhoneNumber: Map<string, ExistingUserRecord>;
 }

@@ -103,6 +103,119 @@ describe('UserBulkUploadService', () => {
     );
   });
 
+  it('links existing global user by email to the institution', async () => {
+    parser.parse = jest.fn().mockReturnValue([
+      {
+        rowNumber: 2,
+        data: {
+          name: 'Global Student',
+          phoneNumber: '+447912345678',
+          email: 'global@student.com',
+          status: 'active',
+          departmentName: 'Science',
+        },
+      },
+    ]);
+    repository.findExistingByUniqueKeys = jest.fn().mockResolvedValue({
+      byEmail: new Map([
+        [
+          'global@student.com',
+          { userId: 'usr-global', email: 'global@student.com', institutionsId: undefined },
+        ],
+      ]),
+      byUserName: new Map(),
+      byPhoneNumber: new Map(),
+    });
+    usersService.updateInstitutionManagedUser = jest.fn().mockResolvedValue(undefined);
+
+    const result = await service.processUpload(
+      {} as Express.Multer.File,
+      {},
+      { institutionsId: 'inst-1', requestInstitutionsId: 'inst-1' },
+    );
+
+    expect(result.updatedIds).toEqual(['usr-global']);
+    expect(result.successCount).toBe(1);
+    expect(usersService.createInstitutionManagedUser).not.toHaveBeenCalled();
+    expect(usersService.updateInstitutionManagedUser).toHaveBeenCalledWith(
+      'usr-global',
+      expect.objectContaining({
+        institutionsId: 'inst-1',
+        email: 'global@student.com',
+      }),
+    );
+  });
+
+  it('links phone-only existing user and sets email from bulk row', async () => {
+    parser.parse = jest.fn().mockReturnValue([
+      {
+        rowNumber: 2,
+        data: {
+          name: 'Phone Only',
+          phoneNumber: '+447900000001',
+          email: 'newmail@student.com',
+          status: 'active',
+          departmentName: 'Science',
+        },
+      },
+    ]);
+    repository.findExistingByUniqueKeys = jest.fn().mockResolvedValue({
+      byEmail: new Map(),
+      byUserName: new Map(),
+      byPhoneNumber: new Map([
+        [
+          '+447900000001',
+          { userId: 'usr-phone', phoneNumber: '+447900000001', institutionsId: undefined },
+        ],
+      ]),
+    });
+    usersService.updateInstitutionManagedUser = jest.fn().mockResolvedValue(undefined);
+
+    const result = await service.processUpload(
+      {} as Express.Multer.File,
+      {},
+      { institutionsId: 'inst-1', requestInstitutionsId: 'inst-1' },
+    );
+
+    expect(result.updatedIds).toEqual(['usr-phone']);
+    expect(usersService.updateInstitutionManagedUser).toHaveBeenCalledWith(
+      'usr-phone',
+      expect.objectContaining({ email: 'newmail@student.com', institutionsId: 'inst-1' }),
+    );
+  });
+
+  it('rejects when email and phone match different users', async () => {
+    parser.parse = jest.fn().mockReturnValue([
+      {
+        rowNumber: 2,
+        data: {
+          name: 'Conflict',
+          phoneNumber: '+447900000002',
+          email: 'conflict@student.com',
+          status: 'active',
+          departmentName: 'Science',
+        },
+      },
+    ]);
+    repository.findExistingByUniqueKeys = jest.fn().mockResolvedValue({
+      byEmail: new Map([['conflict@student.com', { userId: 'usr-email', email: 'conflict@student.com' }]]),
+      byUserName: new Map(),
+      byPhoneNumber: new Map([
+        ['+447900000002', { userId: 'usr-phone', phoneNumber: '+447900000002' }],
+      ]),
+    });
+
+    const result = await service.processUpload(
+      {} as Express.Multer.File,
+      {},
+      { institutionsId: 'inst-1', requestInstitutionsId: 'inst-1' },
+    );
+
+    expect(result.failureCount).toBe(1);
+    expect(usersService.updateInstitutionManagedUser).not.toHaveBeenCalled();
+    expect(usersService.createInstitutionManagedUser).not.toHaveBeenCalled();
+  });
+
   it('fails rows with invalid status values', async () => {
     parser.parse = jest.fn().mockReturnValue([
       {

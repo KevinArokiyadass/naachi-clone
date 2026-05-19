@@ -6,6 +6,8 @@ import { normalizeUserUploadRow } from './user-bulk-normalizer';
 import { UserBulkParser } from './user-bulk-parser';
 import { UserBulkRepository } from './user-bulk.repository';
 import {
+  ExistingUserLookupMaps,
+  ExistingUserRecord,
   NormalizedUserUploadRow,
   UserBulkUploadError,
   UserBulkUploadErrorCode,
@@ -152,16 +154,90 @@ export class UserBulkUploadService {
         const effectiveStatus = row.status ?? 'active';
 
         try {
-          const existingByPhone = row.phoneNumber
-            ? existingMaps.byPhoneNumber.get(row.phoneNumber)
-            : undefined;
-
-          if (existingByPhone && skipExisting) {
-            const duplicateReason = `User already exists for ${row.phoneNumber}.`;
+          const resolution = this.resolveExistingUser(row, existingMaps);
+          if (resolution.conflict) {
             this.appendRowErrors(result, [
               this.toRowError(
                 row.rowNumber,
-                'phoneNumber',
+                'email',
+                UserBulkUploadErrorCode.BUSINESS_RULE_VIOLATION,
+                resolution.conflict,
+              ),
+            ]);
+            reportRows.push({
+              rowNumber: row.rowNumber,
+              phoneNumber: row.phoneNumber || '',
+              email: row.email || '',
+              status: 'FAILURE',
+              action: 'FAILED',
+              reason: resolution.conflict,
+            });
+            continue;
+          }
+
+          const existing = resolution.user;
+          const shouldLinkExisting =
+            existing && (this.shouldAutoLinkExistingUser(existing, row) || updateExisting);
+
+          if (existing && shouldLinkExisting) {
+            if (
+              existing.institutionsId &&
+              existing.institutionsId !== context.institutionsId
+            ) {
+              const institutionConflict =
+                'User is already assigned to another institution.';
+              this.appendRowErrors(result, [
+                this.toRowError(
+                  row.rowNumber,
+                  'email',
+                  UserBulkUploadErrorCode.BUSINESS_RULE_VIOLATION,
+                  institutionConflict,
+                ),
+              ]);
+              reportRows.push({
+                rowNumber: row.rowNumber,
+                phoneNumber: row.phoneNumber || '',
+                email: row.email || '',
+                status: 'FAILURE',
+                action: 'FAILED',
+                reason: institutionConflict,
+              });
+              continue;
+            }
+
+            if (!dryRun) {
+              await this.usersService.updateInstitutionManagedUser(existing.userId, {
+                institutionsId: context.institutionsId,
+                departmentsId: row.departmentsId,
+                name: row.name!,
+                email: row.email || undefined,
+                userName: row.userName || undefined,
+                status: effectiveStatus,
+              });
+              result.updatedIds.push(existing.userId);
+            }
+            result.successCount += 1;
+            result.processedRows += 1;
+            const linkReason = this.describeLinkReason(existing, row);
+            reportRows.push({
+              rowNumber: row.rowNumber,
+              phoneNumber: row.phoneNumber || '',
+              email: row.email || '',
+              status: 'SUCCESS',
+              action: 'UPDATED',
+              reason: dryRun ? `Validated link (dry run): ${linkReason}` : linkReason,
+            });
+            continue;
+          }
+
+          if (existing && skipExisting) {
+            const duplicateReason = row.email
+              ? `User already exists for ${row.email}.`
+              : `User already exists for ${row.phoneNumber}.`;
+            this.appendRowErrors(result, [
+              this.toRowError(
+                row.rowNumber,
+                row.email ? 'email' : 'phoneNumber',
                 UserBulkUploadErrorCode.DUPLICATE_IN_DB,
                 duplicateReason,
               ),
@@ -178,7 +254,7 @@ export class UserBulkUploadService {
             continue;
           }
 
-          if (!existingByPhone) {
+          if (!existing) {
             if (!dryRun) {
               const created = await this.usersService.createInstitutionManagedUser({
                 institutionsId: context.institutionsId,
@@ -206,36 +282,13 @@ export class UserBulkUploadService {
             continue;
           }
 
-          if (updateExisting) {
-            if (!dryRun) {
-              await this.usersService.updateInstitutionManagedUser(existingByPhone.userId, {
-                institutionsId: context.institutionsId,
-                departmentsId: row.departmentsId,
-                name: row.name!,
-                email: row.email || undefined,
-                userName: row.userName || undefined,
-                status: effectiveStatus,
-              });
-              result.updatedIds.push(existingByPhone.userId);
-            }
-            result.successCount += 1;
-            result.processedRows += 1;
-            reportRows.push({
-              rowNumber: row.rowNumber,
-              phoneNumber: row.phoneNumber || '',
-              email: row.email || '',
-              status: 'SUCCESS',
-              action: 'UPDATED',
-              reason: dryRun ? 'Validated update (dry run).' : 'User updated successfully.',
-            });
-            continue;
-          }
-
-          const duplicateReason = `User already exists for ${row.phoneNumber}.`;
+          const duplicateReason = row.email
+            ? `User already exists for ${row.email}.`
+            : `User already exists for ${row.phoneNumber}.`;
           this.appendRowErrors(result, [
             this.toRowError(
               row.rowNumber,
-              'phoneNumber',
+              row.email ? 'email' : 'phoneNumber',
               UserBulkUploadErrorCode.DUPLICATE_IN_DB,
               duplicateReason,
             ),
@@ -331,21 +384,106 @@ export class UserBulkUploadService {
   }
 
   private findDuplicatesInFile(rows: NormalizedUserUploadRow[]): Map<number, string> {
+    const seenByEmail = new Map<string, number>();
     const seenByPhone = new Map<string, number>();
     const duplicates = new Map<number, string>();
 
     for (const row of rows) {
+      if (row.email) {
+        const seenEmailRow = seenByEmail.get(row.email);
+        if (seenEmailRow) {
+          duplicates.set(
+            row.rowNumber,
+            `Duplicate email in file, first seen at row ${seenEmailRow}.`,
+          );
+          continue;
+        }
+        seenByEmail.set(row.email, row.rowNumber);
+      }
+
       if (!row.phoneNumber) {
         continue;
       }
-      const seenRow = seenByPhone.get(row.phoneNumber);
-      if (seenRow) {
-        duplicates.set(row.rowNumber, `Duplicate phoneNumber in file, first seen at row ${seenRow}.`);
+      const seenPhoneRow = seenByPhone.get(row.phoneNumber);
+      if (seenPhoneRow) {
+        duplicates.set(
+          row.rowNumber,
+          `Duplicate phoneNumber in file, first seen at row ${seenPhoneRow}.`,
+        );
       } else {
         seenByPhone.set(row.phoneNumber, row.rowNumber);
       }
     }
     return duplicates;
+  }
+
+  /**
+   * Email is the primary identity for bulk rows; phone is a secondary match when email is absent on the stored user.
+   */
+  private resolveExistingUser(
+    row: NormalizedUserUploadRow,
+    maps: ExistingUserLookupMaps,
+  ): { user?: ExistingUserRecord; conflict?: string } {
+    const existingByEmail = row.email ? maps.byEmail.get(row.email) : undefined;
+    const existingByPhone = row.phoneNumber
+      ? maps.byPhoneNumber.get(row.phoneNumber)
+      : undefined;
+
+    if (
+      existingByEmail &&
+      existingByPhone &&
+      existingByEmail.userId !== existingByPhone.userId
+    ) {
+      return {
+        conflict:
+          'Email and phone number belong to different existing users. Resolve the conflict before uploading.',
+      };
+    }
+
+    if (existingByEmail) {
+      return { user: existingByEmail };
+    }
+
+    if (existingByPhone) {
+      const storedEmail = existingByPhone.email?.trim().toLowerCase();
+      if (storedEmail && row.email && storedEmail !== row.email) {
+        return {
+          conflict: `Phone number is already registered with a different email (${existingByPhone.email}).`,
+        };
+      }
+      return { user: existingByPhone };
+    }
+
+    return {};
+  }
+
+  /**
+   * Link an existing global (or email-less) user to the target institution instead of treating the row as a duplicate.
+   */
+  private shouldAutoLinkExistingUser(
+    existing: ExistingUserRecord,
+    row: NormalizedUserUploadRow,
+  ): boolean {
+    if (row.email && existing.email?.trim().toLowerCase() === row.email) {
+      return true;
+    }
+    if (!existing.email && row.email) {
+      return true;
+    }
+    if (!existing.institutionsId) {
+      return true;
+    }
+    return false;
+  }
+
+  private describeLinkReason(existing: ExistingUserRecord, row: NormalizedUserUploadRow): string {
+    if (!existing.institutionsId) {
+      return 'Existing global user linked to institution.';
+    }
+    if (!existing.email && row.email) {
+      return 'Existing user updated with email and linked to institution.';
+    }
+    return 'Existing user linked to institution.';
   }
 
   private appendRowErrors(result: UserBulkUploadResult, errors: UserBulkUploadError[]): void {
