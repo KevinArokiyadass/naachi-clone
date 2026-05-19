@@ -2266,11 +2266,7 @@ export class UsersAuthService implements OnModuleInit {
         }
       }
 
-      try {
-        await this.httpClientService.delete('NAACHI_CHAT_SERVICE', `/group-member/user/${userId}`);
-      } catch (chatErr) {
-        console.error(`Failed to remove deleted user ${userId} from groups in chat-service:`, chatErr);
-      }
+      await this.httpClientService.delete('NAACHI_CHAT_SERVICE', `/group-member/user/${userId}`);
 
       return{
         message:'User deleted successfully',
@@ -2318,11 +2314,7 @@ export class UsersAuthService implements OnModuleInit {
           }
         }
 
-        try {
-          await this.httpClientService.delete('NAACHI_CHAT_SERVICE', `/group-member/user/${userId}`);
-        } catch (chatErr) {
-          console.error(`Failed to remove deleted user ${userId} from groups in chat-service:`, chatErr);
-        }
+        await this.httpClientService.delete('NAACHI_CHAT_SERVICE', `/group-member/user/${userId}`);
 
         results.push(updatedUser);
       }
