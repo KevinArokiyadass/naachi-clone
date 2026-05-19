@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { DBServicesModule } from 'src/common/repository/repository-services.module';
 import { CommonAuthModule } from 'src/common/services/common-auth.module';
+import { HttpClientModule } from 'src/common/inter-service-communication/http-client.module';
 import { UsersAuthService } from './users.service';
 import { UsersController } from './users.controller';
 import { UsersInstitutionBulkController } from './users-institution-bulk.controller';
@@ -25,6 +26,7 @@ import { ClientIdMiddleware } from 'src/common/middleware/clientId.middlewere';
         AwsStoreModule,
         ConfigurationModule,
         AdminUserModule,
+        HttpClientModule,
     MongooseModule.forFeature([
       { name: Users.name, schema: UsersSchema }
     ])
