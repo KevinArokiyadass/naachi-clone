@@ -49,6 +49,7 @@ import { Connection } from 'mongoose';
 import { Workbook } from 'exceljs';
 import { assertInstitutionUploadScope } from 'src/common/utils/institution-scope.util';
 import { normalizePhoneNumbersForLookup } from './utils/normalize-phone-lookup.util';
+import { HttpClientService } from 'src/common/inter-service-communication/http-client.service';
 
 
 @Injectable()
@@ -66,6 +67,7 @@ export class UsersAuthService implements OnModuleInit {
     private readonly awsStoreService: AwsStoreService,
     private readonly configurationService: ConfigurationService,
     @InjectConnection() private readonly connection: Connection,
+    private readonly httpClientService: HttpClientService,
   ) {
     if (!this.clientId) {
       throw new Error('COGNITO_CUSTOMER_APP_CLIENT_ID is not configured');
@@ -2264,6 +2266,12 @@ export class UsersAuthService implements OnModuleInit {
         }
       }
 
+      try {
+        await this.httpClientService.delete('NAACHI_CHAT_SERVICE', `/group-member/user/${userId}`);
+      } catch (chatErr) {
+        console.error(`Failed to remove deleted user ${userId} from groups in chat-service:`, chatErr);
+      }
+
       return{
         message:'User deleted successfully',
         user: updatedUser,
@@ -2308,6 +2316,12 @@ export class UsersAuthService implements OnModuleInit {
           } catch (cognitoErr) {
             // Ignore if user is absent from Cognito
           }
+        }
+
+        try {
+          await this.httpClientService.delete('NAACHI_CHAT_SERVICE', `/group-member/user/${userId}`);
+        } catch (chatErr) {
+          console.error(`Failed to remove deleted user ${userId} from groups in chat-service:`, chatErr);
         }
 
         results.push(updatedUser);
