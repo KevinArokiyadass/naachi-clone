@@ -624,8 +624,7 @@ export class UsersAuthService implements OnModuleInit {
       }
     }
 
-    // Check if user exists as an admin to set isVerified: true
-    const adminSyncResult = email ? await this.syncInstitutionIdFromAdminUser(email, phoneNumber) : null;
+    const adminSyncResult = email ? await this.syncInstitutionIdFromAdminUser(email) : null;
 
     await this.dbService.users.create({
       userId,
@@ -635,7 +634,7 @@ export class UsersAuthService implements OnModuleInit {
       userName,
       userNameSet: Boolean(userName),
       status: payload.status || USER_STATUS.ACTIVE,
-      isVerified: Boolean(adminSyncResult),
+      isVerified: Boolean(adminSyncResult?.emailMatched),
       isDeleted: false,
       phoneVerified: true,
       emailVerified: Boolean(email),
@@ -698,8 +697,12 @@ export class UsersAuthService implements OnModuleInit {
       }
     }
 
-    // Check if user exists as an admin to set isVerified: true
-    const adminSyncResult = email ? await this.syncInstitutionIdFromAdminUser(email, user.phoneNumber) : null;
+    const adminSyncResult = email
+      ? await this.syncInstitutionIdFromAdminUser(email)
+      : null;
+    const isVerified = adminSyncResult?.emailMatched
+      ? true
+      : (user.isVerified ?? false);
 
     await this.dbService.users.findOneAndUpdate(
       { userId, isDeleted: false },
@@ -711,7 +714,7 @@ export class UsersAuthService implements OnModuleInit {
         status: payload.status || USER_STATUS.ACTIVE,
         institutionsId: payload.institutionsId,
         departmentsId: payload.departmentsId,
-        isVerified: Boolean(adminSyncResult),
+        isVerified,
         phoneVerified: true,
         emailVerified: Boolean(email),
         referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
@@ -813,30 +816,25 @@ export class UsersAuthService implements OnModuleInit {
   }
 
   /**
-   * Syncs institutionId from admin user to regular user if emails match
-   * Returns object with institutionId (phone number check removed - phone numbers can differ)
+   * Resolves whether a user's email belongs to an admin in Admin Management.
+   * Email match alone drives `isVerified`; `institutionId` is optional (from admin metaTags).
    */
   private async syncInstitutionIdFromAdminUser(
     email: string,
-    userPhoneNumber: string
-  ): Promise<{ institutionId: string } | null> {
+  ): Promise<{ emailMatched: true; institutionId?: string } | null> {
     const adminUser = await this.dbService.adminUser.findOne({
       email: email.toLowerCase().trim(),
-      isDeleted: { $ne: true }
+      isDeleted: { $ne: true },
     });
 
     if (!adminUser) {
       return null;
     }
 
-    // Get institutionId from admin user's metaTags
-    if (adminUser.metaTags && adminUser.metaTags.length > 0 && adminUser.metaTags[0].institutionsId) {
-      return {
-        institutionId: adminUser.metaTags[0].institutionsId
-      };
-    }
-
-    return null;
+    const institutionId = adminUser.metaTags?.[0]?.institutionsId;
+    return institutionId
+      ? { emailMatched: true, institutionId }
+      : { emailMatched: true };
   }
 
   async verifyEmail(dto: VerifyEmailDto) {
@@ -868,10 +866,10 @@ export class UsersAuthService implements OnModuleInit {
     }
 
     // Check for matching admin user and sync institutionId
-    const adminSyncResult = await this.syncInstitutionIdFromAdminUser(dto.email, user.phoneNumber);
+    const adminSyncResult = await this.syncInstitutionIdFromAdminUser(dto.email);
 
     // Validate institution domain if not an admin user
-    if (!adminSyncResult) {
+    if (!adminSyncResult?.emailMatched) {
       await this.validateInstitute(dto.email);
     }
 
@@ -949,7 +947,7 @@ export class UsersAuthService implements OnModuleInit {
     }
 
     // Check for matching admin user and sync institutionId
-    const adminSyncResult = await this.syncInstitutionIdFromAdminUser(dto.email, user.phoneNumber);
+    const adminSyncResult = await this.syncInstitutionIdFromAdminUser(dto.email);
 
     const institutionsId = adminSyncResult?.institutionId || await this.validateInstitute(dto.email);
 
@@ -963,14 +961,15 @@ export class UsersAuthService implements OnModuleInit {
         updatedAt: new Date()
       };
 
-      // Set isVerified to true if institutionId exists from admin user (email match only, phone numbers can differ)
-      if (adminSyncResult && adminSyncResult.institutionId) {
+      if (adminSyncResult?.emailMatched) {
         updatePayload.isVerified = true;
       }
 
       if (isPendingSignup) {
         updatePayload.status = USER_STATUS.ACTIVE;
-        updatePayload.isVerified = adminSyncResult?.institutionId ? true : (user.isVerified ?? false);
+        updatePayload.isVerified = adminSyncResult?.emailMatched
+          ? true
+          : (user.isVerified ?? false);
 
         // Only set referrerMedium during initial signup flow when it is not already set
         if (!user.referrerMedium) {
@@ -1019,14 +1018,15 @@ export class UsersAuthService implements OnModuleInit {
       updatedAt: new Date()
     };
 
-    // Set isVerified to true if institutionId exists from admin user (email match only, phone numbers can differ)
-    if (adminSyncResult && adminSyncResult.institutionId) {
+    if (adminSyncResult?.emailMatched) {
       updatePayload.isVerified = true;
     }
 
     if (isPendingSignup) {
       updatePayload.status = USER_STATUS.ACTIVE;
-      updatePayload.isVerified = adminSyncResult?.institutionId ? true : (user.isVerified ?? false);
+      updatePayload.isVerified = adminSyncResult?.emailMatched
+        ? true
+        : (user.isVerified ?? false);
 
       // Only set referrerMedium during initial signup flow when it is not already set
       if (!user.referrerMedium) {

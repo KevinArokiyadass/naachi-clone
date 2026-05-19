@@ -111,25 +111,23 @@ export class AdminUserService {
         createAdminDto.phoneNumber,
       );
 
-      // Sync institutionId to existing user if email matches and mark as verified
-      // Set isVerified to true if institutionId exists (phone number check removed - phone numbers can differ)
-      if (existingUser && providedInstitutionsId) {
+      // App user with the same email as this admin should show the verified tick
+      if (existingUser) {
         try {
           const updateData: Record<string, any> = {
-            institutionsId: providedInstitutionsId,
-            isVerified: true, // Set isVerified based on email match only, phone numbers can differ
-            updatedAt: new Date()
+            isVerified: true,
+            updatedAt: new Date(),
           };
+          if (providedInstitutionsId) {
+            updateData.institutionsId = providedInstitutionsId;
+          }
 
           await this.dbServices.users.findOneAndUpdate(
             { userId: existingUser.userId, isDeleted: false },
-            {
-              $set: updateData
-            }
+            { $set: updateData },
           );
         } catch (syncError) {
-          // Log error but don't fail admin creation
-          console.error('Failed to sync institutionId to existing user:', syncError);
+          console.error('Failed to sync verification to matching app user:', syncError);
         }
       }
 

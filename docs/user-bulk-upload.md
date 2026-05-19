@@ -44,3 +44,7 @@ Includes `reportFileName` and `reportCsvBase64` when `includeCsvReport=true`. De
 - Phone without `+` is normalized with `+44` prefix
 
 OTP is not sent at upload time; it is sent when the user starts the normal phone login flow.
+
+## Verified tick (`isVerified`)
+
+A user row gets `isVerified: true` only when its **email matches an admin** in Admin Management (same email, case-insensitive). Other institution users stay unverified. If the admin is created after the user, creating the admin record will verify the matching app user; if the user is bulk-uploaded after the admin exists, verification is applied on create/update.
