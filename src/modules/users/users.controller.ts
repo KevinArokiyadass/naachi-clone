@@ -126,7 +126,7 @@ export class UsersController {
 
   @Get()
   getAllUsers(@Query() query: GetUsersQueryDto) {
-    const { skip, limit, nonPaginated, phoneNumber, userName,email, userId, institutionsId, search, status, isDeleted } = query;
+    const { skip, limit, nonPaginated, phoneNumber, userName,email, userId, institutionsId, departmentsId, search, status, isDeleted } = query;
     const filter: Record<string, any> = {};
     if (isDeleted !== undefined) {
           filter.isDeleted = isDeleted;
@@ -166,6 +166,10 @@ export class UsersController {
 
     if (institutionsId) {
       filter.institutionsId = institutionsId;
+    }
+
+    if (departmentsId) {
+      filter.departmentsId = departmentsId;
     }
 
     return this.usersService.findAllUsers(skip, limit, filter, nonPaginated);

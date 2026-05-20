@@ -148,6 +148,10 @@ export class GetUsersQueryDto extends FetchDto {
   @IsOptional()
   @IsString()
   isDeleted?:boolean;
+
+  @IsOptional()
+  @IsString()
+  departmentsId?: string;
 }
 
 export class GetPermissionsQueryDto extends FetchDto {
