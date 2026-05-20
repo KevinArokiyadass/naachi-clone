@@ -45,5 +45,9 @@ export class UpdateUserProfileDto {
   @IsOptional()
   @IsBoolean()
   isDeleted?: boolean;
+
+  @IsOptional()
+  @IsString()
+  departmentsId?: string;
 }
 

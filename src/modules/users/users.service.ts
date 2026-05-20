@@ -1819,6 +1819,10 @@ export class UsersAuthService implements OnModuleInit {
       updatePayload.referrerMedium = dto.referrerMedium;
     }
 
+    if (dto.departmentsId !== undefined) {
+      updatePayload.departmentsId = dto.departmentsId;
+    }
+
     // When referrerMedium is set to institution referral and user has referrerId, set referredBy to institution name
     if (
       dto.referrerMedium === ReferrerMedium.INSTITUTION_MAIL &&
