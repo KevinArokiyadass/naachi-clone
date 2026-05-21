@@ -1,28 +1,41 @@
-/**
- * Prepares phone numbers for users-by-phone lookup. Clients should send E.164 (+country…).
- * We only trim, strip common formatting (spaces, dashes), dedupe, and build the Mongo `$in` list.
+﻿/**
+ * Builds suffix keys for users-by-phone lookup. Matches stored E.164 against
+ * national/local contact formats by comparing overlapping 9/10/11-digit tails.
  */
 
-function normalizeOne(raw: unknown): string | null {
-  if (raw == null) return null;
-  const trimmed = String(raw).trim();
-  if (!trimmed) return null;
-  const digits = trimmed.replace(/\D/g, '');
-  if (!digits) return null;
-  return trimmed.startsWith('+') ? `+${digits}` : digits;
+export const PHONE_SUFFIX_LENGTHS = [11, 10, 9] as const;
+const MIN_LEN = Math.min(...PHONE_SUFFIX_LENGTHS);
+
+function digitsOnly(raw: unknown): string {
+  return raw == null ? '' : String(raw).replace(/\D/g, '');
 }
 
-/** Distinct values for `phoneNumber: { $in: … }` (matches DB E.164 when client sends the same). */
-export function normalizePhoneNumbersForLookup(phoneNumbers: string[]): string[] {
-  if (!phoneNumbers?.length) return [];
-  const seen = new Set<string>();
+/** Last 9/10/11 digit suffixes of a digits-only string (when long enough). */
+export function suffixKeysFromDigits(digits: string): string[] {
+  if (digits.length < MIN_LEN) return [];
   const out: string[] = [];
-  for (const raw of phoneNumbers) {
-    const n = normalizeOne(raw);
-    if (n && !seen.has(n)) {
-      seen.add(n);
-      out.push(n);
-    }
+  for (const L of PHONE_SUFFIX_LENGTHS) {
+    if (digits.length >= L) out.push(digits.slice(-L));
   }
   return out;
+}
+
+export function buildPhoneLookupKeys(phoneNumbers: string[]): string[] {
+  if (!phoneNumbers?.length) return [];
+  const seen = new Set<string>();
+  for (const raw of phoneNumbers) {
+    for (const k of suffixKeysFromDigits(digitsOnly(raw))) {
+      seen.add(k);
+    }
+  }
+  return [...seen];
+}
+
+/** True when any suffix of a overlaps any suffix of b (same rule as DB $expr match). */
+export function phoneSuffixesOverlap(a: string, b: string): boolean {
+  const keysA = new Set(suffixKeysFromDigits(digitsOnly(a)));
+  for (const k of suffixKeysFromDigits(digitsOnly(b))) {
+    if (keysA.has(k)) return true;
+  }
+  return false;
 }

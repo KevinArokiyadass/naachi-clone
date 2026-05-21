@@ -48,7 +48,10 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { Workbook } from 'exceljs';
 import { assertInstitutionUploadScope } from 'src/common/utils/institution-scope.util';
-import { normalizePhoneNumbersForLookup } from './utils/normalize-phone-lookup.util';
+import {
+  buildPhoneLookupKeys,
+  PHONE_SUFFIX_LENGTHS,
+} from './utils/normalize-phone-lookup.util';
 import { HttpClientService } from 'src/common/inter-service-communication/http-client.service';
 
 
@@ -1328,15 +1331,53 @@ export class UsersAuthService implements OnModuleInit {
       return [];
     }
 
-    const lookupPhoneNumbers = normalizePhoneNumbersForLookup(phoneNumbers);
-    if (lookupPhoneNumbers.length === 0) {
+    const lookupKeys = buildPhoneLookupKeys(phoneNumbers);
+    if (lookupKeys.length === 0) {
       return [];
     }
 
     const matchStage: any = {
-      phoneNumber: { $in: lookupPhoneNumbers },
       isDeleted: false,
       status: USER_STATUS.ACTIVE,
+      $expr: {
+        $let: {
+          vars: {
+            digits: {
+              $reduce: {
+                input: {
+                  $regexFindAll: { input: '$phoneNumber', regex: /\d+/ },
+                },
+                initialValue: '',
+                in: { $concat: ['$$value', '$$this.match'] },
+              },
+            },
+          },
+          in: {
+            $let: {
+              vars: { len: { $strLenCP: '$$digits' } },
+              in: {
+                $or: PHONE_SUFFIX_LENGTHS.map((L) => ({
+                  $and: [
+                    { $gte: ['$$len', L] },
+                    {
+                      $in: [
+                        {
+                          $substrCP: [
+                            '$$digits',
+                            { $subtract: ['$$len', L] },
+                            L,
+                          ],
+                        },
+                        lookupKeys,
+                      ],
+                    },
+                  ],
+                })),
+              },
+            },
+          },
+        },
+      },
     };
 
     const pipeline: any[] = [
