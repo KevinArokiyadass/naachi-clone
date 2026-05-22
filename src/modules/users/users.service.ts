@@ -9,6 +9,7 @@ import {
 import {
   AdminUpdateUserAttributesCommand,
   AdminDeleteUserCommand,
+  AdminUserGlobalSignOutCommand,
   AuthFlowType,
   CognitoIdentityProviderClient,
   GetUserAttributeVerificationCodeCommand,
@@ -371,7 +372,7 @@ export class UsersAuthService implements OnModuleInit {
   }
 
   async verifyUnifiedPhoneOtp(dto: UnifiedPhoneOtpVerifyDto) {
-    const { phoneNumber, otp, session } = dto;
+    const { phoneNumber, otp, session, deviceId } = dto;
 
     const user = await this.dbService.users.findOne({
       phoneNumber,
@@ -387,6 +388,31 @@ export class UsersAuthService implements OnModuleInit {
       throw new UnauthorizedException(
         'Your account has been deactivated. Please contact support for assistance.',
       );
+    }
+
+    // Single-device login logic
+    if (deviceId) {
+      if (user.deviceId && user.deviceId !== deviceId) {
+        // This is a new device login; globally sign out the previous device
+        try {
+          await this.cognitoClient.send(
+            new AdminUserGlobalSignOutCommand({
+              UserPoolId: this.userPoolId,
+              Username: phoneNumber,
+            }),
+          );
+        } catch (error) {
+          console.error('Failed to globally sign out previous device in Cognito:', error);
+        }
+      }
+
+      // Update the device token in the database if it changed or is new
+      if (user.deviceId !== deviceId) {
+        await this.dbService.users.findOneAndUpdate(
+          { userId: user.userId },
+          { deviceId, updatedAt: new Date() }
+        );
+      }
     }
 
     if (user.status === USER_STATUS.ACTIVE) {
