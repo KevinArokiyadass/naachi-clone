@@ -39,6 +39,9 @@ export class Users extends Document {
     isDeleted: boolean;
 
     @Prop({ type: String })
+    deviceId?: string;
+
+    @Prop({ type: String })
     otp?: string;
 
     @Prop({ type: Date })

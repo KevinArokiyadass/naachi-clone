@@ -220,6 +220,10 @@ export class UnifiedPhoneOtpVerifyDto {
   @IsNotEmpty({ message: 'Session is required' })
   @IsString()
   session: string;
+
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
 }
 
 export class FindFriendsDto extends FetchDto {

@@ -34,6 +34,7 @@ export interface IUsers {
     showPhoneNumber?: boolean;
     muteNotifications?: boolean;
     disableReadReceipt?: boolean;
+    deviceId?: string;
     metaData?: {
         institutionId?: string;
     };
