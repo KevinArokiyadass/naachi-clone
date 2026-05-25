@@ -48,3 +48,21 @@ OTP is not sent at upload time; it is sent when the user starts the normal phone
 ## Verified tick (`isVerified`)
 
 A user row gets `isVerified: true` only when its **email matches an admin** in Admin Management (same email, case-insensitive). Other institution users stay unverified. If the admin is created after the user, creating the admin record will verify the matching app user; if the user is bulk-uploaded after the admin exists, verification is applied on create/update.
+
+## Remove user from institution (admin panel)
+
+Admin panel must **not** hard-delete app users. Use these endpoints instead:
+
+- `PATCH /api/naachi-user-service/users/{userId}/remove-from-institution`
+- `POST /api/naachi-user-service/users/bulk-remove-from-institution` with body `{ "userIds": ["..."] }`
+
+Behavior:
+
+- Clears `institutionsId` and `departmentsId` (user returns to **Global Users**).
+- Sets `isVerified` to `false`.
+- Keeps `referrerMedium` / `referredBy` as historical data.
+- Does **not** set `isDeleted`, anonymize, or remove the user from Cognito.
+- Calls chat service `DELETE /group-member/user/{userId}?institutionsId={id}` to remove the user from institution-scoped groups.
+- Only affects the **user-level** profile. If the same email also has an admin record (e.g. a professor with both profiles), the admin record (`AdminUser` collection, `isVerifiedAdmin`, `metaTags`) is **left untouched** — admin access is managed separately.
+
+The previous admin routes `PATCH .../delete-user` and `POST .../bulk-delete` are removed. Full account deletion is reserved for the end user (self-delete), not the admin panel.

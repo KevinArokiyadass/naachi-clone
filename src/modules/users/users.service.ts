@@ -2304,6 +2304,99 @@ export class UsersAuthService implements OnModuleInit {
     ]);
   }
 
+  /**
+   * Removes a user from their institution (Global Users list) without deleting the account.
+   * Also removes the user from institution-scoped chat groups when possible.
+   */
+  async removeUserFromInstitution(userId: string) {
+    const user = await this.dbService.users.findOne({ userId, isDeleted: false });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!user.institutionsId) {
+      throw new BadRequestException('User is not associated with any institution');
+    }
+
+    const institutionsId = user.institutionsId;
+
+    const updated = await this.dbService.users.findOneAndUpdate(
+      { userId, isDeleted: false },
+      {
+        $set: { isVerified: false, updatedAt: new Date() },
+        $unset: { institutionsId: 1, departmentsId: 1 },
+      },
+      { new: true },
+    );
+
+    try {
+      await this.httpClientService.delete(
+        'NAACHI_CHAT_SERVICE',
+        `/group-member/user/${userId}`,
+        { institutionsId },
+      );
+    } catch (chatErr) {
+      console.error('Failed to remove user from institution groups:', chatErr);
+    }
+
+    return {
+      message: 'User removed from institution',
+      user: this.attachProfileImageUrl(updated),
+    };
+  }
+
+  async bulkRemoveUsersFromInstitution(userIds: string[]) {
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      throw new BadRequestException('No user IDs provided for removal');
+    }
+
+    const results: any[] = [];
+    const skipped: Array<{ userId: string; reason: string }> = [];
+
+    for (const userId of userIds) {
+      const user = await this.dbService.users.findOne({ userId, isDeleted: false });
+      if (!user) {
+        skipped.push({ userId, reason: 'User not found' });
+        continue;
+      }
+      if (!user.institutionsId) {
+        skipped.push({ userId, reason: 'User is not associated with any institution' });
+        continue;
+      }
+
+      const institutionsId = user.institutionsId;
+
+      const updated = await this.dbService.users.findOneAndUpdate(
+        { userId, isDeleted: false },
+        {
+          $set: { isVerified: false, updatedAt: new Date() },
+          $unset: { institutionsId: 1, departmentsId: 1 },
+        },
+        { new: true },
+      );
+
+      try {
+        await this.httpClientService.delete(
+          'NAACHI_CHAT_SERVICE',
+          `/group-member/user/${userId}`,
+          { institutionsId },
+        );
+      } catch (chatErr) {
+        console.error(`Failed to remove user ${userId} from institution groups:`, chatErr);
+      }
+
+      results.push(this.attachProfileImageUrl(updated));
+    }
+
+    return {
+      message: `${results.length} user(s) removed from institution`,
+      removedCount: results.length,
+      users: results,
+      skipped,
+    };
+  }
+
   async deleteUser(userId: string, isDeleted: boolean )
   {
     const user = await this.dbService.users.findOne({userId,isDeleted: false})

@@ -236,17 +236,13 @@ export class UsersController {
     return this.usersService.updateUserProfile(userId, dto);
   }
 
-  @Patch(':userId/delete-user')
-  async deleteUser(
-    @Param('userId') userId: string, 
-    @Body()dto: {isDeleted: boolean}
-  )
-  {
-      return this.usersService.deleteUser(userId,dto.isDeleted);
+  @Patch(':userId/remove-from-institution')
+  async removeUserFromInstitution(@Param('userId') userId: string) {
+    return this.usersService.removeUserFromInstitution(userId);
   }
 
-  @Post('bulk-delete')
-  async bulkDeleteUsers(@Body() dto: { userIds: string[] }) {
-    return this.usersService.bulkDeleteUsers(dto.userIds);
+  @Post('bulk-remove-from-institution')
+  async bulkRemoveUsersFromInstitution(@Body() dto: { userIds: string[] }) {
+    return this.usersService.bulkRemoveUsersFromInstitution(dto.userIds);
   }
 }
