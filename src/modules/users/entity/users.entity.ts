@@ -1,4 +1,4 @@
-import { UserStatus, userStatus, USER_STATUS } from "src/common/enums/user.enum";
+import { UserStatus, userStatus, USER_STATUS, ReferrerMedium } from "src/common/enums/user.enum";
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Document } from "mongoose";
 import { generateUniqueId } from "src/common/utils/util";
@@ -95,7 +95,7 @@ export class Users extends Document {
 
     @Prop({
         type: String,
-        enum: ['qrCode', 'institutionMail', 'mutualFriend', 'referralCode'],
+        enum: Object.values(ReferrerMedium),
         required: false,
         trim: true,
     })
