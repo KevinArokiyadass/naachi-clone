@@ -152,6 +152,8 @@ export class UsersAuthService implements OnModuleInit {
     
     await this.ensurePhoneAvailable(dto.phoneNumber);
 
+    const effectiveMedium = (dto.referredBy ? ReferrerMedium.REFERRAL_CODE : undefined);
+
     const userPayload: IUsers = {
       userId: generateUniqueId(),
       phoneNumber: dto.phoneNumber,
@@ -167,7 +169,7 @@ export class UsersAuthService implements OnModuleInit {
       updatedAt: new Date(),
       referralCode: await this.generateUniqueReferralCode(),
       referredBy: dto.referredBy,
-      referrerMedium: dto.referredBy ? ReferrerMedium.REFERRAL_CODE : undefined,
+      referrerMedium: effectiveMedium,
     };
 
     try {
@@ -190,7 +192,7 @@ export class UsersAuthService implements OnModuleInit {
           updatedAt: new Date(),
           referralCode: await this.generateUniqueReferralCode(),
           referredBy: dto.referredBy,
-          referrerMedium: dto.referredBy ? ReferrerMedium.REFERRAL_CODE : undefined,
+          referrerMedium: effectiveMedium,
         };
 
         const otpResponse = await this.generateOtp(dto.phoneNumber);
@@ -672,7 +674,7 @@ export class UsersAuthService implements OnModuleInit {
       institutionsId: payload.institutionsId,
       departmentsId: payload.departmentsId,
       customLogin: false,
-      referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
+      referrerMedium: ReferrerMedium.BULK_UPLOAD_INSTITUTION || ReferrerMedium.INSTITUTION_MAIL,
       referredBy: referredBy || undefined,
       qrAuth: false,
       referralCode: await this.generateUniqueReferralCode(),
@@ -748,7 +750,7 @@ export class UsersAuthService implements OnModuleInit {
         isVerified,
         phoneVerified: true,
         emailVerified: Boolean(email),
-        referrerMedium: ReferrerMedium.INSTITUTION_MAIL,
+        referrerMedium: user.referrerMedium|| ReferrerMedium.BULK_UPLOAD_INSTITUTION,
         referredBy: await this.getInstitutionDisplayName(payload.institutionsId),
         updatedAt: new Date(),
       },
@@ -1727,6 +1729,10 @@ export class UsersAuthService implements OnModuleInit {
     // Delete password if present to ensure it's not leaked in responses
     delete userObj.password;
 
+    if (userObj.referrerMedium) {
+      userObj.referredMedium = userObj.referrerMedium;
+    }
+
     return userObj;
   }
 
@@ -1882,8 +1888,9 @@ export class UsersAuthService implements OnModuleInit {
       updatePayload.status = dto.status;
     }
 
-    if (dto.referrerMedium !== undefined) {
-      updatePayload.referrerMedium = dto.referrerMedium;
+    const effectiveReferrerMedium = dto.referrerMedium;
+    if (effectiveReferrerMedium !== undefined) {
+      updatePayload.referrerMedium = effectiveReferrerMedium;
     }
 
     if (dto.departmentsId !== undefined) {

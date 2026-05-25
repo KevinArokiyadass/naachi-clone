@@ -75,4 +75,5 @@ export enum ReferrerMedium {
   INSTITUTION_MAIL = 'institutionMail',
   MUTUAL_FRIEND = 'mutualFriend',
   REFERRAL_CODE = 'referralCode',
+  BULK_UPLOAD_INSTITUTION = 'bulkuploadInstitution'
 }
