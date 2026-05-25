@@ -2337,7 +2337,11 @@ export class UsersAuthService implements OnModuleInit {
         }
       }
 
-      await this.httpClientService.delete('NAACHI_CHAT_SERVICE', `/group-member/user/${userId}`);
+      try {
+        await this.httpClientService.delete('NAACHI_CHAT_SERVICE', `/group-member?userId=${userId}`);
+      } catch (chatErr: any) {
+        console.error(`Failed to clean up chat group membership for user ${userId}:`, chatErr.message || chatErr);
+      }
 
       return{
         message:'User deleted successfully',
@@ -2385,7 +2389,11 @@ export class UsersAuthService implements OnModuleInit {
           }
         }
 
-        await this.httpClientService.delete('NAACHI_CHAT_SERVICE', `/group-member/user/${userId}`);
+        try {
+          await this.httpClientService.delete('NAACHI_CHAT_SERVICE', `/group-member?userId=${userId}`);
+        } catch (chatErr: any) {
+          console.error(`Failed to clean up chat group membership for user ${userId}:`, chatErr.message || chatErr);
+        }
 
         results.push(updatedUser);
       }
