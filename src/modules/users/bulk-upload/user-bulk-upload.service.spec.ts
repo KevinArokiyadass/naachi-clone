@@ -17,6 +17,7 @@ describe('UserBulkUploadService', () => {
   } as unknown as UserBulkRepository;
   const usersService = {
     validateInstitutionScope: jest.fn(),
+    assertBulkUploadUserLimitNotExceeded: jest.fn().mockResolvedValue(undefined),
     getBulkUploadOptions: jest.fn().mockResolvedValue({
       institutionsId: 'inst-1',
       departments: [{ departmentName: 'Science', departmentsId: 'dept-sci' }],
@@ -24,6 +25,8 @@ describe('UserBulkUploadService', () => {
     createInstitutionManagedUser: jest.fn(),
     updateInstitutionManagedUser: jest.fn(),
   } as any;
+
+
 
   const service = new UserBulkUploadService(
     parser,
@@ -34,6 +37,7 @@ describe('UserBulkUploadService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    usersService.assertBulkUploadUserLimitNotExceeded = jest.fn().mockResolvedValue(undefined);
   });
 
   it('supports dry run without writes and emits csv report', async () => {

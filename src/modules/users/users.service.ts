@@ -597,6 +597,10 @@ export class UsersAuthService implements OnModuleInit {
     assertInstitutionUploadScope(institutionsId, requestContext);
   }
 
+  async assertBulkUploadUserLimitNotExceeded(): Promise<void> {
+    await this.checkSignupRestrictions('bulk-upload');
+  }
+
   async createInstitutionManagedUser(payload: {
     institutionsId: string;
     departmentsId?: string;
@@ -606,6 +610,8 @@ export class UsersAuthService implements OnModuleInit {
     userName?: string;
     status?: 'active' | 'blocked' | 'pending';
   }): Promise<{ userId: string }> {
+    await this.checkSignupRestrictions('institution-managed');
+
     const phoneNumber = payload.phoneNumber.trim();
     const email = payload.email?.trim().toLowerCase();
     const userName = payload.userName?.trim();
@@ -1315,29 +1321,39 @@ export class UsersAuthService implements OnModuleInit {
     return user;
   }
 
-  private async checkSignupRestrictions() {
-    // Get configuration from ConfigurationService
+  private async checkSignupRestrictions(
+    context: 'signup' | 'institution-managed' | 'bulk-upload' = 'signup',
+  ): Promise<void> {
     const config = await this.configurationService.getConfiguration();
 
-    // If forceRestrictOnboarding is false, allow signup
     if (!config.forceRestrictOnboarding) {
       return;
     }
 
-    // Count all users regardless of status (excluding deleted)
     const totalUserCount = await this.dbService.users.countDocuments({
       isDeleted: false,
     });
 
-    // Debug logging
-    console.log(`[Signup Restriction Check] Total users: ${totalUserCount}, Allowed: ${config.allowedUserCount}, ForceRestrict: ${config.forceRestrictOnboarding}`);
+    console.log(
+      `[User Limit Check] context=${context}, totalUsers=${totalUserCount}, allowed=${config.allowedUserCount}, forceRestrict=${config.forceRestrictOnboarding}`,
+    );
 
-    // If user count exceeds or equals allowed count, block signup
     if (totalUserCount >= config.allowedUserCount) {
-      console.log(`[Signup Restriction] Blocking signup - Total users (${totalUserCount}) >= Allowed (${config.allowedUserCount})`);
+      console.log(
+        `[User Limit] Blocking ${context} - total users (${totalUserCount}) >= allowed (${config.allowedUserCount})`,
+      );
+
+      const messageByContext: Record<typeof context, string> = {
+        signup: 'Signup being temporarily unavailable kindly contact admin',
+        'institution-managed':
+          'The user limit has been exceeded. No additional users can be created.',
+        'bulk-upload':
+          'The user limit has been exceeded. Bulk upload is not allowed; no additional users can be uploaded.',
+      };
+
       throw new BadRequestException({
-        message: 'Signup being temporarily unavailable kindly contact admin',
-        errorCode: 'SIGNUP_RESTRICTED',
+        message: messageByContext[context],
+        errorCode: context === 'signup' ? 'SIGNUP_RESTRICTED' : 'USER_LIMIT_EXCEEDED',
       });
     }
   }

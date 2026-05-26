@@ -70,6 +70,8 @@ export class UserBulkUploadService {
       isSuperAdminRequest: context.isSuperAdminRequest,
     });
 
+    await this.usersService.assertBulkUploadUserLimitNotExceeded();
+
     const institutionOptions = await this.usersService.getBulkUploadOptions(context.institutionsId);
     const departmentNameToId = new Map(
       institutionOptions.departments
