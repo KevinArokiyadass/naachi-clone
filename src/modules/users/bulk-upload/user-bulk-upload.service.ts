@@ -207,6 +207,28 @@ export class UserBulkUploadService {
               continue;
             }
 
+            // No-op: user already linked to this institution and caller did not
+            // explicitly request an update. Avoid an unnecessary DB write and
+            // report it accurately instead of labelling it UPDATED.
+            const alreadyLinkedToSameInstitution =
+              existing.institutionsId === context.institutionsId;
+
+            if (alreadyLinkedToSameInstitution && !updateExisting) {
+              result.successCount += 1;
+              result.processedRows += 1;
+              reportRows.push({
+                rowNumber: row.rowNumber,
+                phoneNumber: row.phoneNumber || '',
+                email: row.email || '',
+                status: 'SUCCESS',
+                action: 'SKIPPED',
+                reason: dryRun
+                  ? 'Validated (dry run): user already linked to institution. No changes applied.'
+                  : 'User already linked to institution. No changes applied.',
+              });
+              continue;
+            }
+
             if (!dryRun) {
               await this.usersService.updateInstitutionManagedUser(existing.userId, {
                 institutionsId: context.institutionsId,

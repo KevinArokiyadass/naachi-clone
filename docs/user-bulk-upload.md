@@ -59,7 +59,8 @@ Admin panel must **not** hard-delete app users. Use these endpoints instead:
 Behavior:
 
 - Clears `institutionsId` and `departmentsId` (user returns to **Global Users**).
-- Sets `isVerified` to `false`.
+- Removes institutional `email`, email OTP fields, and `metaData`; sets `emailVerified` and `isVerified` to `false`.
+- Clears the institutional email from Cognito when one was stored on the profile.
 - Keeps `referrerMedium` / `referredBy` as historical data.
 - Does **not** set `isDeleted`, anonymize, or remove the user from Cognito.
 - Calls chat service `DELETE /group-member/user/{userId}?institutionsId={id}` to remove the user from institution-scoped groups.

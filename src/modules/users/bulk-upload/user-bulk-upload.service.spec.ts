@@ -150,6 +150,93 @@ describe('UserBulkUploadService', () => {
     );
   });
 
+  it('skips DB write when existing user is already linked to the same institution', async () => {
+    parser.parse = jest.fn().mockReturnValue([
+      {
+        rowNumber: 2,
+        data: {
+          name: 'Existing Student',
+          phoneNumber: '+447912345678',
+          email: 'existing@student.com',
+          status: 'active',
+          departmentName: 'Science',
+        },
+      },
+    ]);
+    repository.findExistingByUniqueKeys = jest.fn().mockResolvedValue({
+      byEmail: new Map([
+        [
+          'existing@student.com',
+          {
+            userId: 'usr-existing',
+            email: 'existing@student.com',
+            institutionsId: 'inst-1',
+          },
+        ],
+      ]),
+      byUserName: new Map(),
+      byPhoneNumber: new Map(),
+    });
+    usersService.updateInstitutionManagedUser = jest.fn().mockResolvedValue(undefined);
+
+    const result = await service.processUpload(
+      {} as Express.Multer.File,
+      {},
+      { institutionsId: 'inst-1', requestInstitutionsId: 'inst-1' },
+    );
+
+    expect(result.successCount).toBe(1);
+    expect(result.failureCount).toBe(0);
+    expect(result.updatedIds).toEqual([]);
+    expect(usersService.updateInstitutionManagedUser).not.toHaveBeenCalled();
+    expect(usersService.createInstitutionManagedUser).not.toHaveBeenCalled();
+
+    const decodedCsv = Buffer.from(result.reportCsvBase64 || '', 'base64').toString('utf8');
+    expect(decodedCsv).toContain('SUCCESS,SKIPPED,User already linked to institution. No changes applied.');
+  });
+
+  it('still updates an already-linked user when updateExisting is explicitly true', async () => {
+    parser.parse = jest.fn().mockReturnValue([
+      {
+        rowNumber: 2,
+        data: {
+          name: 'Existing Student',
+          phoneNumber: '+447912345678',
+          email: 'existing@student.com',
+          status: 'active',
+          departmentName: 'Science',
+        },
+      },
+    ]);
+    repository.findExistingByUniqueKeys = jest.fn().mockResolvedValue({
+      byEmail: new Map([
+        [
+          'existing@student.com',
+          {
+            userId: 'usr-existing',
+            email: 'existing@student.com',
+            institutionsId: 'inst-1',
+          },
+        ],
+      ]),
+      byUserName: new Map(),
+      byPhoneNumber: new Map(),
+    });
+    usersService.updateInstitutionManagedUser = jest.fn().mockResolvedValue(undefined);
+
+    const result = await service.processUpload(
+      {} as Express.Multer.File,
+      { updateExisting: true, skipExisting: false },
+      { institutionsId: 'inst-1', requestInstitutionsId: 'inst-1' },
+    );
+
+    expect(result.updatedIds).toEqual(['usr-existing']);
+    expect(usersService.updateInstitutionManagedUser).toHaveBeenCalledWith(
+      'usr-existing',
+      expect.any(Object),
+    );
+  });
+
   it('links phone-only existing user and sets email from bulk row', async () => {
     parser.parse = jest.fn().mockReturnValue([
       {

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import {
   AdminUpdateUserAttributesCommand,
+  AdminDeleteUserAttributesCommand,
   AdminDeleteUserCommand,
   AdminUserGlobalSignOutCommand,
   AuthFlowType,
@@ -2320,9 +2321,45 @@ export class UsersAuthService implements OnModuleInit {
     ]);
   }
 
+  /** Mongo update that strips institution linkage and institutional email from a user profile. */
+  private buildInstitutionDetachUpdate() {
+    return {
+      $set: { isVerified: false, emailVerified: false, updatedAt: new Date() },
+      $unset: {
+        institutionsId: 1,
+        departmentsId: 1,
+        email: 1,
+        emailOtp: 1,
+        emailOtpExpiry: 1,
+        metaData: 1,
+      },
+    };
+  }
+
+  /** Removes institutional email attributes from Cognito when present on the user record. */
+  private async clearInstitutionalEmailFromCognito(phoneNumber?: string): Promise<void> {
+    if (!phoneNumber) {
+      return;
+    }
+
+    try {
+      await this.cognitoClient.send(
+        new AdminDeleteUserAttributesCommand({
+          UserPoolId: this.userPoolId,
+          Username: phoneNumber,
+          UserAttributeNames: ['email', 'email_verified'],
+        }),
+      );
+    } catch (error) {
+      console.error('Failed to clear institutional email from Cognito:', error);
+    }
+  }
+
   /**
    * Removes a user from their institution (Global Users list) without deleting the account.
-   * Also removes the user from institution-scoped chat groups when possible.
+   * Clears institution-specific data (institution access, institutional email and its
+   * verification state, and any institution metadata) so the profile only retains valid
+   * global user details. Also removes the user from institution-scoped chat groups when possible.
    */
   async removeUserFromInstitution(userId: string) {
     const user = await this.dbService.users.findOne({ userId, isDeleted: false });
@@ -2336,15 +2373,17 @@ export class UsersAuthService implements OnModuleInit {
     }
 
     const institutionsId = user.institutionsId;
+    const hadInstitutionalEmail = Boolean(user.email?.trim());
 
     const updated = await this.dbService.users.findOneAndUpdate(
       { userId, isDeleted: false },
-      {
-        $set: { isVerified: false, updatedAt: new Date() },
-        $unset: { institutionsId: 1, departmentsId: 1 },
-      },
+      this.buildInstitutionDetachUpdate(),
       { new: true },
     );
+
+    if (hadInstitutionalEmail) {
+      await this.clearInstitutionalEmailFromCognito(user.phoneNumber);
+    }
 
     try {
       await this.httpClientService.delete(
@@ -2382,15 +2421,17 @@ export class UsersAuthService implements OnModuleInit {
       }
 
       const institutionsId = user.institutionsId;
+      const hadInstitutionalEmail = Boolean(user.email?.trim());
 
       const updated = await this.dbService.users.findOneAndUpdate(
         { userId, isDeleted: false },
-        {
-          $set: { isVerified: false, updatedAt: new Date() },
-          $unset: { institutionsId: 1, departmentsId: 1 },
-        },
+        this.buildInstitutionDetachUpdate(),
         { new: true },
       );
+
+      if (hadInstitutionalEmail) {
+        await this.clearInstitutionalEmailFromCognito(user.phoneNumber);
+      }
 
       try {
         await this.httpClientService.delete(
