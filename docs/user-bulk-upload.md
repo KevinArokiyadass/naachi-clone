@@ -37,6 +37,28 @@ If the `status` cell is non-empty, it must be exactly one of `active`, `blocked`
 
 Includes `reportFileName` and `reportCsvBase64` when `includeCsvReport=true`. Decode base64 to CSV for row-level success/failure.
 
+Row actions in the CSV report:
+
+- `CREATED` — new user written
+- `UPDATED` — existing user linked or fields changed
+- `SKIPPED` — existing user found but skipped per `skipExisting`
+- `REJECTED` — existing user already linked to this institution and nothing would change (counted as failure)
+- `FAILED` — validation or processing error
+
+Summary fields:
+
+- `successCount` — rows that wrote a change (created or updated)
+- `failureCount` — total failing rows (includes rejections)
+- `rejectedCount` — rows rejected because the user already exists in this institution with the same data (no DB write)
+- `updatedIds` — userIds for rows that were actually updated
+- `uploadOutcome` — one of:
+  - `success` — `failureCount === 0`
+  - `partial_failure` — mix of successes and failures
+  - `rejected` — all failures are duplicates already linked to this institution (no other failures, no successes)
+  - `failed` — all rows failed for other reasons
+
+When all rows are rejected duplicates, the API responds with HTTP `422` and the body contains `uploadOutcome: "rejected"` plus the full report.
+
 ## Limits
 
 - Max file size: `5MB`

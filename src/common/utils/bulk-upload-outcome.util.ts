@@ -1,13 +1,21 @@
-export type BulkUploadOutcome = 'success' | 'partial_failure' | 'failed';
+export type BulkUploadOutcome = 'success' | 'partial_failure' | 'failed' | 'rejected';
 
 export function assignBulkUploadOutcome<
-  T extends { successCount: number; failureCount: number; errors: unknown[]; totalRows: number },
+  T extends {
+    successCount: number;
+    failureCount: number;
+    errors: unknown[];
+    totalRows: number;
+    rejectedCount?: number;
+  },
 >(result: T): T & { uploadOutcome: BulkUploadOutcome } {
   let uploadOutcome: BulkUploadOutcome;
+  const rejectedCount = result.rejectedCount ?? 0;
   if (result.failureCount === 0) {
     uploadOutcome = 'success';
   } else if (result.successCount === 0) {
-    uploadOutcome = 'failed';
+    uploadOutcome =
+      rejectedCount > 0 && rejectedCount === result.failureCount ? 'rejected' : 'failed';
   } else {
     uploadOutcome = 'partial_failure';
   }

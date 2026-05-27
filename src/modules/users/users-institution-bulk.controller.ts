@@ -41,9 +41,13 @@ export class UsersInstitutionBulkController {
 
   private assertUserBulkUploadHasSuccessRows(result: UserBulkUploadResult): void {
     if (result.failureCount > 0 && result.successCount === 0) {
+      const isAllRejected =
+        result.rejectedCount > 0 && result.rejectedCount === result.failureCount;
+      const message = isAllRejected
+        ? 'Bulk upload rejected: all rows are users already linked to this institution with no changes to apply.'
+        : 'Bulk upload did not import any users. Fix invalid values and try again. If present, decode rejectedExcelBase64 using rejectedExcelFileName for rejected rows.';
       throw new UnprocessableEntityException({
-        message:
-          'Bulk upload did not import any users. Fix invalid values and try again. If present, decode rejectedExcelBase64 using rejectedExcelFileName for rejected rows.',
+        message,
         ...result,
       });
     }

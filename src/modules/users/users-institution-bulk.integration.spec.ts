@@ -58,6 +58,7 @@ describe('UsersInstitutionBulkController (integration: middleware + guards)', ()
       successCount: 0,
       failureCount: 0,
       duplicateCount: 0,
+      rejectedCount: 0,
       errors: [],
       createdIds: [],
       updatedIds: [],

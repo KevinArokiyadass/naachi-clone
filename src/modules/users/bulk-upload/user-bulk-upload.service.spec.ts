@@ -150,7 +150,7 @@ describe('UserBulkUploadService', () => {
     );
   });
 
-  it('skips DB write when existing user is already linked to the same institution', async () => {
+  it('rejects rows for users already linked to the same institution with no changes', async () => {
     parser.parse = jest.fn().mockReturnValue([
       {
         rowNumber: 2,
@@ -185,14 +185,25 @@ describe('UserBulkUploadService', () => {
       { institutionsId: 'inst-1', requestInstitutionsId: 'inst-1' },
     );
 
-    expect(result.successCount).toBe(1);
-    expect(result.failureCount).toBe(0);
+    expect(result.successCount).toBe(0);
+    expect(result.failureCount).toBe(1);
+    expect(result.rejectedCount).toBe(1);
     expect(result.updatedIds).toEqual([]);
+    expect(result.createdIds).toEqual([]);
+    expect(result.uploadOutcome).toBe('rejected');
     expect(usersService.updateInstitutionManagedUser).not.toHaveBeenCalled();
     expect(usersService.createInstitutionManagedUser).not.toHaveBeenCalled();
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        rowNumber: 2,
+        code: 'ALREADY_LINKED_NO_CHANGE',
+      }),
+    ]);
 
     const decodedCsv = Buffer.from(result.reportCsvBase64 || '', 'base64').toString('utf8');
-    expect(decodedCsv).toContain('SUCCESS,SKIPPED,User already linked to institution. No changes applied.');
+    expect(decodedCsv).toContain(
+      'FAILURE,REJECTED,User already exists in this institution with the same details. Nothing to update.',
+    );
   });
 
   it('still updates an already-linked user when updateExisting is explicitly true', async () => {
