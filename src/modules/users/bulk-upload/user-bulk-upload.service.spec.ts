@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { UserBulkParser } from './user-bulk-parser';
 import { UserBulkRepository } from './user-bulk.repository';
 import { UserBulkUploadService } from './user-bulk-upload.service';
@@ -316,6 +317,82 @@ describe('UserBulkUploadService', () => {
     expect(result.failureCount).toBe(1);
     expect(usersService.updateInstitutionManagedUser).not.toHaveBeenCalled();
     expect(usersService.createInstitutionManagedUser).not.toHaveBeenCalled();
+  });
+
+  it('blocks bulk upload when the system user limit would be exceeded', async () => {
+    parser.parse = jest.fn().mockReturnValue([
+      {
+        rowNumber: 2,
+        data: {
+          name: 'New Student',
+          phoneNumber: '+447900000099',
+          email: 'new@student.com',
+          status: 'active',
+          departmentName: 'Science',
+        },
+      },
+    ]);
+    repository.findExistingByUniqueKeys = jest.fn().mockResolvedValue({
+      byEmail: new Map(),
+      byUserName: new Map(),
+      byPhoneNumber: new Map(),
+    });
+    usersService.assertBulkUploadUserLimitNotExceeded = jest
+      .fn()
+      .mockRejectedValue(
+        new BadRequestException({
+          message:
+            'The user limit has been exceeded. Bulk upload is not allowed; no additional users can be uploaded.',
+          errorCode: 'USER_LIMIT_EXCEEDED',
+        }),
+      );
+
+    await expect(
+      service.processUpload(
+        {} as Express.Multer.File,
+        {},
+        { institutionsId: 'inst-1', requestInstitutionsId: 'inst-1' },
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(usersService.assertBulkUploadUserLimitNotExceeded).toHaveBeenCalledWith({
+      projectedNewUsers: 1,
+    });
+    expect(usersService.createInstitutionManagedUser).not.toHaveBeenCalled();
+  });
+
+  it('does not count link-only rows toward projected new users', async () => {
+    parser.parse = jest.fn().mockReturnValue([
+      {
+        rowNumber: 2,
+        data: {
+          name: 'Global User',
+          phoneNumber: '+447900000001',
+          email: 'global@student.com',
+          status: 'active',
+          departmentName: 'Science',
+        },
+      },
+    ]);
+    repository.findExistingByUniqueKeys = jest.fn().mockResolvedValue({
+      byEmail: new Map([
+        ['global@student.com', { userId: 'usr-global', email: 'global@student.com' }],
+      ]),
+      byUserName: new Map(),
+      byPhoneNumber: new Map(),
+    });
+    usersService.assertBulkUploadUserLimitNotExceeded = jest.fn().mockResolvedValue(undefined);
+    usersService.updateInstitutionManagedUser = jest.fn().mockResolvedValue(undefined);
+
+    await service.processUpload(
+      {} as Express.Multer.File,
+      {},
+      { institutionsId: 'inst-1', requestInstitutionsId: 'inst-1' },
+    );
+
+    expect(usersService.assertBulkUploadUserLimitNotExceeded).toHaveBeenCalledWith({
+      projectedNewUsers: 0,
+    });
   });
 
   it('fails rows with invalid status values', async () => {
