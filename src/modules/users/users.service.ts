@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
   UnauthorizedException,
@@ -59,6 +60,7 @@ import { HttpClientService } from 'src/common/inter-service-communication/http-c
 
 @Injectable()
 export class UsersAuthService implements OnModuleInit {
+  private readonly logger = new Logger(UsersAuthService.name);
   private cognitoClient: CognitoIdentityProviderClient;
   private readonly clientId = process.env.COGNITO_CUSTOMER_APP_CLIENT_ID;
   private readonly userPoolId = process.env.COGNITO_CUSTOMER_USER_POOL_ID;
@@ -598,8 +600,12 @@ export class UsersAuthService implements OnModuleInit {
     assertInstitutionUploadScope(institutionsId, requestContext);
   }
 
-  async assertBulkUploadUserLimitNotExceeded(): Promise<void> {
-    await this.checkSignupRestrictions('bulk-upload');
+  async assertBulkUploadUserLimitNotExceeded(
+    options?: { projectedNewUsers?: number },
+  ): Promise<void> {
+    await this.checkSignupRestrictions('bulk-upload', {
+      additionalUsers: options?.projectedNewUsers,
+    });
   }
 
   async createInstitutionManagedUser(payload: {
@@ -611,7 +617,9 @@ export class UsersAuthService implements OnModuleInit {
     userName?: string;
     status?: 'active' | 'blocked' | 'pending';
   }): Promise<{ userId: string }> {
-    await this.checkSignupRestrictions('institution-managed');
+    await this.checkSignupRestrictions('institution-managed', {
+      additionalUsers: 1,
+    });
 
     const phoneNumber = payload.phoneNumber.trim();
     const email = payload.email?.trim().toLowerCase();
@@ -1324,6 +1332,7 @@ export class UsersAuthService implements OnModuleInit {
 
   private async checkSignupRestrictions(
     context: 'signup' | 'institution-managed' | 'bulk-upload' = 'signup',
+    options?: { additionalUsers?: number },
   ): Promise<void> {
     const config = await this.configurationService.getConfiguration();
 
@@ -1331,19 +1340,24 @@ export class UsersAuthService implements OnModuleInit {
       return;
     }
 
+    const allowedUserCount = Number(config.allowedUserCount);
+    if (!Number.isFinite(allowedUserCount) || allowedUserCount < 0) {
+      this.logger.warn(
+        `[User Limit Check] Skipping ${context}: invalid allowedUserCount=${config.allowedUserCount}`,
+      );
+      return;
+    }
+
+    const additionalUsers = Math.max(0, options?.additionalUsers ?? 1);
     const totalUserCount = await this.dbService.users.countDocuments({
       isDeleted: false,
     });
 
-    console.log(
-      `[User Limit Check] context=${context}, totalUsers=${totalUserCount}, allowed=${config.allowedUserCount}, forceRestrict=${config.forceRestrictOnboarding}`,
+    this.logger.log(
+      `[User Limit Check] context=${context}, totalUsers=${totalUserCount}, additional=${additionalUsers}, allowed=${allowedUserCount}`,
     );
 
-    if (totalUserCount >= config.allowedUserCount) {
-      console.log(
-        `[User Limit] Blocking ${context} - total users (${totalUserCount}) >= allowed (${config.allowedUserCount})`,
-      );
-
+    if (totalUserCount + additionalUsers > allowedUserCount) {
       const messageByContext: Record<typeof context, string> = {
         signup: 'Signup being temporarily unavailable kindly contact admin',
         'institution-managed':

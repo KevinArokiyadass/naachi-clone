@@ -70,8 +70,6 @@ export class UserBulkUploadService {
       isSuperAdminRequest: context.isSuperAdminRequest,
     });
 
-    await this.usersService.assertBulkUploadUserLimitNotExceeded();
-
     const institutionOptions = await this.usersService.getBulkUploadOptions(context.institutionsId);
     const departmentNameToId = new Map(
       institutionOptions.departments
@@ -127,6 +125,11 @@ export class UserBulkUploadService {
       candidateRows.map((row) => row.userName).filter((value): value is string => Boolean(value)),
       candidateRows.map((row) => row.phoneNumber).filter((value): value is string => Boolean(value)),
     );
+
+    const projectedNewUsers = this.countProjectedNewUsers(candidateRows, existingMaps);
+    await this.usersService.assertBulkUploadUserLimitNotExceeded({
+      projectedNewUsers,
+    });
 
     for (let index = 0; index < candidateRows.length; index += DEFAULT_BATCH_SIZE) {
       const batch = candidateRows.slice(index, index + DEFAULT_BATCH_SIZE);
@@ -394,6 +397,25 @@ export class UserBulkUploadService {
     }
 
     return assignBulkUploadOutcome(result);
+  }
+
+  private countProjectedNewUsers(
+    candidateRows: NormalizedUserUploadRow[],
+    existingMaps: ExistingUserLookupMaps,
+  ): number {
+    let projectedNewUsers = 0;
+
+    for (const row of candidateRows) {
+      const resolution = this.resolveExistingUser(row, existingMaps);
+      if (resolution.conflict) {
+        continue;
+      }
+      if (!resolution.user) {
+        projectedNewUsers += 1;
+      }
+    }
+
+    return projectedNewUsers;
   }
 
   private findDuplicatesInFile(rows: NormalizedUserUploadRow[]): Map<number, string> {
