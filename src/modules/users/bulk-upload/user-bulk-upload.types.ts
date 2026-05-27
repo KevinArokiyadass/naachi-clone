@@ -6,6 +6,7 @@ export enum UserBulkUploadErrorCode {
   INVALID_FIELD_FORMAT = 'INVALID_FIELD_FORMAT',
   DUPLICATE_IN_FILE = 'DUPLICATE_IN_FILE',
   DUPLICATE_IN_DB = 'DUPLICATE_IN_DB',
+  ALREADY_LINKED_NO_CHANGE = 'ALREADY_LINKED_NO_CHANGE',
   BUSINESS_RULE_VIOLATION = 'BUSINESS_RULE_VIOLATION',
   INTERNAL_PROCESSING_ERROR = 'INTERNAL_PROCESSING_ERROR',
 }
@@ -42,6 +43,8 @@ export interface UserBulkUploadResult {
   successCount: number;
   failureCount: number;
   duplicateCount: number;
+  /** Rows rejected because the user is already linked to this institution and no fields would change. */
+  rejectedCount: number;
   errors: UserBulkUploadError[];
   createdIds: string[];
   updatedIds: string[];

@@ -22,6 +22,7 @@ describe('UsersInstitutionBulkController bulk upload', () => {
       successCount: 1,
       failureCount: 0,
       duplicateCount: 0,
+      rejectedCount: 0,
       errors: [],
       createdIds: ['usr-1'],
       updatedIds: [],

@@ -19,7 +19,7 @@ const DEFAULT_BATCH_SIZE = 50;
 const MAX_ROWS = 5000;
 
 type RowReportStatus = 'SUCCESS' | 'FAILURE';
-type RowReportAction = 'CREATED' | 'UPDATED' | 'SKIPPED' | 'FAILED';
+type RowReportAction = 'CREATED' | 'UPDATED' | 'SKIPPED' | 'REJECTED' | 'FAILED';
 
 interface RowReportEntry {
   rowNumber: number;
@@ -91,6 +91,7 @@ export class UserBulkUploadService {
       successCount: 0,
       failureCount: 0,
       duplicateCount: 0,
+      rejectedCount: 0,
       errors: [],
       createdIds: [],
       updatedIds: [],
@@ -178,13 +179,23 @@ export class UserBulkUploadService {
           }
 
           const existing = resolution.user;
+
+          if (
+            existing &&
+            !updateExisting &&
+            this.isUserAlreadyInInstitution(existing, context.institutionsId)
+          ) {
+            this.recordAlreadyLinkedRejection(result, reportRows, row);
+            continue;
+          }
+
           const shouldLinkExisting =
             existing && (this.shouldAutoLinkExistingUser(existing, row) || updateExisting);
 
           if (existing && shouldLinkExisting) {
             if (
-              existing.institutionsId &&
-              existing.institutionsId !== context.institutionsId
+              existing.institutionsId?.trim() &&
+              existing.institutionsId.trim() !== context.institutionsId.trim()
             ) {
               const institutionConflict =
                 'User is already assigned to another institution.';
@@ -203,28 +214,6 @@ export class UserBulkUploadService {
                 status: 'FAILURE',
                 action: 'FAILED',
                 reason: institutionConflict,
-              });
-              continue;
-            }
-
-            // No-op: user already linked to this institution and caller did not
-            // explicitly request an update. Avoid an unnecessary DB write and
-            // report it accurately instead of labelling it UPDATED.
-            const alreadyLinkedToSameInstitution =
-              existing.institutionsId === context.institutionsId;
-
-            if (alreadyLinkedToSameInstitution && !updateExisting) {
-              result.successCount += 1;
-              result.processedRows += 1;
-              reportRows.push({
-                rowNumber: row.rowNumber,
-                phoneNumber: row.phoneNumber || '',
-                email: row.email || '',
-                status: 'SUCCESS',
-                action: 'SKIPPED',
-                reason: dryRun
-                  ? 'Validated (dry run): user already linked to institution. No changes applied.'
-                  : 'User already linked to institution. No changes applied.',
               });
               continue;
             }
@@ -479,6 +468,41 @@ export class UserBulkUploadService {
     }
 
     return {};
+  }
+
+  private isUserAlreadyInInstitution(
+    existing: ExistingUserRecord,
+    targetInstitutionsId: string,
+  ): boolean {
+    const linkedInstitutionId = existing.institutionsId?.trim();
+    const targetId = targetInstitutionsId.trim();
+    return Boolean(linkedInstitutionId && targetId && linkedInstitutionId === targetId);
+  }
+
+  private recordAlreadyLinkedRejection(
+    result: UserBulkUploadResult,
+    reportRows: RowReportEntry[],
+    row: NormalizedUserUploadRow,
+  ): void {
+    const reason =
+      'User already exists in this institution with the same details. Nothing to update.';
+    result.errors.push({
+      rowNumber: row.rowNumber,
+      field: row.email ? 'email' : 'phoneNumber',
+      code: UserBulkUploadErrorCode.ALREADY_LINKED_NO_CHANGE,
+      message: reason,
+    });
+    result.failureCount += 1;
+    result.processedRows += 1;
+    result.rejectedCount += 1;
+    reportRows.push({
+      rowNumber: row.rowNumber,
+      phoneNumber: row.phoneNumber || '',
+      email: row.email || '',
+      status: 'FAILURE',
+      action: 'REJECTED',
+      reason,
+    });
   }
 
   /**
