@@ -585,6 +585,14 @@ export class AdminUserService {
     return await this.dbServices.adminUser.findOne(filter);
   }
 
+  async getMobileAppUserByEmail(email: string) {
+    if (!email) return null;
+    return await this.dbServices.users.findOne({
+      email: email.toLowerCase().trim(),
+      isDeleted: false
+    });
+  }
+
   async setPasswordByEmail(email: string, newPassword: string) {
     const admin = await this.dbServices.adminUser.findOne({ email });
     if (!admin) {
