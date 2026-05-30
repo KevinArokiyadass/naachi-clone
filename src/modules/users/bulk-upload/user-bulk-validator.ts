@@ -5,6 +5,21 @@ import {
   UserBulkUploadErrorCode,
 } from './user-bulk-upload.types';
 
+const COUNTRY_PHONE_RULES: Record<string, number> = {
+  '44': 10, 
+  '91': 10,
+};
+
+const COUNTRY_CODES = ['91', '44'];
+
+function isDigitsOnly(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code < 48 || code > 57) return false;
+  }
+  return true;
+}
+
 @Injectable()
 export class UserBulkValidator {
   validateRow(row: NormalizedUserUploadRow): UserBulkUploadError[] {
@@ -30,24 +45,55 @@ export class UserBulkValidator {
           'Phone number is required.',
         ),
       );
-    } else if (!row.phoneNumber.startsWith('+')) {
-      errors.push(
-        this.error(
-          row.rowNumber,
-          'phoneNumber',
-          UserBulkUploadErrorCode.INVALID_FIELD_FORMAT,
-          'Country code is compulsory (must start with +).',
-        ),
-      );
-    } else if (!/^\+\d{7,15}$/.test(row.phoneNumber)) {
-      errors.push(
-        this.error(
-          row.rowNumber,
-          'phoneNumber',
-          UserBulkUploadErrorCode.INVALID_FIELD_FORMAT,
-          'Phone number format is invalid.',
-        ),
-      );
+    } else {
+      const raw = row.phoneNumber.trim();
+
+      if (raw.length < 4) {
+        errors.push(this.error(row.rowNumber, 'phoneNumber', UserBulkUploadErrorCode.INVALID_FIELD_FORMAT, 'Invalid phone number.'));
+      } else if (raw.charCodeAt(0) !== 43) { // '+'
+        errors.push(this.error(row.rowNumber, 'phoneNumber', UserBulkUploadErrorCode.INVALID_FIELD_FORMAT, 'Phone number must start with +.'));
+      } else {
+        const numberPart = raw.slice(1);
+
+        if (numberPart.charCodeAt(0) === 43) {
+          errors.push(this.error(row.rowNumber, 'phoneNumber', UserBulkUploadErrorCode.INVALID_FIELD_FORMAT, 'Invalid phone number format.'));
+        } else if (!isDigitsOnly(numberPart)) {
+          errors.push(this.error(row.rowNumber, 'phoneNumber', UserBulkUploadErrorCode.INVALID_FIELD_FORMAT, 'Phone number must contain digits only.'));
+        } else {
+          let matchedCode = '';
+          for (const code of COUNTRY_CODES) {
+            if (numberPart.startsWith(code)) {
+              matchedCode = code;
+              break;
+            }
+          }
+
+          if (!matchedCode) {
+            errors.push(this.error(row.rowNumber, 'phoneNumber', UserBulkUploadErrorCode.INVALID_FIELD_FORMAT, 'Only +91 and +44 phone numbers are supported.'));
+          } else {
+            const national = numberPart.slice(matchedCode.length);
+            const expectedLen = COUNTRY_PHONE_RULES[matchedCode];
+
+            if (national.length !== expectedLen) {
+              errors.push(
+                this.error(
+                  row.rowNumber,
+                  'phoneNumber',
+                  UserBulkUploadErrorCode.INVALID_FIELD_FORMAT,
+                  `Phone number for +${matchedCode} must contain exactly ${expectedLen} digits.`,
+                ),
+              );
+            } else if (matchedCode === '44' && national.charCodeAt(0) !== 55) { 
+              errors.push(this.error(row.rowNumber, 'phoneNumber', UserBulkUploadErrorCode.INVALID_FIELD_FORMAT, 'UK mobile numbers must start with 7.'));
+            } else if (matchedCode === '91') {
+              const first = national.charCodeAt(0);
+              if (first < 54 || first > 57) {
+                errors.push(this.error(row.rowNumber, 'phoneNumber', UserBulkUploadErrorCode.INVALID_FIELD_FORMAT, 'Indian mobile numbers must start with 6, 7, 8, or 9.'));
+              }
+            }
+          }
+        }
+      }
     }
 
     if (!row.email) {
