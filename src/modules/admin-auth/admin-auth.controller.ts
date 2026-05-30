@@ -77,6 +77,23 @@ export class AdminAuthController {
       const cognitoUsername = admin.userName || admin.email;
       const tokens = await this.cognito.signIn(cognitoUsername, loginDto.password);
 
+      const appUser = await this.adminUsers.getMobileAppUserByEmail(admin.email);
+      let appUserInfo = null;
+      if (appUser) {
+        appUserInfo = {
+          userId: appUser.userId,
+          name: appUser.name,
+          email: appUser.email,
+          phoneNumber: appUser.phoneNumber,
+          status: appUser.status,
+          isVerified: appUser.isVerified,
+          institutionsId: appUser.institutionsId,
+          departmentsId: appUser.departmentsId,
+          // role: appUser.role,
+          // s3ProfileImageName: appUser.s3ProfileImageName
+        };
+      }
+
       return {
         message: 'Login successful',
         adminUser: {
@@ -85,6 +102,7 @@ export class AdminAuthController {
           email: admin.email,
           role: admin.role,
         },
+        ...(appUserInfo && { appUser: appUserInfo }),
         tokens: {
           accessToken: tokens.accessToken,
           idToken: tokens.idToken,
