@@ -152,7 +152,7 @@ export class UsersAuthService implements OnModuleInit {
     }
     // Check signup restrictions before proceeding
     await this.checkSignupRestrictions();
-    
+
     await this.ensurePhoneAvailable(dto.phoneNumber);
 
     const effectiveMedium = (dto.referredBy ? ReferrerMedium.REFERRAL_CODE : undefined);
@@ -332,7 +332,7 @@ export class UsersAuthService implements OnModuleInit {
         ...signupResult,
       };
     }
-    
+
     // Block inactive/blocked users from logging in
     if (existingUser.status === USER_STATUS.BLOCKED) {
       throw new UnauthorizedException(
@@ -1559,7 +1559,7 @@ export class UsersAuthService implements OnModuleInit {
     nonPaginated: boolean
   ): Promise<IPaginatedResult<IUsers[]>> {
     if (filter.isDeleted === undefined) {
-    filter.isDeleted = { $in: [null, false] };
+      filter.isDeleted = { $in: [null, false] };
     }
     const result = await this.paginationService.findAndPaginate(this.dbService.users, { skip, limit, filter, nonPaginated });
 
@@ -1647,24 +1647,24 @@ export class UsersAuthService implements OnModuleInit {
       qrAuth: true,
       updatedAt: new Date(),
     };
-  if (referrerUserId) {
-    const referrer = await this.dbService.users.findOne({
-      userId: referrerUserId,
-      isDeleted: false,
-    });
+    if (referrerUserId) {
+      const referrer = await this.dbService.users.findOne({
+        userId: referrerUserId,
+        isDeleted: false,
+      });
 
-    if (!referrer) {
-      throw new NotFoundException('Referrer user not found');
+      if (!referrer) {
+        throw new NotFoundException('Referrer user not found');
+      }
+
+      // Prevent self-referral
+      if (userId === referrerUserId) {
+        throw new BadRequestException('Cannot refer yourself');
+      }
+
+      updateData.referrerId = referrerUserId;
+      updateData.referredBy = referrer.userName ?? referrerUserId;
     }
-
-    // Prevent self-referral
-    if (userId === referrerUserId) {
-      throw new BadRequestException('Cannot refer yourself');
-    }
-
-    updateData.referrerId = referrerUserId;
-    updateData.referredBy = referrer.userName ?? referrerUserId;
-  }
 
     // Update user: activate, set referrer, and set activation medium
     // Only set isVerified to true if institutionId exists
@@ -1778,6 +1778,8 @@ export class UsersAuthService implements OnModuleInit {
 
     const userWithImage = this.attachProfileImageUrl(user);
 
+    // console.log("userWithImage:::::", userWithImage);
+
     // Populate institution details if institutionsId exists
     if (userWithImage.institutionsId) {
       try {
@@ -1799,40 +1801,52 @@ export class UsersAuthService implements OnModuleInit {
       }
     }
 
-    // Populate department details if user email matches admin user email
-    if (userWithImage.email && userWithImage.institutionsId) {
+    // Populate department details directly if the user has a departmentsId
+    if (userWithImage.departmentsId) {
       try {
-        const adminUser = await this.dbService.adminUser.findOne({
-          email: userWithImage.email.toLowerCase().trim(),
-          isDeleted: { $ne: true }
-        });
-
-        if (adminUser && adminUser.metaTags && adminUser.metaTags.length > 0) {
-          // Find the metaTag that matches the user's institutionsId
-          const matchingMetaTag = adminUser.metaTags.find(
-            (tag: any) => tag && tag.institutionsId && String(tag.institutionsId).trim() === String(userWithImage.institutionsId).trim()
-          );
-
-          if (matchingMetaTag && matchingMetaTag.departmentsId && Array.isArray(matchingMetaTag.departmentsId) && matchingMetaTag.departmentsId.length > 0) {
-            // Fetch department details using departmentsId array
-            // Query by matching any of the departmentsId values
-            const departmentsResult = await this.recordService.findAll('departments', {
-              filters: {
-                departmentsId: { $in: matchingMetaTag.departmentsId }
-              },
-              nonPaginated: true,
-            });
-
-            if (departmentsResult?.items && departmentsResult.items.length > 0) {
-              userWithImage.departmentDetails = departmentsResult.items;
-            }
-          }
+        const department = await this.recordService.findOne('departments', userWithImage.departmentsId);
+        if (department) {
+          userWithImage.departmentDetails = department;
+        } else {
+          userWithImage.departmentDetails = null
         }
+
       } catch (error) {
-        // If admin user not found or error occurs, continue without department details
-        console.error('Error fetching department details:', error);
+        console.error('Error fetching user department details:', error);
       }
     }
+    // Alternatively, populate department details if user email matches admin user email
+    // else if (userWithImage.email && userWithImage.institutionsId) {
+    //   try {
+    //     const adminUser = await this.dbService.adminUser.findOne({
+    //       email: userWithImage.email.toLowerCase().trim(),
+    //       isDeleted: { $ne: true }
+    //     });
+
+    //     if (adminUser && adminUser.metaTags && adminUser.metaTags.length > 0) {
+    //       // Find the metaTag that matches the user's institutionsId
+    //       const matchingMetaTag = adminUser.metaTags.find(
+    //         (tag: any) => tag && tag.institutionsId && String(tag.institutionsId).trim() === String(userWithImage.institutionsId).trim()
+    //       );
+
+    //       if (matchingMetaTag && matchingMetaTag.departmentsId && Array.isArray(matchingMetaTag.departmentsId) && matchingMetaTag.departmentsId.length > 0) {
+    //         // Fetch department details using departmentsId array
+    //         const departmentsResult = await this.recordService.findAll('departments', {
+    //           filters: {
+    //             departmentsId: { $in: matchingMetaTag.departmentsId }
+    //           },
+    //           nonPaginated: true,
+    //         });
+
+    //         if (departmentsResult?.items && departmentsResult.items.length > 0) {
+    //           userWithImage.departmentDetails = departmentsResult.items;
+    //         }
+    //       }
+    //     }
+    //   } catch (error) {
+    //     console.error('Error fetching admin department details:', error);
+    //   }
+    // }
 
     // Populate referrer details if referrerId exists
     if (userWithImage.referrerId) {
@@ -2477,36 +2491,36 @@ export class UsersAuthService implements OnModuleInit {
       throw new NotFoundException('User Not Found');
     }
 
-      const { nanoid } = await import('nanoid')
-      const randomId = nanoid(8);
+    const { nanoid } = await import('nanoid')
+    const randomId = nanoid(8);
 
 
-      const updatePayload = {
+    const updatePayload = {
       isDeleted: true,
-      status:USER_STATUS.INACTIVE,
-      name :"naachi_user",
+      status: USER_STATUS.INACTIVE,
+      name: "naachi_user",
       userName: `deleted_user_${randomId}`,
-      profileImage : "",
-      };
+      profileImage: "",
+    };
 
-      const updatedUser = await this.dbService.users.findOneAndUpdate(
-        { userId, isDeleted:false},
-        { $set: updatePayload },
-        { new: true},
-      );
+    const updatedUser = await this.dbService.users.findOneAndUpdate(
+      { userId, isDeleted: false },
+      { $set: updatePayload },
+      { new: true },
+    );
 
-      if (user.phoneNumber) {
-        try {
-          await this.cognitoClient.send(
-            new AdminDeleteUserCommand({
-              UserPoolId: this.userPoolId,
-              Username: user.phoneNumber,
-            })
-          );
-        } catch (cognitoErr) {
-          // Keep database update intact if user already not found in Cognito
-        }
+    if (user.phoneNumber) {
+      try {
+        await this.cognitoClient.send(
+          new AdminDeleteUserCommand({
+            UserPoolId: this.userPoolId,
+            Username: user.phoneNumber,
+          })
+        );
+      } catch (cognitoErr) {
+        // Keep database update intact if user already not found in Cognito
       }
+    }
 
       try {
         await this.httpClientService.delete('NAACHI_CHAT_SERVICE', `/group-member?userId=${userId}`);
@@ -2514,12 +2528,12 @@ export class UsersAuthService implements OnModuleInit {
         console.error(`Failed to clean up chat group membership for user ${userId}:`, chatErr.message || chatErr);
       }
 
-      return{
-        message:'User deleted successfully',
-        user: updatedUser,
-      }
+    return {
+      message: 'User deleted successfully',
+      user: updatedUser,
+    }
 
-    };
+  };
 
   async bulkDeleteUsers(userIds: string[]) {
     if (!Array.isArray(userIds) || userIds.length === 0) {
