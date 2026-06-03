@@ -29,9 +29,15 @@ import { IMongoDBServices } from 'src/common/repository/mongodb-repository/abstr
 import { IUsers } from 'src/common/interfaces/users.interface';
 import { IPaginatedResult } from 'src/common/interfaces/paginated-result.interface';
 import { ReferrerMedium, USER_STATUS } from 'src/common/enums/user.enum';
-import { generateRandomPassword, generateUniqueId, generateReferralCodeString } from 'src/common/utils/util';
+import {
+  generateRandomPassword,
+  generateUniqueId,
+  generateReferralCodeString,
+  generateUniqueTemporaryUserName,
+} from 'src/common/utils/util';
 import { PaginationService } from 'src/common/shared/pagination/pagination.service';
 import {
+  ChangeUsernameDto,
   ConfirmEmailDto,
   SetUsernameDto,
   UsersLoginDto,
@@ -306,10 +312,13 @@ export class UsersAuthService implements OnModuleInit {
       { new: true },
     );
 
+    const loginUser = this.attachProfileImageUrl(updatedUser ?? user);
+
     return {
       message: 'Login successful',
       tokens,
-      user: this.attachProfileImageUrl(updatedUser ?? user),
+      user: loginUser,
+      requiresUsernameChange: Boolean(loginUser?.isTemporaryUserName),
     };
   }
 
@@ -542,6 +551,55 @@ export class UsersAuthService implements OnModuleInit {
     };
   }
 
+  async changeUsername(dto: ChangeUsernameDto) {
+    const user = await this.dbService.users.findOne({
+      userId: dto.userId,
+      isDeleted: false,
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.status !== USER_STATUS.ACTIVE) {
+      throw new BadRequestException('User account is not active');
+    }
+
+    const newUserName = dto.userName.trim();
+
+    if (user.userName === newUserName) {
+      throw new BadRequestException(
+        user.isTemporaryUserName
+          ? 'Choose a new username different from your temporary username'
+          : 'Username is already set to this value',
+      );
+    }
+
+    const existingUser = await this.dbService.users.findOne({
+      userName: newUserName,
+      isDeleted: false,
+    });
+
+    if (existingUser && existingUser.userId !== dto.userId) {
+      throw new BadRequestException('Username already taken');
+    }
+
+    await this.dbService.users.findOneAndUpdate(
+      { userId: dto.userId, isDeleted: false },
+      {
+        userName: newUserName,
+        userNameSet: true,
+        isTemporaryUserName: false,
+        updatedAt: new Date(),
+      },
+    );
+
+    return {
+      message: 'Username changed successfully',
+      requiresUsernameChange: false,
+    };
+  }
+
   async validateInstitute(email: string): Promise<string> {
     const atIndex = email?.lastIndexOf('@') ?? -1;
     if (atIndex === -1 || atIndex === email.length - 1) {
@@ -623,7 +681,11 @@ export class UsersAuthService implements OnModuleInit {
 
     const phoneNumber = payload.phoneNumber.trim();
     const email = payload.email?.trim().toLowerCase();
-    const userName = payload.userName?.trim();
+    const providedUserName = payload.userName?.trim();
+    const userName =
+      providedUserName ||
+      (await generateUniqueTemporaryUserName(payload.name, this.dbService));
+    const isTemporaryUserName = !providedUserName;
 
     const institution = await this.recordService.findOne('institutions', payload.institutionsId);
     if (!institution) {
@@ -680,7 +742,8 @@ export class UsersAuthService implements OnModuleInit {
       phoneNumber,
       email,
       userName,
-      userNameSet: Boolean(userName),
+      userNameSet: true,
+      isTemporaryUserName,
       status: payload.status || USER_STATUS.ACTIVE,
       isVerified: Boolean(adminSyncResult?.emailMatched),
       isDeleted: false,
@@ -721,7 +784,19 @@ export class UsersAuthService implements OnModuleInit {
     }
 
     const email = payload.email?.trim().toLowerCase();
-    const userName = payload.userName?.trim();
+    const providedUserName = payload.userName?.trim();
+    let resolvedUserName = providedUserName || user.userName;
+    let isTemporaryUserName = user.isTemporaryUserName ?? false;
+
+    if (!resolvedUserName) {
+      resolvedUserName = await generateUniqueTemporaryUserName(
+        payload.name,
+        this.dbService,
+      );
+      isTemporaryUserName = true;
+    } else if (providedUserName) {
+      isTemporaryUserName = false;
+    }
 
     if (email && email !== user.email) {
       const existingByEmail = await this.dbService.users.findOne({
@@ -734,9 +809,9 @@ export class UsersAuthService implements OnModuleInit {
       }
     }
 
-    if (userName && userName !== user.userName) {
+    if (resolvedUserName && resolvedUserName !== user.userName) {
       const existingByUserName = await this.dbService.users.findOne({
-        userName,
+        userName: resolvedUserName,
         userId: { $ne: userId },
         isDeleted: false,
       });
@@ -757,8 +832,9 @@ export class UsersAuthService implements OnModuleInit {
       {
         name: payload.name.trim(),
         email,
-        userName,
-        userNameSet: Boolean(userName),
+        userName: resolvedUserName,
+        userNameSet: true,
+        isTemporaryUserName,
         status: payload.status || USER_STATUS.ACTIVE,
         institutionsId: payload.institutionsId,
         departmentsId: payload.departmentsId,
@@ -1896,6 +1972,8 @@ export class UsersAuthService implements OnModuleInit {
         }
       }
       updatePayload.userName = dto.userName;
+      updatePayload.userNameSet = true;
+      updatePayload.isTemporaryUserName = false;
     }
 
     if (dto.s3FileName !== undefined) {

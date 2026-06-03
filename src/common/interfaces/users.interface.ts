@@ -17,6 +17,7 @@ export interface IUsers {
     phoneOtp?: string;
     phoneOtpExpiry?: Date;
     userNameSet: boolean;
+    isTemporaryUserName?: boolean;
     emailVerified: boolean;
     emailOtp?: string;
     emailOtpExpiry?: Date;
