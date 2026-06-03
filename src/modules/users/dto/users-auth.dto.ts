@@ -1,4 +1,11 @@
-import { IsEmail, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsEmail,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 import { FetchDto } from 'src/common/shared/pagination/dto/fetch.dto';
 import { USER_STATUS, UserStatus } from 'src/common/enums/user.enum';
 
@@ -86,6 +93,22 @@ export class SetUsernameDto {
   @IsNotEmpty({ message: 'Name is required' })
   @IsString()
   name: string;
+}
+
+const USERNAME_REGEX = /^(?!.*\.\.)(?!\.)(?!.*\.$)[A-Za-z0-9._]{1,30}$/;
+
+export class ChangeUsernameDto {
+  @IsNotEmpty({ message: 'User ID is required' })
+  @IsString()
+  userId: string;
+
+  @IsNotEmpty({ message: 'Username is required' })
+  @IsString()
+  @Matches(USERNAME_REGEX, {
+    message:
+      'Username must be 1-30 characters and contain only letters, numbers, underscores, and periods (no consecutive or leading/trailing periods)',
+  })
+  userName: string;
 }
 
 export class VerifyEmailDto {

@@ -87,6 +87,64 @@ export function normalizeUserName(value: string): string {
   return value.trim().toLowerCase();
 }
 
+const USERNAME_SCHEMA_REGEX =
+  /^(?!.*\.\.)(?!\.)(?!.*\.$)[A-Za-z0-9._]{1,30}$/;
+
+const TEMP_USERNAME_SUFFIX_LENGTH = 6;
+const TEMP_USERNAME_MAX_LENGTH = 30;
+
+export function deriveTempUsernamePrefix(displayName: string): string {
+  const firstWord = (displayName || '').trim().split(/\s+/)[0] || '';
+  const sanitized = firstWord
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
+  if (sanitized.length < 2) {
+    return 'user';
+  }
+
+  const maxPrefixLength =
+    TEMP_USERNAME_MAX_LENGTH - 1 - TEMP_USERNAME_SUFFIX_LENGTH;
+  return sanitized.slice(0, maxPrefixLength);
+}
+
+export const generateUniqueTemporaryUserName = async (
+  displayName: string,
+  dbService: { users: { findOne: (query: object) => Promise<unknown | null> } },
+): Promise<string> => {
+  const prefix = deriveTempUsernamePrefix(displayName);
+  const suffixAlphabet =
+    '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  const suffixGenerator = customAlphabet(
+    suffixAlphabet,
+    TEMP_USERNAME_SUFFIX_LENGTH,
+  );
+
+  let attempts = 0;
+  const maxAttempts = 50;
+
+  while (attempts < maxAttempts) {
+    const userName = `${prefix}_${suffixGenerator()}`;
+    if (!USERNAME_SCHEMA_REGEX.test(userName)) {
+      attempts++;
+      continue;
+    }
+
+    const existingUser = await dbService.users.findOne({
+      userName,
+      isDeleted: false,
+    });
+    if (!existingUser) {
+      return userName;
+    }
+    attempts++;
+  }
+
+  throw new Error('Failed to generate a unique temporary username');
+};
+
 export const generateUniqueUserNameFromEmail = async (
   email: string,
   dbService: any,

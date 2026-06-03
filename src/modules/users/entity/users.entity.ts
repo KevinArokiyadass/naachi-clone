@@ -70,6 +70,9 @@ export class Users extends Document {
     userNameSet: boolean;
 
     @Prop({ type: Boolean, default: false })
+    isTemporaryUserName: boolean;
+
+    @Prop({ type: Boolean, default: false })
     emailVerified: boolean;
 
     @Prop({ type: String })

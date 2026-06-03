@@ -11,6 +11,7 @@ import {
 import {
   ActivateByQrCodeDto,
   ActivateByReferralCodeDto,
+  ChangeUsernameDto,
   ConfirmEmailDto,
   FindFriendsDto,
   GetUsersByPhoneDto,
@@ -77,6 +78,11 @@ export class UsersController {
   @Post('set-username')
   async setUsername(@Body() dto: SetUsernameDto) {
     return this.usersService.setUsername(dto);
+  }
+
+  @Post('change-username')
+  async changeUsername(@Body() dto: ChangeUsernameDto) {
+    return this.usersService.changeUsername(dto);
   }
 
   @Post('verify-email')
