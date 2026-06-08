@@ -195,18 +195,28 @@ export class ReviewReportService {
     filter: Record<string, any> = {},
     nonPaginated: boolean = false,
     institutionsId?: string,
-    search?: string
+    search?: string,
+    departmentsIdArray?: string[]
   ): Promise<IPaginatedResult<any>> {
     filter.isDeleted = { $in: [null, false] };
 
     // Institution listing: reports where the reported user belongs to this institution
     if (institutionsId) {
+      const userQuery: any = {
+        institutionsId,
+        isDeleted: { $in: [null, false] },
+      };
+
+      if (departmentsIdArray && departmentsIdArray.length > 0) {
+        userQuery.departmentsId = { $in: departmentsIdArray };
+      } else if (departmentsIdArray && departmentsIdArray.length === 0) {
+        // If departments array is provided but empty, return empty result to restrict access
+        userQuery.departmentsId = { $in: [] };
+      }
+
       const usersInInstitution = await this.usersModel
         .find(
-          {
-            institutionsId,
-            isDeleted: { $in: [null, false] },
-          },
+          userQuery,
           { userId: 1, _id: 0 },
         )
         .lean()

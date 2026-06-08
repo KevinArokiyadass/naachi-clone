@@ -1,4 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Req, UseGuards } from '@nestjs/common';
+import { CognitoAuthGuard } from 'src/common/middleware/cognito.authgaurd';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { AdminRoles } from 'src/common/enums/user.enum';
 import { Request } from 'express';
 import { ReviewReportService } from './review-report.service';
 import { CreateReviewReportDto } from './dto/create-review-report.dto';
@@ -17,6 +21,8 @@ export class ReviewReportController {
   }
 
   @Get()
+  @UseGuards(CognitoAuthGuard, RolesGuard)
+  @Roles(AdminRoles.SUPER_ADMIN, AdminRoles.INSTITUTIONADMIN)
   findAll(@Query() query: FetchDto, @Req() req: Request): Promise<IPaginatedResult<any>> {
     const isSuperAdmin = req['isSuperAdminRequest'];
     const sessionInstitutionsId = req['institutionsId'];
@@ -30,12 +36,36 @@ export class ReviewReportController {
 
     const institutionsId = isSuperAdmin ? query.institutionsId : sessionInstitutionsId;
 
+    let departmentsIdArray: string[] | undefined = undefined;
+
+    if (isSuperAdmin) {
+      if (query.departmentsId) {
+        departmentsIdArray = [query.departmentsId];
+      }
+    } else {
+      const adminUser = req['adminUser'];
+      if (adminUser && adminUser.metaTags && Array.isArray(adminUser.metaTags)) {
+        const currentMetaTag = adminUser.metaTags.find(
+          (tag: any) => tag && tag.institutionsId && String(tag.institutionsId).trim() === String(sessionInstitutionsId).trim()
+        );
+        if (currentMetaTag && currentMetaTag.departmentsId && Array.isArray(currentMetaTag.departmentsId)) {
+          departmentsIdArray = currentMetaTag.departmentsId;
+        } else {
+          departmentsIdArray = [];
+        }
+      } else {
+        departmentsIdArray = [];
+      }
+    }
+
     const filter: Record<string, any> = {};
 
-    return this.service.findAll(skip, limit, filter, nonPaginated, institutionsId, search);
+    return this.service.findAll(skip, limit, filter, nonPaginated, institutionsId, search, departmentsIdArray);
   }
 
   @Get(':reviewId')
+  @UseGuards(CognitoAuthGuard, RolesGuard)
+  @Roles(AdminRoles.SUPER_ADMIN, AdminRoles.INSTITUTIONADMIN)
   findOne(@Param('reviewId') reviewId: string, @Req() req: Request): Promise<ReviewReport> {
     return this.service.findOne(reviewId, {
       isSuperAdminRequest: req['isSuperAdminRequest'],
@@ -44,6 +74,8 @@ export class ReviewReportController {
   }
 
   @Patch(':reviewId/status')
+  @UseGuards(CognitoAuthGuard, RolesGuard)
+  @Roles(AdminRoles.SUPER_ADMIN, AdminRoles.INSTITUTIONADMIN)
   update(
     @Param('reviewId') reviewId: string,
     @Body() body: UpdateReviewReportDto,
@@ -56,6 +88,8 @@ export class ReviewReportController {
   }
 
   @Delete(':reviewId')
+  @UseGuards(CognitoAuthGuard, RolesGuard)
+  @Roles(AdminRoles.SUPER_ADMIN, AdminRoles.INSTITUTIONADMIN)
   delete(@Param('reviewId') reviewId: string, @Req() req: Request) {
     return this.service.delete(reviewId, {
       isSuperAdminRequest: req['isSuperAdminRequest'],

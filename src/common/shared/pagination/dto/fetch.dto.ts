@@ -65,4 +65,8 @@ export class FetchDto {
   @IsOptional()
   @IsString()
   institutionsId?: string;
+
+  @IsOptional()
+  @IsString()
+  departmentsId?: string;
 }

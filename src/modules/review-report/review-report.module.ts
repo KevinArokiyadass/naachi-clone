@@ -9,12 +9,14 @@ import { Users, UsersSchema } from 'src/modules/users/entity/users.entity';
 import { HttpClientModule } from 'src/common/inter-service-communication/http-client.module';
 import { MongoDBServicesModule } from 'src/common/repository/mongodb-repository/repository.module';
 import { ClientIdMiddleware } from 'src/common/middleware/clientId.middlewere';
+import { AdminUserModule } from '../admin-users/admin-user.module';
 
 @Module({
   imports: [
     UsersModule,
     HttpClientModule,
     MongoDBServicesModule,
+    AdminUserModule,
     MongooseModule.forFeature([
       {
         name: ReviewReport.name,
