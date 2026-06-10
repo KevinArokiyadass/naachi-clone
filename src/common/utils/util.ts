@@ -90,16 +90,16 @@ export function normalizeUserName(value: string): string {
 const USERNAME_SCHEMA_REGEX =
   /^(?!.*\.\.)(?!\.)(?!.*\.$)[A-Za-z0-9._]{1,30}$/;
 
-const TEMP_USERNAME_BASE_MAX_LENGTH = 5;
+const TEMP_USERNAME_MAX_LENGTH = 30;
 const TEMP_USERNAME_SUFFIX_LENGTH = 6;
-const TEMP_USERNAME_FALLBACK_BASE = 'user';
+const TEMP_USERNAME_FALLBACK_PREFIX = 'user';
 
 const generateTempUsernameSuffix = customAlphabet(
   '0123456789abcdefghijklmnopqrstuvwxyz',
   TEMP_USERNAME_SUFFIX_LENGTH,
 );
 
-export function deriveTempUsernameBase(displayName: string): string {
+export function deriveTempUsernamePrefix(displayName: string): string {
   const firstWord = (displayName || '').trim().split(/\s+/)[0] || '';
   const sanitized = firstWord
     .normalize('NFD')
@@ -108,23 +108,25 @@ export function deriveTempUsernameBase(displayName: string): string {
     .replace(/[^a-z0-9]/g, '');
 
   if (!sanitized) {
-    return TEMP_USERNAME_FALLBACK_BASE;
+    return TEMP_USERNAME_FALLBACK_PREFIX;
   }
 
-  return sanitized.slice(0, TEMP_USERNAME_BASE_MAX_LENGTH);
+  const maxPrefixLength =
+    TEMP_USERNAME_MAX_LENGTH - 1 - TEMP_USERNAME_SUFFIX_LENGTH;
+  return sanitized.slice(0, maxPrefixLength);
 }
 
 export const generateUniqueTemporaryUserName = async (
   displayName: string,
   dbService: { users: { findOne: (query: object) => Promise<unknown | null> } },
 ): Promise<string> => {
-  const base = deriveTempUsernameBase(displayName);
+  const prefix = deriveTempUsernamePrefix(displayName);
 
   let attempts = 0;
   const maxAttempts = 50;
 
   while (attempts < maxAttempts) {
-    const userName = `${base}_${generateTempUsernameSuffix()}`;
+    const userName = `${prefix}_${generateTempUsernameSuffix()}`;
     if (USERNAME_SCHEMA_REGEX.test(userName)) {
       const existingUser = await dbService.users.findOne({
         userName,
