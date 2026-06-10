@@ -94,10 +94,30 @@ const TEMP_USERNAME_MAX_LENGTH = 30;
 const TEMP_USERNAME_SUFFIX_LENGTH = 6;
 const TEMP_USERNAME_FALLBACK_PREFIX = 'user';
 
-const generateTempUsernameSuffix = customAlphabet(
-  '0123456789abcdefghijklmnopqrstuvwxyz',
-  TEMP_USERNAME_SUFFIX_LENGTH,
-);
+const TEMP_SUFFIX_LETTERS = 'abcdefghijklmnopqrstuvwxyz';
+const TEMP_SUFFIX_DIGITS = '0123456789';
+const TEMP_SUFFIX_ALPHANUMERIC = TEMP_SUFFIX_DIGITS + TEMP_SUFFIX_LETTERS;
+
+const pickTempSuffixLetter = customAlphabet(TEMP_SUFFIX_LETTERS, 1);
+const pickTempSuffixDigit = customAlphabet(TEMP_SUFFIX_DIGITS, 1);
+const pickTempSuffixChar = customAlphabet(TEMP_SUFFIX_ALPHANUMERIC, 1);
+
+function generateTempUsernameSuffix(): string {
+  const chars = [
+    pickTempSuffixLetter(),
+    pickTempSuffixDigit(),
+    ...Array.from({ length: TEMP_USERNAME_SUFFIX_LENGTH - 2 }, () =>
+      pickTempSuffixChar(),
+    ),
+  ];
+
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join('');
+}
 
 export function deriveTempUsernamePrefix(displayName: string): string {
   const firstWord = (displayName || '').trim().split(/\s+/)[0] || '';
