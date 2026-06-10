@@ -90,10 +90,16 @@ export function normalizeUserName(value: string): string {
 const USERNAME_SCHEMA_REGEX =
   /^(?!.*\.\.)(?!\.)(?!.*\.$)[A-Za-z0-9._]{1,30}$/;
 
+const TEMP_USERNAME_BASE_MAX_LENGTH = 5;
 const TEMP_USERNAME_SUFFIX_LENGTH = 6;
-const TEMP_USERNAME_MAX_LENGTH = 30;
+const TEMP_USERNAME_FALLBACK_BASE = 'user';
 
-export function deriveTempUsernamePrefix(displayName: string): string {
+const generateTempUsernameSuffix = customAlphabet(
+  '0123456789abcdefghijklmnopqrstuvwxyz',
+  TEMP_USERNAME_SUFFIX_LENGTH,
+);
+
+export function deriveTempUsernameBase(displayName: string): string {
   const firstWord = (displayName || '').trim().split(/\s+/)[0] || '';
   const sanitized = firstWord
     .normalize('NFD')
@@ -101,43 +107,32 @@ export function deriveTempUsernamePrefix(displayName: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '');
 
-  if (sanitized.length < 2) {
-    return 'user';
+  if (!sanitized) {
+    return TEMP_USERNAME_FALLBACK_BASE;
   }
 
-  const maxPrefixLength =
-    TEMP_USERNAME_MAX_LENGTH - 1 - TEMP_USERNAME_SUFFIX_LENGTH;
-  return sanitized.slice(0, maxPrefixLength);
+  return sanitized.slice(0, TEMP_USERNAME_BASE_MAX_LENGTH);
 }
 
 export const generateUniqueTemporaryUserName = async (
   displayName: string,
   dbService: { users: { findOne: (query: object) => Promise<unknown | null> } },
 ): Promise<string> => {
-  const prefix = deriveTempUsernamePrefix(displayName);
-  const suffixAlphabet =
-    '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-  const suffixGenerator = customAlphabet(
-    suffixAlphabet,
-    TEMP_USERNAME_SUFFIX_LENGTH,
-  );
+  const base = deriveTempUsernameBase(displayName);
 
   let attempts = 0;
   const maxAttempts = 50;
 
   while (attempts < maxAttempts) {
-    const userName = `${prefix}_${suffixGenerator()}`;
-    if (!USERNAME_SCHEMA_REGEX.test(userName)) {
-      attempts++;
-      continue;
-    }
-
-    const existingUser = await dbService.users.findOne({
-      userName,
-      isDeleted: false,
-    });
-    if (!existingUser) {
-      return userName;
+    const userName = `${base}_${generateTempUsernameSuffix()}`;
+    if (USERNAME_SCHEMA_REGEX.test(userName)) {
+      const existingUser = await dbService.users.findOne({
+        userName,
+        isDeleted: false,
+      });
+      if (!existingUser) {
+        return userName;
+      }
     }
     attempts++;
   }
