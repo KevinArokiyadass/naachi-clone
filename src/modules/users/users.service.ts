@@ -123,7 +123,7 @@ export class UsersAuthService implements OnModuleInit {
       return user.referralCode;
     }
     const newCode = await this.generateUniqueReferralCode();
-    await this.dbService.users.findOneAndUpdate({ userId }, { referralCode: newCode, updatedAt: new Date() });
+    await this.dbService.users.findOneAndUpdate({ userId: { $eq: userId } }, { referralCode: newCode, updatedAt: new Date() });
     return newCode;
   }
 
@@ -147,7 +147,7 @@ export class UsersAuthService implements OnModuleInit {
 
   async signup(dto: UsersSignupDto) {
     if (dto.referredBy) {
-      const referrer = await this.dbService.users.findOne({ referralCode: dto.referredBy, isDeleted: false });
+      const referrer = await this.dbService.users.findOne({ referralCode: { $eq: dto.referredBy }, isDeleted: false });
       if (!referrer) {
         throw new BadRequestException('Invalid referral code');
       }
@@ -423,7 +423,7 @@ export class UsersAuthService implements OnModuleInit {
       // Update the device token in the database if it changed or is new
       if (user.deviceId !== deviceId) {
         await this.dbService.users.findOneAndUpdate(
-          { userId: user.userId },
+          { userId: { $eq: user.userId } },
           { deviceId, updatedAt: new Date() }
         );
       }
@@ -537,7 +537,7 @@ export class UsersAuthService implements OnModuleInit {
 
 
     await this.dbService.users.findOneAndUpdate(
-      { userId: dto.userId, status: USER_STATUS.PENDING },
+      { userId: { $eq: dto.userId }, status: USER_STATUS.PENDING },
       {
         userName: dto.userName,
         name: dto.name,
@@ -693,9 +693,9 @@ export class UsersAuthService implements OnModuleInit {
     }
 
     const [existingByPhone, existingByEmail, existingByUserName] = await Promise.all([
-      this.dbService.users.findOne({ phoneNumber, isDeleted: false }),
-      email ? this.dbService.users.findOne({ email, isDeleted: false }) : Promise.resolve(null),
-      userName ? this.dbService.users.findOne({ userName, isDeleted: false }) : Promise.resolve(null),
+      this.dbService.users.findOne({ phoneNumber: { $eq: phoneNumber }, isDeleted: false }),
+      email ? this.dbService.users.findOne({ email: { $eq: email }, isDeleted: false }) : Promise.resolve(null),
+      userName ? this.dbService.users.findOne({ userName: { $eq: userName }, isDeleted: false }) : Promise.resolve(null),
     ]);
 
     if (existingByPhone) {
@@ -800,7 +800,7 @@ export class UsersAuthService implements OnModuleInit {
 
     if (email && email !== user.email) {
       const existingByEmail = await this.dbService.users.findOne({
-        email,
+        email: { $eq: email },
         userId: { $ne: userId },
         isDeleted: false,
       });
@@ -811,7 +811,7 @@ export class UsersAuthService implements OnModuleInit {
 
     if (resolvedUserName && resolvedUserName !== user.userName) {
       const existingByUserName = await this.dbService.users.findOne({
-        userName: resolvedUserName,
+        userName: { $eq: resolvedUserName },
         userId: { $ne: userId },
         isDeleted: false,
       });
@@ -947,7 +947,7 @@ export class UsersAuthService implements OnModuleInit {
     email: string,
   ): Promise<{ emailMatched: true; institutionId?: string } | null> {
     const adminUser = await this.dbService.adminUser.findOne({
-      email: email.toLowerCase().trim(),
+      email: { $eq: email.toLowerCase().trim() },
       isDeleted: { $ne: true },
     });
 
@@ -980,7 +980,7 @@ export class UsersAuthService implements OnModuleInit {
     }
 
     const existingUser = await this.dbService.users.findOne({
-      email: dto.email,
+      email: { $eq: dto.email },
       isDeleted: false,
       status: USER_STATUS.ACTIVE
     });
@@ -1384,7 +1384,7 @@ export class UsersAuthService implements OnModuleInit {
 
   private async ensurePhoneAvailable(phoneNumber: string) {
     const existing = await this.dbService.users.findOne({
-      phoneNumber,
+      phoneNumber: { $eq: phoneNumber },
       isDeleted: false,
     });
 
@@ -1395,7 +1395,7 @@ export class UsersAuthService implements OnModuleInit {
 
   private async getUserOrThrow(phoneNumber: string) {
     const user = await this.dbService.users.findOne({
-      phoneNumber,
+      phoneNumber: { $eq: phoneNumber },
       isDeleted: false,
     });
 
@@ -1845,7 +1845,7 @@ export class UsersAuthService implements OnModuleInit {
 
   async getUserByUserId(userId: string) {
     const user = await this.dbService.users.findOne({
-      userId
+      userId: { $eq: userId }
     });
 
     if (!user) {
@@ -1928,7 +1928,7 @@ export class UsersAuthService implements OnModuleInit {
     if (userWithImage.referrerId) {
       try {
         const referrer = await this.dbService.users.findOne({
-          userId: userWithImage.referrerId,
+          userId: { $eq: userWithImage.referrerId },
           isDeleted: false,
         });
         if (referrer) {
@@ -1957,7 +1957,7 @@ export class UsersAuthService implements OnModuleInit {
 
   async updateUserProfile(userId: string, dto: UpdateUserProfileDto) {
     const user = await this.dbService.users.findOne({
-      userId,
+      userId: { $eq: userId },
       isDeleted: false,
     });
 
@@ -2029,7 +2029,7 @@ export class UsersAuthService implements OnModuleInit {
     ) {
       try {
         const referrer = await this.dbService.users.findOne({
-          userId: user.referrerId,
+          userId: { $eq: user.referrerId },
           isDeleted: false,
         });
         if (referrer?.institutionsId) {
@@ -2562,7 +2562,7 @@ export class UsersAuthService implements OnModuleInit {
 
   async deleteUser(userId: string, isDeleted: boolean )
   {
-    const user = await this.dbService.users.findOne({userId,isDeleted: false})
+    const user = await this.dbService.users.findOne({userId: { $eq: userId },isDeleted: false})
 
     if(!user)
     {
@@ -2622,7 +2622,7 @@ export class UsersAuthService implements OnModuleInit {
     const results = [];
 
     for (const userId of userIds) {
-      const user = await this.dbService.users.findOne({ userId, isDeleted: false });
+      const user = await this.dbService.users.findOne({ userId: { $eq: userId }, isDeleted: false });
       if (user) {
         const randomId = nanoid(8);
         const updatePayload = {
@@ -2634,7 +2634,7 @@ export class UsersAuthService implements OnModuleInit {
         };
 
         const updatedUser = await this.dbService.users.findOneAndUpdate(
-          { userId, isDeleted: false },
+          { userId: { $eq: userId }, isDeleted: false },
           { $set: updatePayload },
           { new: true }
         );
