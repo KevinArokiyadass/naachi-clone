@@ -113,7 +113,7 @@ export class AuthService {
   }
 
   async signInUser(phoneNumber: string) {
-    const userDetail = await this.dbService.users.findOne({ phoneNumber });
+    const userDetail = await this.dbService.users.findOne({ phoneNumber: { $eq: phoneNumber } });
     if (userDetail) {
       const initResponse = await this.generateOtp(phoneNumber)
       return {
