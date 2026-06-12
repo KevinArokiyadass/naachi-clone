@@ -95,15 +95,15 @@ export class UsersController {
     return this.usersService.confirmEmail(dto);
   }
 
-  // @Post('login')
-  // async requestLogin(@Body() dto: UsersLoginDto) {  
-  //   return this.usersService.requestLoginOtp(dto);
-  // }
+  @Post('login')
+  async requestLogin(@Body() dto: UsersLoginDto) {
+    return this.usersService.requestLoginOtp(dto);
+  }
 
-  // @Post('login/verify')
-  // async verifyLogin(@Body() dto: UsersVerifyLoginDto) { 
-  //   return this.usersService.verifyLoginOtp(dto);
-  // }
+  @Post('login/verify')
+  async verifyLogin(@Body() dto: UsersVerifyLoginDto) {
+    return this.usersService.verifyLoginOtp(dto);
+  }
 
 
   @Post('refresh-token')

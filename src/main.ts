@@ -1,3 +1,4 @@
+import { setServers } from 'node:dns';
 import { NestFactory } from '@nestjs/core';
 import type { NextFunction, Request, Response } from 'express';
 import * as fs from 'node:fs';
@@ -23,7 +24,20 @@ function resolvePackageName(): string {
   return 'naachi-user-service';
 }
 
+/** Windows/local dev: default DNS often fails MongoDB Atlas SRV lookups (querySrv ECONNREFUSED). */
+function configureDnsForMongoSrv() {
+  const fromEnv = process.env.MONGODB_DNS_SERVERS?.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const servers =
+    fromEnv?.length ? fromEnv : process.env.NODE_ENV === 'dev' ? ['8.8.8.8', '1.1.1.1'] : undefined;
+  if (servers?.length) {
+    setServers(servers);
+  }
+}
+
 async function bootstrap() {
+  configureDnsForMongoSrv();
   const name = resolvePackageName();
   const app = await NestFactory.create(AppModule);
 

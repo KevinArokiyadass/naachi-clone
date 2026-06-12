@@ -47,7 +47,7 @@ const ENV = process.env.NODE_ENV;
     PermissionGroupModule,
     MdmCoreModule.forRoot({
       database: {
-        connectionString: process.env.MONGODB_URI
+        connectionString: process.env.MONGODB_URI ?? process.env.MONGODB_URL
       },
       schema: {
         collectionName: 'schemas',
