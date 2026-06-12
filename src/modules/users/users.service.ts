@@ -2468,7 +2468,7 @@ export class UsersAuthService implements OnModuleInit {
    * global user details. Also removes the user from institution-scoped chat groups when possible.
    */
   async removeUserFromInstitution(userId: string) {
-    const user = await this.dbService.users.findOne({ userId, isDeleted: false });
+    const user = await this.dbService.users.findOne({ userId: { $eq: userId }, isDeleted: false });
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -2530,7 +2530,7 @@ export class UsersAuthService implements OnModuleInit {
       const hadInstitutionalEmail = Boolean(user.email?.trim());
 
       const updated = await this.dbService.users.findOneAndUpdate(
-        { userId, isDeleted: false },
+        { userId: { $eq: userId }, isDeleted: false },
         this.buildInstitutionDetachUpdate(),
         { new: true },
       );

@@ -512,7 +512,7 @@ export class AdminUserService {
   }
 
   async updatePassword(adminId: string, updatePasswordDto: UpdatePasswordDto, forgotPassword: boolean): Promise<{ message: string }> {
-    const adminUser = await this.dbServices.adminUser.findOne({ adminId });
+    const adminUser = await this.dbServices.adminUser.findOne({ adminId: { $eq: adminId } });
     if (!adminUser) {
       throw new NotFoundException('Admin user not found');
     }
@@ -545,7 +545,7 @@ export class AdminUserService {
       await this.cognitoService.updatePasswordAfterVerification(adminUser.email, newPassword);
 
       await this.dbServices.adminUser.findOneAndUpdate(
-        { adminId },
+        { adminId: { $eq: adminId } },
         { password: newPassword },
         { new: true }
       );
@@ -599,7 +599,7 @@ export class AdminUserService {
   async getMobileAppUserByEmail(email: string) {
     if (!email) return null;
     return await this.dbServices.users.findOne({
-      email: email.toLowerCase().trim(),
+      email: { $eq: String(email).toLowerCase().trim() },
       isDeleted: false
     });
   }

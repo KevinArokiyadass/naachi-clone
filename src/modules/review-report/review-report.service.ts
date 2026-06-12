@@ -340,7 +340,7 @@ export class ReviewReportService {
     await this.loadAndAuthorize(reviewId, ctx);
 
     const reportArr = await this.reportModel.aggregate([
-      { $match: { reviewId } },
+      { $match: { reviewId: { $eq: reviewId } } },
 
       {
         $lookup: {
