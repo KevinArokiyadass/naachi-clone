@@ -88,7 +88,7 @@ export class ReviewReportService {
     reviewId: string,
     ctx: ReviewReportScopeContext,
   ): Promise<{ reportedUserId: string }> {
-    const report = await this.reportModel.findOne({ reviewId }).lean().exec();
+    const report = await this.reportModel.findOne({ reviewId: { $eq: reviewId } }).lean().exec();
     if (!report) {
       throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
     }
@@ -393,7 +393,7 @@ export class ReviewReportService {
     }
 
     const updatedReport = await this.reportModel
-      .findOneAndUpdate({ reviewId }, dto, { new: true })
+      .findOneAndUpdate({ reviewId: { $eq: reviewId } }, dto, { new: true })
       .exec();
     if (!updatedReport) {
       throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
@@ -411,7 +411,7 @@ export class ReviewReportService {
 
     const updated = await this.reportModel
       .findOneAndUpdate(
-        { reviewId },
+        { reviewId: { $eq: reviewId } },
         { status },
         { new: true }
       )
@@ -428,7 +428,7 @@ export class ReviewReportService {
     ) {
       await this.usersModel
         .findOneAndUpdate(
-          { userId: updated.reportedUserId },
+          { userId: { $eq: updated.reportedUserId } },
           {
             status: USER_STATUS.BLOCKED,
             isBlocked: true,
@@ -444,7 +444,7 @@ export class ReviewReportService {
   async delete(reviewId: string, ctx: ReviewReportScopeContext): Promise<{ message: string }> {
     await this.loadAndAuthorize(reviewId, ctx);
 
-    const deleted = await this.reportModel.findOneAndDelete({ reviewId }).exec();
+    const deleted = await this.reportModel.findOneAndDelete({ reviewId: { $eq: reviewId } }).exec();
     if (!deleted) {
       throw new NotFoundException(`ReviewReport with reviewId ${reviewId} not found`);
     }

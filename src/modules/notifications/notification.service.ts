@@ -189,8 +189,8 @@ export class NotificationService {
         if (updateDto.isActive === true) {
           // Check if user already has an active token for this device type (excluding current token)
           const existingDeviceTypeToken = await this.dbServices.deviceToken.findOne({
-            userId: updateDto.userId || existingToken.userId,
-            deviceType: updateDto.deviceType,
+            userId: { $eq: updateDto.userId || existingToken.userId },
+            deviceType: { $eq: updateDto.deviceType },
             isActive: true,
             token: { $ne: updateDto.token } // Exclude current token
           });
@@ -254,7 +254,7 @@ export class NotificationService {
   /* Deactivate device token */
   async deactivateDeviceToken(userId: string, fcmToken: string): Promise<IDeviceRegistrationResponse> {
     try {
-      const deviceToken = await this.dbServices.deviceToken.findOneAndUpdate({ token: fcmToken, userId }, { isActive: false });
+      const deviceToken = await this.dbServices.deviceToken.findOneAndUpdate({ token: { $eq: fcmToken }, userId: { $eq: userId } }, { isActive: false });
       if (!deviceToken) {
         throw new NotFoundException('Device token not found');
       }
@@ -318,10 +318,10 @@ export class NotificationService {
 
       if (userId && messageId) {
         const existingNotification = await this.dbServices.notificationHistory.findOne({
-          userId,
+          userId: { $eq: userId },
           $or: [
-            { 'data.messageId': messageId },
-            { 'data.msgId': messageId },
+            { 'data.messageId': { $eq: messageId } },
+            { 'data.msgId': { $eq: messageId } },
           ],
         });
 
@@ -339,7 +339,7 @@ export class NotificationService {
             }
           }
           const refreshed = await this.dbServices.notificationHistory.findOne({
-            notificationId: existingNotification.notificationId,
+            notificationId: { $eq: existingNotification.notificationId },
           });
           return refreshed ?? existingNotification;
         }
@@ -502,7 +502,7 @@ export class NotificationService {
   /* Get Notification History with Id */
   async getNotificationHistoryWithId(notificationId: string) {
     try {
-      const notification = await this.dbServices.notificationHistory.findOne({ notificationId });
+      const notification = await this.dbServices.notificationHistory.findOne({ notificationId: { $eq: notificationId } });
 
       if (!notification) {
         throw new NotFoundException('Notification not found');
@@ -519,7 +519,7 @@ export class NotificationService {
   /* Update Notificaiton status */
   async updateNotificationStatus(notificationId: string, status: NotificationStatus) {
     try {
-      const notification = await this.dbServices.notificationHistory.findOneAndUpdate({ notificationId }, { status }, { new: true });
+      const notification = await this.dbServices.notificationHistory.findOneAndUpdate({ notificationId: { $eq: notificationId } }, { status }, { new: true });
 
       if (!notification) {
         throw new NotFoundException('Notification not found');

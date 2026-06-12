@@ -2516,7 +2516,7 @@ export class UsersAuthService implements OnModuleInit {
     const skipped: Array<{ userId: string; reason: string }> = [];
 
     for (const userId of userIds) {
-      const user = await this.dbService.users.findOne({ userId, isDeleted: false });
+      const user = await this.dbService.users.findOne({ userId: { $eq: userId }, isDeleted: false });
       if (!user) {
         skipped.push({ userId, reason: 'User not found' });
         continue;
@@ -2582,7 +2582,7 @@ export class UsersAuthService implements OnModuleInit {
     };
 
     const updatedUser = await this.dbService.users.findOneAndUpdate(
-      { userId, isDeleted: false },
+      { userId: { $eq: userId }, isDeleted: false },
       { $set: updatePayload },
       { new: true },
     );

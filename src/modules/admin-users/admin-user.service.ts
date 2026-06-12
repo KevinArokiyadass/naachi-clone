@@ -419,7 +419,7 @@ export class AdminUserService {
 
   async update(adminId: string, updateAdminUserDto: UpdateAdminUserDto) {
     try {
-      const adminUser = await this.dbServices.adminUser.findOne({ adminId, isDeleted: { $ne: true } });
+      const adminUser = await this.dbServices.adminUser.findOne({ adminId: { $eq: adminId }, isDeleted: { $ne: true } });
       if (!adminUser) {
         throw new NotFoundException(`AdminUser with adminId ${adminId} not found`);
       }
@@ -430,7 +430,7 @@ export class AdminUserService {
 
       if (incomingEmail && incomingEmail !== adminUser.email) {
         const duplicateEmail = await this.dbServices.adminUser.findOne({
-          email: incomingEmail,
+          email: { $eq: incomingEmail },
           adminId: { $ne: adminId },
           isDeleted: { $ne: true },
         });
@@ -451,7 +451,7 @@ export class AdminUserService {
         incomingUserName !== adminUser.userName
       ) {
         const duplicateUserName = await this.dbServices.adminUser.findOne({
-          userName: incomingUserName,
+          userName: { $eq: incomingUserName },
           adminId: { $ne: adminId }, // exclude current admin
           isDeleted: { $ne: true },
         });
@@ -475,7 +475,7 @@ export class AdminUserService {
         incomingPhoneNumber !== adminUser.phoneNumber
       ) {
         const duplicatePhone = await this.dbServices.adminUser.findOne({
-          phoneNumber: incomingPhoneNumber,
+          phoneNumber: { $eq: incomingPhoneNumber },
           adminId: { $ne: adminId }, // exclude current admin
           isDeleted: { $ne: true },
         });
@@ -557,22 +557,22 @@ export class AdminUserService {
   }
 
   async deleteAdminUser(adminId: string) {
-    const adminUser = await this.dbServices.adminUser.findOne({ adminId });
+    const adminUser = await this.dbServices.adminUser.findOne({ adminId: { $eq: adminId } });
     if (!adminUser) {
       throw new NotFoundException('Admin user not found');
     }
-    return await this.dbServices.adminUser.findOneAndUpdate({ adminId }, { isDeleted: true }, { new: true });
+    return await this.dbServices.adminUser.findOneAndUpdate({ adminId: { $eq: adminId } }, { isDeleted: true }, { new: true });
   }
 
 
   async updateStatus(adminId: string, status: 'active' | 'inactive') {
-    const adminUser = await this.dbServices.adminUser.findOne({ adminId });
+    const adminUser = await this.dbServices.adminUser.findOne({ adminId: { $eq: adminId } });
     if (!adminUser) {
       throw new NotFoundException('Admin user not found');
     }
 
     const updatedUser = await this.dbServices.adminUser.findOneAndUpdate(
-      { adminId },
+      { adminId: { $eq: adminId } },
       { status },
       { new: true }
     );
@@ -582,7 +582,18 @@ export class AdminUserService {
   async getOneAdminUser(
     filter: FilterQuery<IAdminUser>
   ) {
-    return await this.dbServices.adminUser.findOne(filter);
+    // Sanitize filter to prevent NoSQL injection by wrapping plain values with $eq
+    const sanitizedFilter: FilterQuery<IAdminUser> = {};
+    for (const [key, value] of Object.entries(filter)) {
+      if (value !== null && value !== undefined && typeof value === 'object' && !Array.isArray(value)) {
+        // If value is already an operator object (e.g., { $regex: ... }), keep it as is
+        sanitizedFilter[key] = value;
+      } else {
+        // Wrap plain values with $eq to prevent injection
+        sanitizedFilter[key] = { $eq: value };
+      }
+    }
+    return await this.dbServices.adminUser.findOne(sanitizedFilter);
   }
 
   async getMobileAppUserByEmail(email: string) {
@@ -594,7 +605,7 @@ export class AdminUserService {
   }
 
   async setPasswordByEmail(email: string, newPassword: string) {
-    const admin = await this.dbServices.adminUser.findOne({ email });
+    const admin = await this.dbServices.adminUser.findOne({ email: { $eq: email } });
     if (!admin) {
       throw new NotFoundException('Admin user not found');
     }
@@ -604,14 +615,14 @@ export class AdminUserService {
     }
 
     return await this.dbServices.adminUser.findOneAndUpdate(
-      { email },
+      { email: { $eq: email } },
       { password: newPassword },
       { new: true }
     );
   }
 
   async updateRefreshToken(adminId: string, refreshToken: string) {
-    const updated = await this.dbServices.adminUser.findOneAndUpdate({ adminId }, { refreshToken: refreshToken }, { new: true });
+    const updated = await this.dbServices.adminUser.findOneAndUpdate({ adminId: { $eq: adminId } }, { refreshToken: refreshToken }, { new: true });
     return this.attachProfileImageUrl(updated);
   }
 

@@ -69,7 +69,7 @@ export class FirebaseService {
       const errorMessage = err.message || '';
       if (errorMessage.includes('not-registered') || errorMessage.includes('invalid-registration-token')) {
         this.logger.warn(`Removing invalid token during single send: ${token.slice(0, 12)}...`);
-        await this.dbServices.deviceToken.updateMany({ token }, { isActive: false });
+        await this.dbServices.deviceToken.updateMany({ token: { $eq: token } }, { isActive: false });
       }
 
       throw err;
