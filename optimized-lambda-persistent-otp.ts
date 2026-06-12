@@ -52,7 +52,7 @@ export class AuthService {
   async createUser(phoneNumber: string, name: string, businessName: string, emailId: string, gstNumber: string, industryType: string, serviceableArea: string) {
     try {
       const userDetail = await this.dbService.users.findOne({ 
-        phoneNumber, 
+        phoneNumber: { $eq: phoneNumber }, 
         isDeleted: false 
       });
       if (userDetail) {
@@ -181,7 +181,7 @@ export class AuthService {
           refreshToken: response.AuthenticationResult.RefreshToken,
           idToken: response.AuthenticationResult.IdToken,
           message: 'Login successful',
-          user: await this.dbService.users.findOne({ phoneNumber })
+          user: await this.dbService.users.findOne({ phoneNumber: { $eq: phoneNumber } })
         };
       }
 
