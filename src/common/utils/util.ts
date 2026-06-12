@@ -1,5 +1,5 @@
 import { customAlphabet } from 'nanoid';
-import * as crypto from 'crypto';
+import { createHmac, randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 
 /**
@@ -34,8 +34,7 @@ export const generateSecretHash = (
   clientId: string,
   clientSecret: string,
 ):string => {
-  return crypto
-    .createHmac('sha256', clientSecret)
+  return createHmac('sha256', clientSecret)
     .update(username + clientId)
     .digest('base64');
 }
@@ -78,8 +77,14 @@ export const comparePassword = async (password: string, hashedPassword: string):
   return bcrypt.compare(password, hashedPassword);
 };
 
+export {
+  passwordsDiffer,
+  passwordsMatch,
+  timingSafeEqualString,
+} from './timing-safe.util';
+
 export const generateResetToken = (): string => {
-  return crypto.randomBytes(32).toString('hex');
+  return randomBytes(32).toString('hex');
 };
 
 export function normalizeUserName(value: string): string {

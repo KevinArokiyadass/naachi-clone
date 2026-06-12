@@ -8,6 +8,7 @@ import { AdminLoginDto } from "./dto/admin-login.dto";
 import { ConfirmSignUpDto } from "./dto/confirm-signup.dto";
 import { RefreshTokenDto } from "./dto/refresh-token.dto";
 import { AdminRoles } from "../../common/enums/user.enum";
+import { passwordsMatch } from '../../common/utils/util';
 
 @ApiTags('Admin Authentication')
 @Controller('admin-auth')
@@ -183,7 +184,7 @@ export class AdminAuthController {
         throw new BadRequestException('Admin not found');
       }
 
-      if (admin.password === body.newPassword) {
+      if (passwordsMatch(admin.password, body.newPassword)) {
         throw new BadRequestException('New password cannot be the same as the current password');
       }
 

@@ -12,7 +12,7 @@ import { CognitoService } from '../cognito/cognito.service';
 import { FilterQuery } from 'mongoose';
 import { RecordService } from '@noukha-technologies/mdm-core';
 import { AwsStoreService } from '../aws-store/aws-store.service';
-import { generateUniqueUserNameFromEmail } from 'src/common/utils/util';
+import { generateUniqueUserNameFromEmail, passwordsDiffer, passwordsMatch } from 'src/common/utils/util';
 import { MetaTagDto } from './dto/create-admin-with-password.dto';
 import { assertInstitutionUploadScope } from '../../common/utils/institution-scope.util';
 
@@ -532,12 +532,12 @@ export class AdminUserService {
       throw new BadRequestException('Current password is required for password update');
     }
 
-    if (currentPassword === newPassword) {
+    if (passwordsMatch(currentPassword, newPassword)) {
       throw new BadRequestException('New password cannot be the same as the current password');
     }
 
 
-    if (adminUser.password !== currentPassword) {
+    if (passwordsDiffer(adminUser.password, currentPassword)) {
       throw new BadRequestException('Invalid current password');
     }
 
@@ -599,7 +599,7 @@ export class AdminUserService {
       throw new NotFoundException('Admin user not found');
     }
 
-    if (admin.password === newPassword) {
+    if (passwordsMatch(admin.password, newPassword)) {
       throw new BadRequestException('New password cannot be the same as the current password');
     }
 

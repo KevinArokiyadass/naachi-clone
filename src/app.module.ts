@@ -8,6 +8,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HttpClientModule } from './common/inter-service-communication/http-client.module';
 import { AppLoggerService } from './common/logger/logger.service';
+import { MongoSanitizeMiddleware } from './common/middleware/mongo-sanitize.middleware';
 import { RequestContextService } from './common/middleware/request.service';
 import { TraceContextMiddleware } from './common/middleware/trace.middleware';
 import { UsersModule } from './modules/users/users.module';
@@ -65,13 +66,14 @@ const ENV = process.env.NODE_ENV;
   providers: [
     AppService,
     AppLoggerService,
-    RequestContextService
+    RequestContextService,
+    MongoSanitizeMiddleware,
   ],
   exports: [AppLoggerService, RequestContextService]
 })
 
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(TraceContextMiddleware).forRoutes('*');
+    consumer.apply(MongoSanitizeMiddleware, TraceContextMiddleware).forRoutes('*');
   }
 }
