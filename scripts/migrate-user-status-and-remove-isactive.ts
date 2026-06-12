@@ -99,7 +99,7 @@ async function main() {
             }
 
             await dbService.users.findOneAndUpdate(
-              { userId: user.userId },
+              { userId: { $eq: user.userId } },
               updateData
             );
             updatedCount++;
