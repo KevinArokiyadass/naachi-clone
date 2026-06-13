@@ -122,6 +122,15 @@ export class AdminUserService {
             updateData.institutionsId = providedInstitutionsId;
           }
 
+          // Sync departmentsId from the admin's first metaTag to the app user record
+          const departmentsId = createAdminDto.metaTags?.[0]?.departmentsId;
+          if (departmentsId !== undefined && departmentsId !== null) {
+            // metaTags.departmentsId is an array; store the first one on the user if available
+            updateData.departmentsId = Array.isArray(departmentsId)
+              ? departmentsId[0] ?? null
+              : departmentsId;
+          }
+
           await this.dbServices.users.findOneAndUpdate(
             { userId: existingUser.userId, isDeleted: false },
             { $set: updateData },
