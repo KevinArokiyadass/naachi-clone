@@ -24,6 +24,37 @@ function resolvePackageName(): string {
   return 'naachi-user-service';
 }
 
+/**
+ * Recursively strips MongoDB operator keys (those starting with `$` or containing
+ * a `.`) from request payloads, mutating objects in place. Acts as an
+ * application-wide guard against NoSQL operator injection (e.g. `?userId[$ne]=`),
+ * complementing the per-query `prepareMongoFilter` sanitisation in the repository
+ * layer. Mutation is in place because Express 5 exposes `req.query` as a getter.
+ */
+function stripMongoOperators(value: unknown): void {
+  if (!value || typeof value !== 'object' || value instanceof Date) {
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) stripMongoOperators(item);
+    return;
+  }
+  for (const key of Object.keys(value as Record<string, unknown>)) {
+    if (key.startsWith('$') || key.includes('.')) {
+      delete (value as Record<string, unknown>)[key];
+      continue;
+    }
+    stripMongoOperators((value as Record<string, unknown>)[key]);
+  }
+}
+
+function mongoSanitizeMiddleware(req: Request, _res: Response, next: NextFunction) {
+  stripMongoOperators(req.body);
+  stripMongoOperators(req.query);
+  stripMongoOperators(req.params);
+  next();
+}
+
 /** Windows/local dev: default DNS often fails MongoDB Atlas SRV lookups (querySrv ECONNREFUSED). */
 function configureDnsForMongoSrv() {
   const fromEnv = process.env.MONGODB_DNS_SERVERS?.split(',')
@@ -57,6 +88,9 @@ async function bootstrap() {
     return next();
   });
 
+  // Strip MongoDB operator keys from all incoming requests (NoSQL injection guard).
+  expressApp.use(mongoSanitizeMiddleware);
+
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.setGlobalPrefix(`api/${name}`);
@@ -72,7 +106,6 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       transform: true,
-      forbidNonWhitelisted: true,
     }),
   );
 

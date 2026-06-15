@@ -102,7 +102,7 @@ export class ReviewReportService {
 
     const reportedUser = await this.usersModel
       .findOne(
-        { userId: reportedUserId, isDeleted: { $in: [null, false] } },
+        { userId: { $eq: reportedUserId }, isDeleted: { $in: [null, false] } },
         { institutionsId: 1, _id: 0 },
       )
       .lean()
@@ -203,7 +203,7 @@ export class ReviewReportService {
     // Institution listing: reports where the reported user belongs to this institution
     if (institutionsId) {
       const userQuery: any = {
-        institutionsId,
+        institutionsId: { $eq: String(institutionsId) },
         isDeleted: { $in: [null, false] },
       };
 
@@ -231,7 +231,10 @@ export class ReviewReportService {
 
     // Build search filter, including user-based search (reporter / reported user)
     if (search) {
-      const searchRegex = new RegExp(search, 'i');
+      // Escape regex metacharacters to prevent ReDoS / regex-injection via the
+      // user-controlled `search` term before compiling it into a RegExp.
+      const escapedSearch = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escapedSearch, 'i');
 
       // Find users whose username or name matches the search term
       const matchedUsers = await this.usersModel
