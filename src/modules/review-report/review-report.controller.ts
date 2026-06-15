@@ -24,7 +24,16 @@ export class ReviewReportController {
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles(AdminRoles.SUPER_ADMIN, AdminRoles.INSTITUTIONADMIN)
   findAll(@Query() query: FetchDto, @Req() req: Request): Promise<IPaginatedResult<any>> {
-    const isSuperAdmin = req['isSuperAdminRequest'];
+    // A super admin must be recognised by their authenticated role, not only by
+    // the request Origin: when a super admin enters through an institution portal
+    // (e.g. agtech.admin...), ClientIdMiddleware leaves `isSuperAdminRequest`
+    // unset and instead populates `institutionsId`. Treating that as an
+    // institution-admin request applies a department filter the super admin has
+    // no metaTags for, which wipes out all results.
+    const adminUser = req['adminUser'];
+    const isSuperAdmin =
+      req['isSuperAdminRequest'] ||
+      String(adminUser?.role).trim().toUpperCase() === AdminRoles.SUPER_ADMIN;
     const sessionInstitutionsId = req['institutionsId'];
 
     const {
@@ -34,7 +43,12 @@ export class ReviewReportController {
       search,
     } = query;
 
-    const institutionsId = isSuperAdmin ? query.institutionsId : sessionInstitutionsId;
+    // For a super admin, scope to the institution context of the portal they
+    // entered through (sessionInstitutionsId) when present, otherwise honour an
+    // explicit query filter (or none = all institutions on the super-admin portal).
+    const institutionsId = isSuperAdmin
+      ? (query.institutionsId ?? sessionInstitutionsId)
+      : sessionInstitutionsId;
 
     let departmentsIdArray: string[] | undefined = undefined;
 
@@ -43,7 +57,6 @@ export class ReviewReportController {
         departmentsIdArray = [query.departmentsId];
       }
     } else {
-      const adminUser = req['adminUser'];
       if (adminUser && adminUser.metaTags && Array.isArray(adminUser.metaTags)) {
         const currentMetaTag = adminUser.metaTags.find(
           (tag: any) => tag && tag.institutionsId && String(tag.institutionsId).trim() === String(sessionInstitutionsId).trim()
