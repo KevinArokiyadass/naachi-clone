@@ -48,4 +48,16 @@ lerna-debug.log*
 .env.prod
 .env.backup*
 
+# Secrets / service-account credentials (never commit these)
+*firebase-adminsdk*.json
+*-firebase-adminsdk-*.json
+**/serviceAccount*.json
+*.pem
+*.p12
+*.key
+
+# Secret-scanner output (contains detected secrets in plaintext)
+gitleaks-report.json
+trivy-report.json
+
 .prettierignore

@@ -1,0 +1,8 @@
+# Known, accepted findings — client Firebase service-account keys committed to
+# history before .gitignore hardening. Keys are the client's; not rotated by
+# decision. These lines suppress ONLY these exact historical findings (gitleaks
+# fingerprints are commit + file + rule + line specific, so new leaks are still
+# detected).
+9394c7a9244d267c96775d51ebf29179a9bb7f02:src/common/config/naachi-chat-app-firebase-adminsdk-fbsvc-013fdb98d5.json:private-key:5
+c1d144115b457d1468bfecc4918000ed7034fb6a:opal-mobile-app-75115-firebase-adminsdk-fbsvc-157ce18d8d.json:private-key:5
+c1d144115b457d1468bfecc4918000ed7034fb6a:README.md:generic-api-key:5
