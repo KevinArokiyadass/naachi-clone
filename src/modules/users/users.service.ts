@@ -945,7 +945,7 @@ export class UsersAuthService implements OnModuleInit {
    */
   private async syncInstitutionIdFromAdminUser(
     email: string,
-  ): Promise<{ emailMatched: true; institutionId?: string } | null> {
+  ): Promise<{ emailMatched: true; institutionId?: string; departmentsId?: string } | null> {
     const adminUser = await this.dbService.adminUser.findOne({
       email: { $eq: email.toLowerCase().trim() },
       isDeleted: { $ne: true },
@@ -955,10 +955,18 @@ export class UsersAuthService implements OnModuleInit {
       return null;
     }
 
-    const institutionId = adminUser.metaTags?.[0]?.institutionsId;
-    return institutionId
-      ? { emailMatched: true, institutionId }
-      : { emailMatched: true };
+    const metaTag = adminUser.metaTags?.[0];
+    const institutionId = metaTag?.institutionsId;
+    // metaTags.departmentsId is an array; store the first one on the user
+    // (mirrors the admin-create sync in admin-user.service.ts).
+    const rawDept = metaTag?.departmentsId;
+    const departmentsId = Array.isArray(rawDept) ? rawDept[0] ?? undefined : rawDept ?? undefined;
+
+    return {
+      emailMatched: true,
+      ...(institutionId ? { institutionId } : {}),
+      ...(departmentsId ? { departmentsId } : {}),
+    };
   }
 
   async verifyEmail(dto: VerifyEmailDto) {
@@ -1089,6 +1097,10 @@ export class UsersAuthService implements OnModuleInit {
         updatePayload.isVerified = true;
       }
 
+      if (adminSyncResult?.departmentsId) {
+        updatePayload.departmentsId = adminSyncResult.departmentsId;
+      }
+
       if (isPendingSignup) {
         updatePayload.status = USER_STATUS.ACTIVE;
         updatePayload.isVerified = adminSyncResult?.emailMatched
@@ -1144,6 +1156,10 @@ export class UsersAuthService implements OnModuleInit {
 
     if (adminSyncResult?.emailMatched) {
       updatePayload.isVerified = true;
+    }
+
+    if (adminSyncResult?.departmentsId) {
+      updatePayload.departmentsId = adminSyncResult.departmentsId;
     }
 
     if (isPendingSignup) {
