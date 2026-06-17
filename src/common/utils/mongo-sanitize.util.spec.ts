@@ -46,4 +46,23 @@ describe('prepareMongoFilter', () => {
   it('sanitizeMongoInput neutralizes operator injection before queries', () => {
     expect(sanitizeMongoInput({ userId: { $ne: '5' } })).toEqual({ userId: {} });
   });
+
+  it('preserves RegExp filter values instead of corrupting them', () => {
+    const regex = /alice/i;
+    expect(prepareMongoFilter({ name: regex })).toEqual({ name: { $eq: regex } });
+  });
+
+  it('preserves class-instance (e.g. ObjectId/Buffer) filter values untouched', () => {
+    // Simulate a BSON ObjectId: a class instance with no enumerable plain keys.
+    class ObjectIdLike {
+      constructor(public readonly id: string) {}
+    }
+    const oid = new ObjectIdLike('64b...');
+    expect(prepareMongoFilter({ _id: oid })).toEqual({ _id: { $eq: oid } });
+  });
+
+  it('preserves Date filter values', () => {
+    const date = new Date('2024-01-01');
+    expect(prepareMongoFilter({ createdAt: date })).toEqual({ createdAt: { $eq: date } });
+  });
 });
