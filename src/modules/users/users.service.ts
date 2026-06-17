@@ -2112,7 +2112,7 @@ export class UsersAuthService implements OnModuleInit {
     }
 
     const updatedUser = await this.dbService.users.findOneAndUpdate(
-      { userId, isDeleted: false },
+      { userId: { $eq: userId }, isDeleted: false },
       updatePayload,
       { new: true },
     );

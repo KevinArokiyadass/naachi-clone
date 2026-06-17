@@ -132,7 +132,7 @@ export class AdminUserService {
           }
 
           await this.dbServices.users.findOneAndUpdate(
-            { userId: existingUser.userId, isDeleted: false },
+            { userId: { $eq: existingUser.userId }, isDeleted: false },
             { $set: updateData },
           );
         } catch (syncError) {
