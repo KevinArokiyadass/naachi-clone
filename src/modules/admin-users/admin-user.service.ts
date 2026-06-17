@@ -33,7 +33,7 @@ export class AdminUserService {
       throw new BadRequestException('Role is required');
     }
 
-    const existingAdmin = await this.dbServices.adminUser.findOne({ email: createAdminDto.email });
+    const existingAdmin = await this.dbServices.adminUser.findOne({ email: { $eq: createAdminDto.email } });
     if (existingAdmin) {
       throw new BadRequestException('Admin with this email already exists');
     }
@@ -69,7 +69,7 @@ export class AdminUserService {
     const phoneNumber = createAdminDto.phoneNumber?.trim();
     if (phoneNumber) {
       const existingPhone = await this.dbServices.adminUser.findOne({
-        phoneNumber,
+        phoneNumber: { $eq: phoneNumber },
         isDeleted: { $ne: true },
       });
 
@@ -147,7 +147,7 @@ export class AdminUserService {
       };
     } catch (cognitoError) {
       try {
-        await this.dbServices.adminUser.findOneAndDelete({ adminId: created.adminId });
+        await this.dbServices.adminUser.findOneAndDelete({ adminId: { $eq: created.adminId } });
       } catch (_) {
         // Ignore deletion errors during rollback
       }
@@ -198,7 +198,7 @@ export class AdminUserService {
     const phoneNumber = createAdminDto.contactNumber?.trim() || createAdminDto.phoneNumber?.trim();
     if (phoneNumber) {
       const existingPhone = await this.dbServices.adminUser.findOne({
-        phoneNumber,
+        phoneNumber: { $eq: phoneNumber },
         isDeleted: { $ne: true },
       });
 
@@ -350,7 +350,7 @@ export class AdminUserService {
           };
 
           await this.dbServices.users.findOneAndUpdate(
-            { userId: existingUser.userId, isDeleted: false },
+            { userId: { $eq: existingUser.userId }, isDeleted: false },
             { $set: updateData }
           );
         } catch (syncError) {
@@ -367,7 +367,7 @@ export class AdminUserService {
     } catch (cognitoError: any) {
       // Rollback database user and institution record
       try {
-        await this.dbServices.adminUser.findOneAndDelete({ adminId: createdAdminDb.adminId });
+        await this.dbServices.adminUser.findOneAndDelete({ adminId: { $eq: createdAdminDb.adminId } });
         await this.recordService.updateRecord('institutions', institutionsId, {
           data: { isDeleted: true, status: 'inactive', isActive: false }
         });
@@ -412,7 +412,7 @@ export class AdminUserService {
   }
 
   async getAdminUserById(adminId: string): Promise<IAdminUser & { permissions?: string[] }> {
-    const adminUser = await this.dbServices.adminUser.findOne({ adminId });
+    const adminUser = await this.dbServices.adminUser.findOne({ adminId: { $eq: adminId } });
     if (!adminUser) {
       throw new NotFoundException('Admin user not found');
     }
@@ -505,7 +505,7 @@ export class AdminUserService {
       }
 
       const updatedUser = await this.dbServices.adminUser.findOneAndUpdate(
-        { adminId },
+        { adminId: { $eq: adminId } },
         updatePayload,
         { new: true }
       );

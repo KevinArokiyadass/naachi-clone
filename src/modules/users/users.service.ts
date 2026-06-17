@@ -2498,7 +2498,7 @@ export class UsersAuthService implements OnModuleInit {
     const hadInstitutionalEmail = Boolean(user.email?.trim());
 
     const updated = await this.dbService.users.findOneAndUpdate(
-      { userId, isDeleted: false },
+      { userId: { $eq: userId }, isDeleted: false },
       this.buildInstitutionDetachUpdate(),
       { new: true },
     );

@@ -80,7 +80,7 @@ export class ReviewReportController {
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles(AdminRoles.SUPER_ADMIN, AdminRoles.INSTITUTIONADMIN)
   findOne(@Param('reviewId') reviewId: string, @Req() req: Request): Promise<ReviewReport> {
-    return this.service.findOne(reviewId, {
+    return this.service.findOne(String(reviewId), {
       isSuperAdminRequest: req['isSuperAdminRequest'],
       institutionsId: req['institutionsId'],
     });
