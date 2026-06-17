@@ -29,11 +29,26 @@ export function sanitizeMongoInput<T>(input: T): T {
   return input;
 }
 
-function isOperatorDocument(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value) || value instanceof Date) {
+/**
+ * True only for "plain" objects (object/array literals). Class instances such as
+ * `RegExp`, `Buffer`, `Date`, or a BSON `ObjectId` return false. Operator
+ * injection can only arrive via plain objects (e.g. `{ $ne: 5 }`), so these are
+ * the only values that need recursive sanitising; special types must be passed
+ * through untouched to avoid corrupting the query.
+ */
+function isPlainObject(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') {
     return false;
   }
-  const keys = Object.keys(value);
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function isOperatorDocument(value: unknown): value is Record<string, unknown> {
+  if (!isPlainObject(value)) {
+    return false;
+  }
+  const keys = Object.keys(value as Record<string, unknown>);
   return keys.length > 0 && keys.every((key) => OPERATOR_KEY.test(key));
 }
 
@@ -79,8 +94,15 @@ export function prepareMongoFilter<T>(filter: FilterQuery<T>): FilterQuery<T> {
       continue;
     }
 
-    if (typeof value === 'object' && !(value instanceof Date)) {
-      result[key] = { $eq: sanitizeMongoInput(value) };
+    if (typeof value === 'object') {
+      // Plain objects (e.g. an embedded-document equality match) are sanitised
+      // recursively so any injected operator keys are stripped. Class instances
+      // such as Date, RegExp, Buffer, or a BSON ObjectId are legitimate scalar
+      // query values and must be wrapped untouched — running them through
+      // sanitizeMongoInput would collapse them to `{ $eq: {} }` and break the query.
+      result[key] = isPlainObject(value)
+        ? { $eq: sanitizeMongoInput(value) }
+        : { $eq: value };
       continue;
     }
 
