@@ -66,6 +66,7 @@
   },
   "overrides": {
     "xlsx@<0.20.2": "https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz",
+    "multer": "^2.2.0",
     "@noukha-technologies/mdm-core": {
       "@nestjs/common": "$@nestjs/common"
     }
